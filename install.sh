@@ -21,10 +21,10 @@ cd ../../src
 mkdir -p armsec
 cd armsec
 if [ ! -f top_thumb.hh ]; then
-    ln -s $PWD../../armsec/build/armsec/top_thumb.hh top_thumb.hh
+    ln -s $PWD/../../armsec/build/armsec/top_thumb.hh top_thumb.hh
 fi
 if [ ! -f top_thumb.tcc ]; then
-    ln -s $PWD../../armsec/build/armsec/top_thumb.hh top_thumb.tcc
+    ln -s $PWD/../../armsec/build/armsec/top_thumb.hh top_thumb.tcc
 fi
 cd ..
 make -j 4
