@@ -10,6 +10,7 @@ make -j 4
 # build armsec
 cd ../../chariot-formal-decoder-armv7
 cd armsec
+autoreconf
 mkdir -p build
 cd build
 ../configure --prefix=$PWD

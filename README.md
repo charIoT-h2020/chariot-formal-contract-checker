@@ -43,6 +43,7 @@ need to be cloned in the same directory.
 
 ```sh
 mkdir chariot-h2020
+cd chariot-h2020
 git clone git@gitlab.com:chariot-h2020/chariot-formal-decoder-armv7.git
 git clone git@gitlab.com:chariot-h2020/chariot-semantic-domains.git
 git clone git@gitlab.com:chariot-h2020/chariot-formal-contract-checker.git
