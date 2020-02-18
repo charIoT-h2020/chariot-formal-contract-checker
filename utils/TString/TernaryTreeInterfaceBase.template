@@ -1,0 +1,790 @@
+/**************************************************************************/
+/*                                                                        */
+/*  Copyright (C) 2013-2019                                               */
+/*    CEA (Commissariat a l'Energie Atomique et aux Energies              */
+/*         Alternatives)                                                  */
+/*                                                                        */
+/*  you can redistribute it and/or modify it under the terms of the GNU   */
+/*  Lesser General Public License as published by the Free Software       */
+/*  Foundation, version 2.1.                                              */
+/*                                                                        */
+/*  It is distributed in the hope that it will be useful,                 */
+/*  but WITHOUT ANY WARRANTY; without even the implied warranty of        */
+/*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         */
+/*  GNU Lesser General Public License for more details.                   */
+/*                                                                        */
+/*  See the GNU Lesser General Public License version 2.1                 */
+/*  for more details (enclosed in the file LICENSE).                      */
+/*                                                                        */
+/**************************************************************************/
+
+/////////////////////////////////
+//
+// Library   : TString
+// Unit      : dictionary
+// File      : TernaryTreeInterfaceBase.template
+// Description :
+//   Implementation of common utilities to the collection dictionaries based on ternary trees.
+//
+
+#ifndef COL_TernaryTreeInterfaceBaseTemplate
+#define COL_TernaryTreeInterfaceBaseTemplate
+
+#include "TString/TernaryTreeInterfaceBase.h"
+// #include "TString/String.hpp"
+
+namespace COL {}
+
+#include "Collection/Collection.template"
+#include "TString/TernaryTreeBase.template"
+
+namespace COL { namespace DTernaryTree {
+
+template <class TypeTree, class Execute, class TemplateParameters>
+bool
+BaseTernaryTreeMethods::foreachDo(const TypeTree& tree, TemplateParameters, Execute& fun,
+      const COL::VirtualCollection::ExtendedLocateParameters& aparameters, const typename TypeTree::Cursor* start,
+      const typename TypeTree::Cursor* end) {
+   const typename TypeTree::ExtendedLocateParameters& parameters
+      = (const typename TypeTree::ExtendedLocateParameters&) aparameters;
+   const typename TypeTree::inheritedImplementation& thisImplementation = tree.getImplementation();
+   typename TypeTree::ExtendedLocateParameters paramsCopy(parameters);
+   if (start) {
+      if (!start->isValid())
+         start = nullptr;
+      else if (!start->getImplementation().isFinalValid())
+         paramsCopy.setFirstExcluded();
+   };
+   if (end) {
+      if (!end->isValid())
+         end = nullptr;
+      else if (!end->getImplementation().isFinalValid())
+         paramsCopy.setLastExcluded();
+   };
+   if (thisImplementation.isEmpty() || (start && end && (*start > *end)))
+      return true;
+   typename TypeTree::inheritedImplementation::Cursor implementationCursor(thisImplementation);
+   typename TypeTree::SubStringKey::String key;
+
+   if (start) {
+      implementationCursor = start->getImplementation();
+      if (paramsCopy.isFirstExcluded()) {
+         if (end && implementationCursor.isEqual(end->getImplementation()))
+            return true;
+         if (!implementationCursor.setToNext(thisImplementation, &key))
+            return true;
+      };
+   }
+   else if (!implementationCursor.setToFirst(thisImplementation, &key))
+      return true;
+   bool result = true, doesContinue = (!end || !implementationCursor.isEqual(end->getImplementation()));
+   while (doesContinue && ((result = fun((typename TemplateParameters::Element&)
+         TemplateParameters::Cast::castFrom(*((typename TypeTree::implementation::Element*)
+               implementationCursor.elementAt())))) != false))
+      doesContinue = implementationCursor.setToNext(thisImplementation, &key)
+         && (!end || !implementationCursor.isEqual(end->getImplementation()));
+   if (end && result && implementationCursor.isEqual(end->getImplementation())
+         && !paramsCopy.isLastExcluded())
+      result = fun((typename TemplateParameters::Element&)
+         TemplateParameters::Cast::castFrom(*((typename TypeTree::implementation::Element*)
+               implementationCursor.elementAt())));
+
+   return result;
+}
+
+template <class TypeTree, class Execute, class TemplateParameters>
+bool
+BaseTernaryTreeMethods::foreachKeyDo(const TypeTree& tree, TemplateParameters, Execute& fun,
+      const COL::VirtualCollection::ExtendedLocateParameters& aparameters, const typename TypeTree::Cursor* start,
+      const typename TypeTree::Cursor* end) {
+   const typename TypeTree::ExtendedLocateParameters& parameters
+      = (const typename TypeTree::ExtendedLocateParameters&) aparameters;
+   const typename TypeTree::inheritedImplementation& thisImplementation = tree.getImplementation();
+   typename TypeTree::ExtendedLocateParameters paramsCopy(parameters);
+   if (start) {
+      if (!start->isValid())
+         start = nullptr;
+      else if (!start->getImplementation().isFinalValid())
+         paramsCopy.setFirstExcluded();
+   };
+   if (end) {
+      if (!end->isValid())
+         end = nullptr;
+      else if (!end->getImplementation().isFinalValid())
+         paramsCopy.setLastExcluded();
+   };
+   if (thisImplementation.isEmpty() || (start && end && (*start > *end)))
+      return true;
+   typename TypeTree::inheritedImplementation::Cursor implementationCursor(thisImplementation);
+   typename TypeTree::SubStringKey::String key;
+
+   if (start) {
+      implementationCursor = start->getImplementation();
+      if (paramsCopy.isFirstExcluded()) {
+         if (end && implementationCursor.isEqual(end->getImplementation()))
+            return true;
+         if (!implementationCursor.setToNext(thisImplementation, &key))
+            return true;
+      };
+   }
+   else if (!implementationCursor.setToFirst(thisImplementation, &key))
+      return true;
+   bool result = true, doesContinue = (!end || !implementationCursor.isEqual(end->getImplementation()));
+   while (doesContinue && ((result = fun(key, (typename TemplateParameters::Element&)
+         TemplateParameters::Cast::castFrom(*((typename TypeTree::implementation::Element*)
+               implementationCursor.elementAt())))) != false))
+      doesContinue = implementationCursor.setToNext(thisImplementation, &key)
+         && (!end || !implementationCursor.isEqual(end->getImplementation()));
+   if (end && result && implementationCursor.isEqual(end->getImplementation())
+         && !paramsCopy.isLastExcluded())
+      result = fun(key, (typename TemplateParameters::Element&)
+         TemplateParameters::Cast::castFrom(*((typename TypeTree::inheritedImplementation::Element*)
+               implementationCursor.elementAt())));
+
+   return result;
+}
+
+template <class TypeTree, class Execute, class TemplateParameters>
+bool
+BaseTernaryTreeMethods::foreachDo(const TypeTree& thisTree, TemplateParameters, Execute& fun) {
+   bool result = true;
+   const typename TypeTree::inheritedImplementation& thisTreeImplementation = thisTree.getImplementation();
+   typename TypeTree::inheritedImplementation::Cursor implementationCursor(thisTreeImplementation);
+   typename TypeTree::SubStringKey::String key;
+   for (bool doesContinue = implementationCursor.setToFirst(thisTreeImplementation, &key); doesContinue && result;
+         doesContinue = implementationCursor.setToNext(thisTreeImplementation, &key))
+      result = fun((typename TemplateParameters::Element&)
+         TemplateParameters::Cast::castFrom(
+            *((typename TypeTree::inheritedImplementation::Element*) implementationCursor.elementAt())));
+   return result;
+}
+
+template <class TypeTree, class Execute, class TemplateParameters>
+bool
+BaseTernaryTreeMethods::foreachKeyDo(const TypeTree& thisTree, TemplateParameters, Execute& fun) {
+   bool result = true;
+   const typename TypeTree::inheritedImplementation& thisTreeImplementation = thisTree.getImplementation();
+   typename TypeTree::inheritedImplementation::Cursor implementationCursor(thisTreeImplementation);
+   typename TypeTree::SubStringKey::String key;
+   for (bool doesContinue = implementationCursor.setToFirst(thisTreeImplementation, &key); doesContinue && result;
+         doesContinue = implementationCursor.setToNext(thisTreeImplementation, &key))
+      result = fun(key, (typename TemplateParameters::Element&)
+         TemplateParameters::Cast::castFrom(
+            *((typename TypeTree::inheritedImplementation::Element*) implementationCursor.elementAt())));
+   return result;
+}
+
+template <class TypeTree, class Execute, class TemplateParameters>
+bool
+BaseTernaryTreeMethods::foreachReverseDo(const TypeTree& tree, TemplateParameters, Execute& fun,
+      const COL::VirtualCollection::ExtendedLocateParameters& aparameters, const typename TypeTree::Cursor* start,
+      const typename TypeTree::Cursor* end) {
+   const typename TypeTree::ExtendedLocateParameters& parameters
+      = (const typename TypeTree::ExtendedLocateParameters&) aparameters;
+   const typename TypeTree::inheritedImplementation& thisTreeImplementation = tree.getImplementation();
+   typename TypeTree::ExtendedLocateParameters paramsCopy(parameters);
+   if (start) {
+      if (!start->isValid())
+         start = nullptr;
+      else if (!start->getImplementation().isFinalValid())
+         paramsCopy.setFirstExcluded();
+   };
+   if (end) {
+      if (!end->isValid())
+         end = nullptr;
+      else if (!end->getImplementation().isFinalValid())
+         paramsCopy.setLastExcluded();
+   };
+   if (thisTreeImplementation.isEmpty() || (end && start && (*start < *end)))
+      return true;
+   typename TypeTree::inheritedImplementation::Cursor implementationCursor(thisTreeImplementation);
+   typename TypeTree::SubStringKey::String key;
+
+   if (start) {
+      implementationCursor = start->getImplementation();
+      if (paramsCopy.isFirstExcluded()) {
+         if (end && implementationCursor.isEqual(end->getImplementation()))
+            return true;
+         if (!implementationCursor.setToPrevious(thisTreeImplementation, &key))
+            return true;
+      };
+   }
+   else if (!implementationCursor.setToLast(thisTreeImplementation, &key))
+      return true;
+   bool result = true, doesContinue = (!end || !implementationCursor.isEqual(end->getImplementation()));
+   while (doesContinue && ((result = eFun((typename TemplateParameters::Element&)
+         TemplateParameters::Cast::castFrom(*((typename TypeTree::inheritedImplementation::Element*)
+               implementationCursor.elementAt())))) != false))
+      doesContinue = implementationCursor.setToPrevious(thisTreeImplementation, &key)
+         && (!end || !implementationCursor.isEqual(end->getImplementation()));
+   if (end && result && implementationCursor.isEqual(end->getImplementation())
+         && !paramsCopy.isLastExcluded())
+      result = fun((typename TemplateParameters::Element&)
+         TemplateParameters::Cast::castFrom(*((typename TypeTree::inheritedImplementation::Element*)
+               implementationCursor.elementAt())));
+
+   return result;
+}
+
+template <class TypeTree, class Execute, class TemplateParameters>
+bool
+BaseTernaryTreeMethods::foreachKeyReverseDo(const TypeTree& tree, TemplateParameters, Execute& fun,
+      const COL::VirtualCollection::ExtendedLocateParameters& aparameters, const typename TypeTree::Cursor* start,
+      const typename TypeTree::Cursor* end) {
+   const typename TypeTree::ExtendedLocateParameters& parameters
+      = (const typename TypeTree::ExtendedLocateParameters&) aparameters;
+   const typename TypeTree::inheritedImplementation& thisTreeImplementation = tree.getImplementation();
+   typename TypeTree::ExtendedLocateParameters paramsCopy(parameters);
+   if (start) {
+      if (!start->isValid())
+         start = nullptr;
+      else if (!start->getImplementation().isFinalValid())
+         paramsCopy.setFirstExcluded();
+   };
+   if (end) {
+      if (!end->isValid())
+         end = nullptr;
+      else if (!end->getImplementation().isFinalValid())
+         paramsCopy.setLastExcluded();
+   };
+   if (thisTreeImplementation.isEmpty() || (end && start && (*start < *end)))
+      return true;
+   typename TypeTree::inheritedImplementation::Cursor implementationCursor(thisTreeImplementation);
+   typename TypeTree::SubStringKey::String key;
+
+   if (start) {
+      implementationCursor = start->getImplementation();
+      if (paramsCopy.isFirstExcluded()) {
+         if (end && implementationCursor.isEqual(end->getImplementation()))
+            return true;
+         if (!implementationCursor.setToPrevious(thisTreeImplementation, &key))
+            return true;
+      };
+   }
+   else if (!implementationCursor.setToLast(thisTreeImplementation, &key))
+      return true;
+   bool result = true, doesContinue = (!end || !implementationCursor.isEqual(end->getImplementation()));
+   while (doesContinue && ((result = fun(key, (typename TemplateParameters::Element&)
+         TemplateParameters::Cast::castFrom(*((typename TypeTree::implementation::Element*)
+               implementationCursor.elementAt())))) != false))
+      doesContinue = implementationCursor.setToPrevious(thisTreeImplementation, &key)
+         && (!end || !implementationCursor.isEqual(end->getImplementation()));
+   if (end && result && implementationCursor.isEqual(end->getImplementation())
+         && !paramsCopy.isLastExcluded())
+      result = fun(key, (typename TemplateParameters::Element&)
+         TemplateParameters::Cast::castFrom(*((typename TypeTree::inheritedImplementation::Element*)
+               implementationCursor.elementAt())));
+
+   return result;
+}
+
+template <class TypeTree, class Execute, class TemplateParameters>
+bool
+BaseTernaryTreeMethods::foreachReverseDo(const TypeTree& thisTree, TemplateParameters, Execute& fun) {
+   bool result = true;
+   const typename TypeTree::inheritedImplementation& thisTreeImplementation = thisTree.getImplementation();
+   typename TypeTree::inheritedImplementation::Cursor implementationCursor(thisTreeImplementation);
+   typename TypeTree::SubStringKey::String key;
+   for (bool doesContinue = implementationCursor.setToLast(thisTreeImplementation, &key); doesContinue && result;
+         doesContinue = implementationCursor.setToPrevious(thisTreeImplementation, &key))
+      result = fun((typename TemplateParameters::Element&)
+         TemplateParameters::Cast::castFrom(
+            *((typename TypeTree::inheritedImplementation::Element*) implementationCursor.elementAt())));
+   return result;
+}
+
+template <class TypeTree, class Execute, class TemplateParameters>
+bool
+BaseTernaryTreeMethods::foreachKeyReverseDo(const TypeTree& thisTree, TemplateParameters, Execute& fun) {
+   bool result = true;
+   const typename TypeTree::inheritedImplementation& thisTreeImplementation = thisTree.getImplementation();
+   typename TypeTree::inheritedImplementation::Cursor implementationCursor(thisTreeImplementation);
+   typename TypeTree::SubStringKey::String key;
+   for (bool doesContinue = implementationCursor.setToLast(thisTreeImplementation, &key); doesContinue && result;
+         doesContinue = implementationCursor.setToPrevious(thisTreeImplementation, &key))
+      result = fun(key, (typename TemplateParameters::Element&)
+         TemplateParameters::Cast::castFrom(
+            *((typename TypeTree::inheritedImplementation::Element*) implementationCursor.elementAt())));
+   return result;
+}
+
+template <class TypeTree>
+void
+BaseTernaryTreeMethods::tremove(TypeTree& thisTree,
+      const COL::VirtualCollection::ExtendedSuppressParameters& aparameters,
+      typename TypeTree::Cursor* cursor) {
+   const typename TypeTree::ExtendedSuppressParameters& parameters
+      = (const typename TypeTree::ExtendedSuppressParameters&) aparameters;
+   thisTree.inherited_remove(parameters, cursor);
+   typename TypeTree::inheritedImplementation::CursorMove move;
+   typename TypeTree::SuppressionNotification notificationData;
+   typename TypeTree::SuppressionNotification* notification = nullptr;
+
+   thisTree.normalizeCursors(cursor);
+   if (parameters.isUndefined() && parameters.hasKey()) {
+      AssumeCondition(dynamic_cast<const DVirtualCollection
+         ::TKeyHandler<typename TypeTree::SubStringKeyTraits>*>(&parameters.getKeyHandler()))
+
+      typename TypeTree::inheritedImplementation::Cursor implCursor(thisTree.getImplementation());
+      typename TypeTree::SubStringKey locate = ((const DVirtualCollection::TKeyHandler<
+            typename TypeTree::SubStringKeyTraits>&) parameters.getKeyHandler()).queryKey();
+      typename TypeTree::inheritedImplementation::LocationResult locateResult
+         = ((const typename TypeTree::inheritedImplementation&) thisTree).locate(locate, implCursor);
+      AssumeCondition(locateResult == TypeTree::inheritedImplementation::LRExact)
+
+      notification = TypeTree::CastCursorHandler::castTo(thisTree).isReferenced() ? &notificationData : nullptr;
+      move = ((typename TypeTree::inheritedImplementation&) thisTree).removeAt(implCursor, parameters.isFree(), notification);
+   }
+   else if (cursor && parameters.isExact()) {
+      cursor->setFinal();
+      typename TypeTree::inheritedImplementation::Cursor& implCursor = cursor->getImplementation();
+      notification = !TypeTree::CastCursorHandler::castTo(thisTree).isSingleReferenced()
+         ? &notificationData : nullptr;
+      move = ((typename TypeTree::inheritedImplementation&) thisTree).removeAt(implCursor, parameters.isFree(), notification);
+      if (notification)
+         notification->setOrigin(*cursor);
+      implCursor.invalidate();
+   }
+   else {
+      typename TypeTree::inheritedImplementation::Cursor newImplCursor(thisTree.getImplementation());
+      typename TypeTree::inheritedImplementation::Cursor& implCursor(cursor
+            ? (typename TypeTree::inheritedImplementation::Cursor&) cursor->getImplementation()
+            : newImplCursor);
+      thisTree.positionCursor(implCursor, parameters, cursor);
+      if (cursor ? !TypeTree::CastCursorHandler::castTo(thisTree).isSingleReferenced()
+            : TypeTree::CastCursorHandler::castTo(thisTree).isReferenced())
+         notification = &notificationData;
+      move = ((typename TypeTree::inheritedImplementation&) thisTree).removeAt(implCursor, parameters.isFree(), notification);
+      if (cursor) {
+         notification->setOrigin(*cursor);
+         cursor->setTreeMode(thisTree, ((typename TypeTree::inheritedImplementation&) thisTree).adjustRemove(implCursor,
+                  parameters.getRelativePosition(), move));
+      };
+   };
+
+   if (notification)
+      thisTree.notifyCursorUpdate(*notification);
+}
+
+template <class TypeTree, class TypeNode>
+void
+BaseTernaryTreeMethods::treplace(TypeTree& thisTree, TypeNode* element,
+      const COL::VirtualCollection::ExtendedReplaceParameters& aparameters,
+      typename TypeTree::Cursor* cursor) {
+   const typename TypeTree::ExtendedReplaceParameters& parameters
+      = (const typename TypeTree::ExtendedReplaceParameters&) aparameters;
+   thisTree.inheritedReplace(element, parameters, cursor);
+   COL::VirtualCollection::AddGuardian<TypeNode> guard(thisTree, element, parameters);
+   element = guard.handleDuplication();
+
+   const COL::VirtualCollection::ExtendedSuppressParameters& suppressionParameters = parameters.getSuppress();
+   if (suppressionParameters.isUndefined() && suppressionParameters.hasKey()) {
+      AssumeCondition(dynamic_cast<const DVirtualCollection
+         ::TKeyHandler<typename TypeTree::SubStringKeyTraits>*>(&suppressionParameters.getKeyHandler()))
+
+      typename TypeTree::inheritedImplementation::Cursor implCursor(thisTree.getImplementation());
+      typename TypeTree::SubStringKey locate = ((const DVirtualCollection::TKeyHandler<
+            typename TypeTree::SubStringKeyTraits>&) suppressionParameters.getKeyHandler()).queryKey();
+      typename TypeTree::inheritedImplementation::LocationResult
+         result = ((const typename TypeTree::inheritedImplementation&) thisTree).locate(locate, implCursor);
+      AssumeCondition(result == TypeTree::inheritedImplementation::LRExact)
+      ((typename TypeTree::inheritedImplementation&) thisTree).replaceAt(implCursor, element, suppressionParameters.isFree());
+   }
+   else if (cursor && suppressionParameters.isExact() && cursor->isExactCursor())
+      ((typename TypeTree::inheritedImplementation&) thisTree).replaceAt(cursor->getImplementation(),
+            element, suppressionParameters.isFree());
+   else {
+      typename TypeTree::inheritedImplementation::Cursor implCursor(thisTree.getImplementation());
+      if (cursor)
+         implCursor = cursor->getImplementation();
+      thisTree.positionCursor(implCursor, suppressionParameters, cursor);
+      ((typename TypeTree::inheritedImplementation&) thisTree).replaceAt(implCursor, element, suppressionParameters.isFree());
+   };
+   guard.release();
+}
+
+/*****************************************************/
+/* Implementation of the template class TTernaryTree */
+/*****************************************************/
+
+template <class TypeSubString, class TypeImplTree, class TypeFollowingCell>
+inline void
+TTernaryTree<TypeSubString, TypeImplTree, TypeFollowingCell>::positionCursor(
+      typename inheritedImplementation::Cursor& implCursor,
+      const typename inherited::ExtendedLocateParameters& parameters,
+      const thisCursorType* cursor, TypeSubString* key) const {
+   if (implCursor.isValid()) {
+      if (parameters.isAfter()) {
+         if (cursor->isExactCursor())
+            implCursor.setToNext(*this, key);
+         else if (cursor->isLeftCursor()) {
+            if (!implCursor.setToFollowsLefter(key))
+               implCursor.setToNext(*this, key);
+         }
+         else if (cursor->isRightCursor()) {
+            if (!implCursor.setToRightLefter(key))
+               implCursor.setToNext(*this, key);
+            implCursor.setToNext(*this, key);
+         };
+      }
+      else if (parameters.isBefore()) {
+         if (cursor->isExactCursor())
+            implCursor.setToPrevious(*this, key);
+         else if (cursor->isRightCursor()) {
+            if (!implCursor.setToFollowsRighter(key))
+               implCursor.setToPrevious(*this, key);
+         }
+         else if (cursor->isLeftCursor()) {
+            if (!implCursor.setToLeftRighter(key))
+               implCursor.setToPrevious(*this, key);
+            implCursor.setToPrevious(*this, key);
+         };
+      }
+      else { // parameters.isExact() || parameters.isUndefined()
+         AssumeCondition(!cursor->isExactCursor())
+         if (cursor->isLeftCursor()) {
+            if (!implCursor.setToLeftRighter(key))
+               implCursor.setToPrevious(*this, key);
+         }
+         else {
+            if (!implCursor.setToRightLefter(key))
+               implCursor.setToNext(*this, key);
+         };
+      };
+   }
+   else {
+      if (parameters.isAfter())
+         implCursor.setToFirst(*this, key);
+      else if (parameters.isBefore())
+         implCursor.setToLast(*this, key);
+      else if (parameters.isUndefined())
+         implCursor.setToInnerDepth(*this, key);
+   };
+}
+
+template <class TypeSubString, class TypeImplTree, class TypeFollowingCell>
+typename TTernaryTree<TypeSubString, TypeImplTree, TypeFollowingCell>::LocationResult
+TTernaryTree<TypeSubString, TypeImplTree, TypeFollowingCell>::_locateKey(const TypeSubString& key,
+      const COL::VirtualCollection::ExtendedLocateParameters& parameters,
+      thisCursorType* cursor, const thisCursorType* start, const thisCursorType* end) const {
+   LocationResult locateResult(key);
+   if ((start && start->isValid()) || (end && end->isValid())) {
+      if ((start && start->isValid() && (key < start->getImplementation().stringAt()))
+            || (end && end->isValid() && (key > end->getImplementation().stringAt())))
+         return locateResult;
+   };
+   if (cursor) {
+      typename thisCursorType::CursorImplementation& implCursor = cursor->getImplementation();
+      implCursor.invalidate();
+      locateResult.setSearchResult(
+            inheritedImplementation::locate(locateResult.getInsertionKey(), implCursor));
+      if (parameters.isExact()) {
+         if (!locateResult.isExact())
+            cursor->invalidate();
+         cursor->setFinal();
+      }
+      else { // parameters.isBefore() || parameters.isAfter() || parameters.isUndefined()
+         if (!locateResult.isExact()) {
+            if (parameters.isBefore() && locateResult.isGreater()) {
+               implCursor.setToPrevious(getImplementation());
+               cursor->setFinal();
+            }
+            else if (parameters.isAfter() && locateResult.isLess()) {
+               implCursor.setToNext(getImplementation());
+               cursor->setFinal();
+            }
+            else {
+               if (implCursor.thisCursorType::CursorImplementation::isValid()) {
+                  locateResult.setNodeCursor(implCursor);
+                  cursor->setIntermediary(locateResult.isLess() ? thisCursorType::MLeft : thisCursorType::MRight);
+               }
+               else
+                  cursor->setFinal();
+            };
+         }
+         else
+            cursor->setFinal();
+      };
+   }
+   else {
+      typename TypeImplTree::Cursor implCursor(getImplementation());
+      locateResult.setBinarySearchResult(
+            inheritedImplementation::locate(locateResult.getInsertionKey(), implCursor));
+   };
+   return locateResult;
+}
+
+template <class TypeSubString, class TypeImplTree, class TypeFollowingCell>
+TypeSubString
+TTernaryTree<TypeSubString, TypeImplTree, TypeFollowingCell>::_queryKey(
+      const COL::VirtualCollection::ExtendedLocateParameters& parameters,
+      const thisCursorType* cursor) const {
+   if (parameters.isUndefined() && parameters.hasKey()) {
+      AssumeCondition(dynamic_cast<const DVirtualCollection::TKeyHandler<
+         typename inherited::SubStringKeyTraits>*>(&parameters.getKeyHandler()))
+
+      return ((const DVirtualCollection::TKeyHandler<typename inherited::SubStringKeyTraits>&)
+            parameters.getKeyHandler()).queryKey();
+   }
+   else if (cursor && parameters.isExact() && cursor->isExactCursor())
+      return cursor->getImplementation().stringAt();
+   else {
+      typename inheritedImplementation::Cursor implCursor(getImplementation());
+      typename TypeSubString::String key;
+      if (cursor)
+         implCursor = cursor->getImplementation();
+
+      positionCursor(implCursor, parameters, cursor, &key);
+      return key;
+   };
+}
+
+template <class TypeSubString, class TypeImplTree, class TypeFollowingCell>
+void
+TTernaryTree<TypeSubString, TypeImplTree, TypeFollowingCell>::_removeAll(
+      const COL::VirtualCollection::ExtendedSuppressParameters& parameters,
+      const thisCursorType* start, const thisCursorType* end) {
+   inherited::_removeAll(parameters, start, end);
+   if ((!start || !start->isValid()) && (!end || !end->isValid())) {
+      typename inherited::InvalidateNotification invalidation;
+      if (parameters.isFree())
+         inheritedImplementation::freeAll();
+      else
+         inheritedImplementation::removeAll();
+      inherited::notifyCursorUpdate(invalidation);
+   }
+   else
+      inherited::premoveAll(parameters, start, end);
+}
+
+
+template <class TypeSubString, class TypeImplTree, class TypeFollowingCell>
+EnhancedObject*
+TTernaryTree<TypeSubString, TypeImplTree, TypeFollowingCell>::_getElement(
+      const COL::VirtualCollection::ExtendedLocateParameters& parameters,
+      const thisCursorType* cursor) const {
+   EnhancedObject* result = inherited::_getElement(parameters, cursor);
+
+   if (parameters.isUndefined() && parameters.hasKey()) {
+      AssumeCondition(dynamic_cast<const DVirtualCollection
+         ::TKeyHandler<typename inherited::SubStringKeyTraits>*>(&parameters.getKeyHandler()))
+
+      typename inheritedImplementation::Cursor implCursor(*this);
+      TypeSubString locate = ((const DVirtualCollection::TKeyHandler<
+            typename inherited::SubStringKeyTraits>&) parameters.getKeyHandler()).queryKey();
+      typename inheritedImplementation::LocationResult locateResult
+         = inheritedImplementation::locate(locate, implCursor);
+      AssumeCondition(locateResult == inheritedImplementation::LRExact)
+      result = implCursor.elementAt();
+   }
+   else if (cursor && parameters.isExact() && cursor->isExactCursor())
+      result = cursor->getImplementation().elementAt();
+   else {
+      typename inheritedImplementation::Cursor implCursor(*this);
+      if (cursor)
+         implCursor = cursor->getImplementation();
+
+      positionCursor(implCursor, parameters, cursor);
+      result = implCursor.elementAt();
+   };
+   return result;
+}
+
+/***********************************************************/
+/* Implementation of the template class TTernaryTreeCursor */
+/***********************************************************/
+
+template <class TypeSubString, class TypeImplTree, class TypeFollowingCell>
+ComparisonResult
+TTernaryTreeCursor<TypeSubString, TypeImplTree, TypeFollowingCell>::_compare(const EnhancedObject& asource) const {
+   ComparisonResult result = inherited::_compare(asource);
+   const thisType& source = (const thisType&) inherited::castFromCopyHandler(asource);
+   if (result == CREqual) {
+      if (!ciPosition.isValid() || !source.ciPosition.isValid())
+         return (!ciPosition.isValid() && !source.ciPosition.isValid())
+            ? CREqual : CRNonComparable;
+      if (ciPosition.getReference() == source.ciPosition.getReference()) {
+         if (inherited::isLeftCursor())
+            return source.isLeftCursor() ? CREqual : CRLess;
+         if (inherited::isRightCursor())
+            return source.isRightCursor() ? CREqual : CRGreater;
+         return source.isLeftCursor() ? CRGreater : (source.isRightCursor() ? CRLess : CREqual);
+      };
+      CursorImplementation thisCopy(getSupport()), sourceCopy(getSupport());
+      const CursorImplementation& thisImplementation = getFinal(thisCopy);
+      const CursorImplementation& sourceImplementation = source.getFinal(sourceCopy);
+      return thisImplementation.compare(sourceImplementation);
+   };
+   return result;
+}
+
+template <class TypeSubString, class TypeImplTree, class TypeFollowingCell>
+bool
+TTernaryTreeCursor<TypeSubString, TypeImplTree, TypeFollowingCell>::_isEqual(const AbstractCursor& acursor) const {
+   bool result = inherited::_isEqual(acursor);
+   if (result) {
+      const thisType& cursor = (const thisType&) acursor;
+      if (!ciPosition.isValid() || !cursor.ciPosition.isValid())
+         return (!ciPosition.isValid() && !cursor.ciPosition.isValid());
+      if (ciPosition.getReference() == cursor.ciPosition.getReference())
+         return inherited::getMode() == cursor.getMode();
+
+      CursorImplementation thisCopy(getSupport()), sourceCopy(getSupport());
+      const CursorImplementation& thisImplementation = getFinal(thisCopy);
+      const CursorImplementation& sourceImplementation = cursor.getFinal(sourceCopy);
+      result = (thisImplementation.getReference() == sourceImplementation.getReference());
+   };
+   return result;
+}
+
+template <class TypeSubString, class TypeImplTree, class TypeFollowingCell>
+EnhancedObject*
+TTernaryTreeCursor<TypeSubString, TypeImplTree, TypeFollowingCell>::_getSElement() const {
+   EnhancedObject* result = nullptr;
+   if (inherited::isExactCursor())
+      result = ciPosition.elementAt();
+   else {
+      CursorImplementation copy(ciPosition);
+      if (inherited::isLeftCursor() && !copy.setToLeftRighter())
+         copy.setToPrevious(getSupport().getImplementation());
+      else if (inherited::isRightCursor() && !copy.setToRightLefter())
+         copy.setToNext(getSupport().getImplementation());
+      result = copy.elementAt();
+   };
+   return result;
+}
+
+template <class TypeSubString, class TypeImplTree, class TypeFollowingCell>
+TypeSubString
+TTernaryTreeCursor<TypeSubString, TypeImplTree, TypeFollowingCell>::_getKey() const {
+   if (inherited::isExactCursor())
+      return ciPosition.stringAt();
+
+   CursorImplementation copy(ciPosition);
+   if (inherited::isLeftCursor() && !copy.setToLeftRighter())
+      copy.setToPrevious(getSupport().getImplementation());
+   else if (inherited::isRightCursor() && !copy.setToRightLefter())
+      copy.setToNext(getSupport().getImplementation());
+   return copy.stringAt();
+}
+
+template <class TypeSubString, class TypeImplTree, class TypeFollowingCell>
+bool
+TTernaryTreeCursor<TypeSubString, TypeImplTree, TypeFollowingCell>::_isPositionned(
+      const COL::VirtualCollection::ExtendedLocateParameters& pos,
+      const VirtualCollectionCursor* acursor) const {
+   // if (!inherited::_isPositionned(pos, acursor))
+   //    return false;
+
+   const thisType* cursor = (const thisType*) acursor;
+   if (!ciPosition.isValid())
+      return pos.isExact() && cursor && !cursor->isValid();
+   if (pos.isUndefined())
+      return true;
+
+   CursorImplementation thisCopy(getSupport());
+   const CursorImplementation& thisImplementation = getFinal(thisCopy);
+
+   if (pos.hasKey()) {
+      AssumeCondition(dynamic_cast<const DVirtualCollection
+         ::TKeyHandler<typename inherited::SubStringKeyTraits>*>(&pos.getKeyHandler()))
+      TypeSubString key = ((const DVirtualCollection::TKeyHandler<
+            typename inherited::SubStringKeyTraits>&) pos.getKeyHandler()).queryKey();
+      return pos.isExact()
+         ? (thisImplementation.stringAt() == key) : (pos.isAfter()
+         ? thisImplementation.isJustAfterKey(key) : thisImplementation.isJustBeforeKey(key));
+   };
+
+   if (cursor) {
+      CursorImplementation sourceCopy(getSupport());
+      const CursorImplementation& sourceImplementation = cursor->getFinal(sourceCopy);
+      return pos.isExact()
+         ? thisImplementation.isEqual(sourceImplementation) : (pos.isAfter()
+         ? thisImplementation.isJustAfter(sourceImplementation) : thisImplementation.isJustBefore(sourceImplementation));
+   }
+   else
+      return pos.isExact() ? isValid() : (pos.isAfter()
+         ? thisImplementation.isInnerLeft() : thisImplementation.isInnerRight());
+}
+
+template <class TypeSubString, class TypeImplTree, class TypeFollowingCell>
+bool
+TTernaryTreeCursor<TypeSubString, TypeImplTree, TypeFollowingCell>::_position(
+      const COL::VirtualCollectionCursor::Position& pos) {
+   inherited::_position(pos);
+   switch (pos.getDirection()) {
+      case COL::VirtualCollectionCursor::Position::DInvalid:
+         ciPosition.invalidate();
+         inherited::releaseMode(getSupport());
+         return false;
+      case COL::VirtualCollectionCursor::Position::DStart:
+         inherited::releaseMode(getSupport());
+         return ciPosition.setToFirst(getSupport());
+      case COL::VirtualCollectionCursor::Position::DEnd:
+         inherited::releaseMode(getSupport());
+         return ciPosition.setToLast(getSupport());
+      case COL::VirtualCollectionCursor::Position::DExact:
+         setFinal();
+         return ciPosition.isValid();
+      case COL::VirtualCollectionCursor::Position::DForward:
+         {  bool result = false;
+            if (ciPosition.isValid()) {
+               if (inherited::isExactCursor())
+                  result = ciPosition.setToNext(getSupport());
+               else {
+                  inherited::releaseMode(getSupport());
+                  if (inherited::isLeftCursor()) {
+                     if (!(result = ciPosition.setToFollowsLefter()))
+                        result = ciPosition.setToNext(getSupport());
+                  }
+                  else { // isRightCursor()
+                     if (!ciPosition.setToRightLefter())
+                        ciPosition.setToNext(getSupport());
+                     result = ciPosition.setToNext(getSupport());
+                  };
+               };
+            }
+            else {
+               inherited::releaseMode(getSupport());
+               result = ciPosition.setToFirst(getSupport());
+            };
+            return result;
+         };
+      case COL::VirtualCollectionCursor::Position::DBackward:
+         {  bool result = false;
+            if (ciPosition.isValid()) {
+               if (inherited::isExactCursor())
+                  result = ciPosition.setToPrevious(getSupport());
+               else {
+                  inherited::releaseMode(getSupport());
+                  if (inherited::isRightCursor()) {
+                     if (!(result = ciPosition.setToFollowsRighter()))
+                        result = ciPosition.setToPrevious(getSupport());
+                  }
+                  else { // isLeftCursor()
+                     if (!ciPosition.setToLeftRighter())
+                        ciPosition.setToPrevious(getSupport());
+                     result = ciPosition.setToPrevious(getSupport());
+                  };
+               };
+            }
+            else {
+               inherited::releaseMode(getSupport());
+               result = ciPosition.setToLast(getSupport());
+            };
+            return result;
+         };
+      case COL::VirtualCollectionCursor::Position::DAny:
+         {  bool result = false;
+            inherited::releaseMode(getSupport());
+            result = ciPosition.setToInnerDepth(getSupport());
+            return result;
+         };
+   };
+   return false;
+}
+
+}} // end of namespace COL::DTernaryTree
+
+#endif // COL_TernaryTreeInterfaceBaseTemplate
+

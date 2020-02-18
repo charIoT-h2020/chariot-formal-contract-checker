@@ -1,0 +1,1182 @@
+/**************************************************************************/
+/*                                                                        */
+/*  Copyright (C) 2013-2019                                               */
+/*    CEA (Commissariat a l'Energie Atomique et aux Energies              */
+/*         Alternatives)                                                  */
+/*                                                                        */
+/*  you can redistribute it and/or modify it under the terms of the GNU   */
+/*  Lesser General Public License as published by the Free Software       */
+/*  Foundation, version 2.1.                                              */
+/*                                                                        */
+/*  It is distributed in the hope that it will be useful,                 */
+/*  but WITHOUT ANY WARRANTY; without even the implied warranty of        */
+/*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         */
+/*  GNU Lesser General Public License for more details.                   */
+/*                                                                        */
+/*  See the GNU Lesser General Public License version 2.1                 */
+/*  for more details (enclosed in the file LICENSE).                      */
+/*                                                                        */
+/**************************************************************************/
+
+/////////////////////////////////
+//
+// Library   : TString
+// Unit      : sub-string
+// File      : SetOfChars.template
+// Description :
+//   Implementation of sets of chars.
+//
+
+#ifndef STG_SetOfCharsTEMPLATE
+#define STG_SetOfCharsTEMPLATE
+
+#include "TString/SetOfChars.h"
+// #include "TString/String.hpp"
+#include "Pointer/Binary.template"
+
+/*********************************************************/
+/* Implementation of the template class TAVLBasedCharSet */
+/*********************************************************/
+
+namespace STG {
+
+namespace DCharsSet {
+
+template <class TypeSubString>
+Access::ReadResult 
+Access::TSpecialCharParser<TypeSubString>::readChar(TypeSubString& subString) {
+   if (subString.isEmpty())
+      return RRNeedChars;
+   cReadChar = (char) subString.getChar();
+   fSpecial = false;
+   if (SetOfChars::special.accept(cReadChar)) {
+      if (cReadChar == '\\') {
+         if (subString.length() <= 1)
+            return RRNeedChars;
+         cReadChar = subString[1];
+         subString.advance(2);
+         return RRHasToken;
+      }
+      else
+         fSpecial = true;
+   };
+   subString.advance();
+   return RRHasToken;
+}
+
+template <class TypeSet, typename TypeChar, class TypeSubString, class TypeCharParser>
+Access::ReadResult
+Access::TParser<TypeSet, TypeChar, TypeSubString, TypeCharParser>::addSimp(
+      TypeSet& set, TypeSubString& source, const ComparisonMode& mode) {
+   switch (querySimpleStateField()) {
+      case SSInitial:
+         {  ReadResult result = tcpCharParser.readChar(source);
+            if (result < RRHasToken)
+               return result;
+            setSimpleStateField(SSAfterInitial);
+         };
+      case SSAfterInitial:
+         {  bool isSpecial = tcpCharParser.isSpecial();
+            while (isSpecial && tcpCharParser.isNegation()) {
+               setExcludeField(1-queryExcludeField());
+               ReadResult result = tcpCharParser.readChar(source);
+               if (result < RRHasToken)
+                  return result;
+               isSpecial = tcpCharParser.isSpecial();
+            };
+            if (isSpecial && tcpCharParser.isOpenBracket()) {
+               setSimpleStateField(SSOpenBracket);
+               goto LOpenBracket;
+            }
+            else {
+               if (!isSpecial) {
+                  if (hasExcludeField())
+                     set.addNot(tcpCharParser.getReadChar(), mode);
+                  else
+                     set.add(tcpCharParser.getReadChar(), mode);
+               }
+               else {
+                  if (tcpCharParser.isBeginOfLine()) {
+                     if (!hasExcludeField())
+                        set.addBLine();
+                     else
+                        set.add(TypeSet().addBLine().negate());
+                  }
+                  else if (tcpCharParser.isEndOfLine()) {
+                     if (!hasExcludeField())
+                        set.addELine();
+                     else
+                        set.add(TypeSet().addELine().negate());
+                  }
+                  else if (tcpCharParser.isAll()) {
+                     if (!hasExcludeField())
+                        set.addAll();
+                  }
+                  else
+                     throw EReadError();
+               };
+            };
+         };
+         break;
+      case SSOpenBracket:
+LOpenBracket:
+         {  ReadResult result = tcpCharParser.readChar(source);
+            if (result < RRHasToken)
+               return result;
+            if (tcpCharParser.isSpecial())
+               throw EReadError();
+            tcMin = tcpCharParser.getReadChar();
+            setSimpleStateField(SSInterval);
+         };
+      case SSInterval:
+         {  ReadResult result = tcpCharParser.readChar(source);
+            if (result < RRHasToken)
+               return result;
+            if (!tcpCharParser.isSpecial() || !tcpCharParser.isIntervalDelimiter())
+               throw EReadError();
+            setSimpleStateField(SSMaxInterval);
+         };
+      case SSMaxInterval:
+         {  ReadResult result = tcpCharParser.readChar(source);
+            if (result < RRHasToken)
+               return result;
+            if (tcpCharParser.isSpecial())
+               throw EReadError();
+            tcMax = tcpCharParser.getReadChar();
+            setSimpleStateField(SSCloseBracket);
+         };
+      case SSCloseBracket:
+         {  ReadResult result = tcpCharParser.readChar(source);
+            if (result < RRHasToken)
+               return result;
+            if (!tcpCharParser.isSpecial() || !tcpCharParser.isCloseBracket())
+               throw EReadError();
+            if (!hasExcludeField())
+               set.addInterval(tcMin, tcMax, mode);
+            else
+               set.add(TypeSet().addInterval(tcMin, tcMax, mode).negate());
+            break;
+         };
+      default:
+         AssumeUncalled
+   };
+   clearSimpleStateField();
+   clearExcludeField();
+   return RRHasToken;
+}
+
+template <class TypeSet, typename TypeChar, class TypeSubString, class TypeCharParser>
+Access::ReadResult
+Access::TParser<TypeSet, TypeChar, TypeSubString, TypeCharParser>::parse(
+      TypeSet& set, TypeSubString& source, const ComparisonMode& mode) {
+   switch (queryStateField()) {
+      case SInitial:
+         {  ReadResult result = tcpCharParser.readChar(source);
+            if (result < RRHasToken)
+               return result;
+            if (tcpCharParser.isSpecial() && tcpCharParser.isOpenBracket()) {
+               setStateField(SOpenBracket);
+               goto LOpenBracket;
+            };
+            setStateField(SSimple);
+            setSimpleStateField(SSAfterInitial);
+         };
+      case SSimple:
+LSimple:
+         {  ReadResult result = addSimp(set, source, mode);
+            if (result < RRHasToken)
+               return result;
+            break;
+         };
+      case SOpenBracket:
+LOpenBracket:
+         {  ReadResult result = tcpCharParser.readChar(source);
+            if (result < RRHasToken)
+               return result;
+            if (tcpCharParser.isSpecial()
+                  && (tcpCharParser.isOpenBracket() || tcpCharParser.isNegation())) {
+               setStateField(SAtomDisjunction);
+               setSimpleStateField(tcpCharParser.isOpenBracket() ? SSOpenBracket : SSAfterInitial);
+               goto LAtomDisjunction;
+            }
+            else if (tcpCharParser.isSpecial())
+               throw EReadError();
+            tcMin = tcpCharParser.getReadChar();
+            setStateField(SAfterOpenBracketAtom);
+         };
+      case SAfterOpenBracketAtom:
+         {  ReadResult result = tcpCharParser.readChar(source);
+            if (result < RRHasToken)
+               return result;
+            if (tcpCharParser.isSpecial() && tcpCharParser.isIntervalDelimiter()) {
+               setStateField(SSimple);
+               setSimpleStateField(SSMaxInterval);
+               goto LSimple;
+            };
+            set.add(tcMin, mode);
+            setStateField(SDisjunction);
+            goto LDisjunction;
+         };
+      case SAtomDisjunction:
+LAtomDisjunction:
+         {  ReadResult result = addSimp(set, source, mode);
+            if (result < RRHasToken)
+               return result;
+            setStateField(SDisjunction);
+         };
+      case SDisjunction:
+         {  ReadResult result = tcpCharParser.readChar(source);
+            if (result < RRHasToken)
+               return result;
+         };
+LDisjunction:
+         if (tcpCharParser.isSpecial() && tcpCharParser.isDisjunction()) {
+            setStateField(SOpenBracket);
+            AssumeCondition(!hasSimpleStateField())
+            goto LOpenBracket;
+         };
+         if (!tcpCharParser.isSpecial() || !tcpCharParser.isCloseBracket())
+            throw EReadError();
+         break;
+      default:
+         AssumeUncalled
+   };
+   clearOwnField();
+   return RRFinished;
+}
+
+}} // end of namespace STG::DCharsSet
+
+namespace COL { namespace DSTG { namespace DTAVLBasedCharSet {
+
+#define DefineTemplate template <typename TypeChar, class CharTraits>
+#define DefineTypeNode Interval<TypeChar, CharTraits>
+#define DefineTypeBinaryTree IntervalsSet<TypeChar, CharTraits>
+#define DefineUninheritsEnhancedObject
+#include "Pointer/Binary.incc"
+#undef DefineUninheritsEnhancedObject
+#undef DefineTypeNode
+#undef DefineTypeBinaryTree
+#undef DefineTemplate
+
+}}} // end of namespace COL::DSTG::DTAVLBasedCharSet
+
+namespace STG {
+
+template <typename TypeChar, class CharTraits>
+auto
+TAVLBasedCharSet<TypeChar, CharTraits>::add(const TypeChar& achar) -> thisType& {
+   if (inheritedImplementation::isEmpty()) {
+      inheritedImplementation::addAsFirst(new Interval(achar, achar));
+      return *this;
+   };
+
+   typename inheritedImplementation::Cursor cursor(*this);
+   typename Interval::Balance balance
+      = inheritedImplementation::tlocateBefore(CharLocate(achar, cursor));
+   if (balance == Interval::BEqual)
+      return *this;
+
+   typename inheritedImplementation::Cursor upper(cursor);
+   if (balance == Interval::BLeft) {
+      upper.setToPrevious(*this);
+      Interval* element = cursor.elementAt();
+      if (element->isPrevMin(achar)) {
+         if (upper.isValid() && upper.elementAt()->isNextMax(achar)) {
+            upper.elementAt()->setMax(element->max());
+            upper.invalidate();
+            inheritedImplementation::removeAt(cursor);
+            if (element)
+               delete element;
+         }
+         else
+            element->setMin(achar);
+         return *this;
+      }
+      else if (upper.isValid() && upper.elementAt()->isNextMax(achar)) {
+         upper.elementAt()->setMax(achar);
+         return *this;
+      };
+   }
+   else {
+      upper.setToNext(*this);
+      AssumeCondition(balance == Interval::BRight)
+      Interval* element = cursor.elementAt();
+      if (element->isNextMax(achar)) {
+         if (upper.isValid() && upper.elementAt()->isPrevMin(achar)) {
+            upper.elementAt()->setMin(element->min());
+            upper.invalidate();
+            inheritedImplementation::removeAt(cursor);
+            if (element)
+               delete element;
+         }
+         else
+            element->setMax(achar);
+         return *this;
+      }
+      else if (upper.isValid() && upper.elementAt()->isPrevMin(achar)) {
+         upper.elementAt()->setMin(achar);
+         return *this;
+      };
+   };
+
+   inheritedImplementation::addAsSon(new Interval(achar, achar), cursor, balance);
+   return *this;
+}
+
+template <typename TypeChar, class CharTraits>
+auto
+TAVLBasedCharSet<TypeChar, CharTraits>::add(const thisType& source) -> thisType& {
+   if (source.queryCount() > queryCount()) {
+      thisType copySource(source);
+      typename inheritedImplementation::Cursor cursor(*this);
+      for (bool doesContinue = cursor.setToFirst(*this); doesContinue;
+            doesContinue = cursor.setToNext(*this)) {
+         Interval& interval = *cursor.elementAt();
+         copySource.addInterval(interval.min(), interval.max());
+      };
+      inheritedImplementation::swap(copySource);
+   }
+   else {
+      typename inheritedImplementation::Cursor sourceCursor(source);
+      for (bool doesContinue = sourceCursor.setToFirst(source); doesContinue;
+            doesContinue = sourceCursor.setToNext(source)) {
+         const Interval& sourceInterval = *sourceCursor.elementAt();
+         addInterval(sourceInterval.min(), sourceInterval.max());
+      };
+   };
+   return *this;
+}
+
+template <typename TypeChar, class CharTraits>
+auto
+TAVLBasedCharSet<TypeChar, CharTraits>::addNegation(const thisType& source) -> thisType& {
+   if (source.queryCount() <= queryCount()) {
+      typename inheritedImplementation::Cursor sourceCursor(source);
+      TypeChar min = CharTraits::getLowerBound();
+      if (sourceCursor.setToFirst(source)) {
+         const Interval* sourceInterval = sourceCursor.elementAt();
+         if (min < sourceInterval->min())
+            addInterval(min, CharTraits::getBefore(sourceInterval->min()));
+         min = sourceInterval->max();
+         while (sourceCursor.setToNext(source)) {
+            CharTraits::setToNext(min);
+            addInterval(min, CharTraits::getBefore(sourceInterval->min()));
+            min = sourceInterval->max();
+         };
+         if (min < CharTraits::getUpperBound()) {
+            CharTraits::setToNext(min);
+            addInterval(min, CharTraits::getUpperBound());
+         };
+      };
+   }
+   else {
+      thisType copySource(source);
+      copySource.negate();
+      typename inheritedImplementation::Cursor cursor(*this);
+      for (bool doesContinue = cursor.setToFirst(*this); doesContinue;
+            doesContinue = cursor.setToNext(*this)) {
+         const Interval& interval = *cursor.elementAt();
+         copySource.addInterval(interval.min(), interval.max());
+      };
+      inheritedImplementation::swap(copySource);
+   };
+   return *this;
+}
+
+template <typename TypeChar, class CharTraits>
+auto
+TAVLBasedCharSet<TypeChar, CharTraits>::addInterval(const TypeChar& lower, const TypeChar& upper) -> thisType& {
+   if (lower > upper)
+      return *this;
+      
+   if (inheritedImplementation::isEmpty()) {
+      inheritedImplementation::addAsFirst(new Interval(lower, upper));
+      return *this;
+   };
+
+   typename inheritedImplementation::Cursor minCursor(*this);
+   Interval* maxInterval = nullptr;
+
+   {  typename Interval::Balance balanceMin
+         = inheritedImplementation::tlocateBefore(CharLocate(lower, minCursor));
+      Interval* element = minCursor.elementAt();
+      if (balanceMin == Interval::BLeft) {
+         typename inheritedImplementation::Cursor upperCursor(minCursor);
+         upperCursor.setToPrevious(*this);
+         if (upper <= element->max()) {
+            if (element->isPrevMin(upper) || (upper >= element->min())) {
+               if (upperCursor.isValid() && (upperCursor.elementAt()->isNextMax(lower))) {
+                  upperCursor.elementAt()->setMax(element->max());
+                  upperCursor.invalidate();
+                  inheritedImplementation::removeAt(minCursor);
+                  if (element)
+                     delete element;
+               }
+               else
+                  element->setMin(lower);
+            }
+            else if (upperCursor.isValid() && upperCursor.elementAt()->isNextMax(lower)) {
+               upperCursor.elementAt()->setMax(upper);
+            }
+            else
+               inheritedImplementation::addAsSon(new Interval(lower, upper), minCursor, balanceMin);
+            return *this;
+         };
+
+         if (upperCursor.isValid() && upperCursor.elementAt()->isNextMax(lower))
+            minCursor = upperCursor;
+         else
+            element->setMin(lower);
+      }
+      else { // balanceMin == Interval::BRight || balanceMin == Interval::BEqual
+         if ((balanceMin == Interval::BEqual) && (upper <= element->max()))
+            return *this;
+         typename inheritedImplementation::Cursor upperCursor(minCursor);
+         upperCursor.setToNext(*this);
+         if (!upperCursor.isValid() || (upper <= upperCursor.elementAt()->max())) {
+            maxInterval = upperCursor.elementAt();
+            if ((balanceMin == Interval::BEqual) || element->isNextMax(lower)) {
+               if (upperCursor.isValid() && (maxInterval->isPrevMin(upper) || (upper >= maxInterval->min()))) {
+                  maxInterval->setMin(element->min());
+                  upperCursor.invalidate();
+                  inheritedImplementation::removeAt(minCursor);
+                  if (element)
+                     delete element;
+               }
+               else
+                  element->setMax(upper);
+            }
+            else if (upperCursor.isValid() && (maxInterval->isPrevMin(upper) || (upper >= maxInterval->min())))
+               maxInterval->setMin(lower);
+            else
+               inheritedImplementation::addAsSon(new Interval(lower, upper), minCursor, balanceMin);
+            return *this;
+         }
+         else if ((balanceMin == Interval::BRight) && !element->isNextMax(lower)) {
+            minCursor = upperCursor;
+            minCursor.elementAt()->setMin(lower);
+         };
+      };
+   };
+
+   {  typename inheritedImplementation::Cursor maxCursor(*this);
+      typename Interval::Balance balanceMax
+         = inheritedImplementation::tlocateBefore(CharLocate(upper, maxCursor));
+      maxInterval = maxCursor.elementAt();
+      if (balanceMax == Interval::BRight) {
+         maxCursor.setToNext(*this);
+         if (maxCursor.isValid() && maxCursor.elementAt()->isPrevMin(upper))
+            maxInterval = maxCursor.elementAt();
+         else
+            maxInterval->setMax(upper);
+      }
+      else if ((balanceMax == Interval::BLeft) && !maxInterval->isPrevMin(upper)) {
+         maxCursor.setToPrevious(*this);
+         maxInterval = maxCursor.elementAt();
+         AssumeCondition(maxInterval)
+         maxInterval->setMax(upper);
+      };
+   };
+
+   AssumeCondition(maxInterval && minCursor.isValid())
+   {  Interval* interval = minCursor.elementAt();
+      if (interval == maxInterval)
+         return *this;
+      interval->setMax(maxInterval->max());
+   };
+
+   bool doesContinue = true;
+   minCursor.setToNext((const inheritedImplementation&) *this);
+   do {
+      AssumeCondition(minCursor.isValid())
+      Interval* removedInterval = minCursor.elementAt();
+      typename inheritedImplementation::CursorMove move = inheritedImplementation::removeAt(minCursor);
+      if ((doesContinue = (removedInterval != maxInterval)) != false)
+         inheritedImplementation::adjustRemove(minCursor, Interval::BRight, move);
+      if (removedInterval)
+         delete removedInterval;
+   } while (doesContinue);
+
+   return *this;
+}
+
+template <typename TypeChar, class CharTraits>
+auto
+TAVLBasedCharSet<TypeChar, CharTraits>::addInterval(const TypeChar& lower, const TypeChar& upper,
+      const ComparisonMode& mode) -> thisType& {
+   addInterval(lower, upper);
+   if (mode.isCaseInsensitive()) {
+      if ((lower >= sminUpper()) && (upper <= smaxUpper()))
+         addInterval(slower(lower), slower(upper));
+      else if ((lower >= sminLower()) && (upper <= smaxLower()))
+         addInterval(supper(lower), supper(upper));
+      else {
+         if ((lower > smaxUpper()) || (upper < sminLower()))
+            return *this;
+         if ((lower > smaxLower()) && (upper < sminUpper()))
+            return *this;
+         if ((lower <= sminLower()) && (upper >= smaxUpper()))
+            return *this;
+
+         if (lower < sminLower()) {
+            // upper < smaxUpper() && upper >= sminLower()
+            if (upper <= smaxLower())
+               addInterval(sminUpper(), supper(upper));
+            else
+               addInterval(sminUpper(), smaxUpper());
+         }
+         else if (lower <= smaxLower()) {
+            if (upper <= smaxLower())
+               addInterval(supper(lower), supper(upper));
+            else {
+               addInterval(supper(lower), smaxUpper());
+               if (upper >= sminUpper()) {
+                  if (upper <= smaxUpper())
+                     addInterval(sminLower(), slower(upper));
+                  else
+                     addInterval(sminLower(), smaxLower());
+               };
+            };
+         }
+         else if (lower < sminUpper()) {
+            // upper >= sminUpper()
+            if (upper <= smaxUpper())
+               addInterval(sminLower(), slower(upper));
+            else
+               addInterval(sminLower(), smaxLower());
+         }
+         else if (upper <= smaxUpper())
+            addInterval(slower(lower), slower(upper));
+         else // lower >= sminUpper() && lower <= smaxUpper()
+            // && upper > smaxUpper()
+            addInterval(slower(lower), smaxLower());
+      };
+   };
+   return *this;
+}
+
+template <typename TypeChar, class CharTraits>
+auto
+TAVLBasedCharSet<TypeChar, CharTraits>::addNot(const TypeChar& achar, const ComparisonMode& mode)
+      -> thisType& {
+   if (accept(achar) && (mode.isCaseSensitive()
+         || ((!CharTraits::isLower(achar) || accept(CharTraits::upper(achar)))
+            && (!CharTraits::isUpper(achar) || accept(CharTraits::lower(achar)))))) {
+      inheritedImplementation::freeAll();
+      inheritedImplementation::addAsFirst(new Interval(CharTraits::getLowerBound(), CharTraits::getUpperBound()));
+   }
+   else {
+      if (isSensitive(achar)) {
+         TypeChar previousLower, nextLower, previousUpper, nextUpper;
+         if (achar >= sminLower() && achar <= smaxLower()) {
+            previousLower = nextLower = achar;
+            previousUpper = nextUpper = supper(achar);
+         }
+         else {
+            AssumeCondition(achar >= sminUpper() && achar <= smaxUpper())
+            previousLower = nextLower = slower(achar);
+            previousUpper = nextUpper = achar;
+         };
+               
+         inheritedImplementation::freeAll();
+         CharTraits::setToNext(nextLower);
+         CharTraits::setToPrevious(previousUpper);
+         inheritedImplementation::addAsFirst(new Interval(nextLower, previousUpper));
+         if (CharTraits::getLowerBound() != previousLower) {
+            CharTraits::setToPrevious(previousLower);
+            inheritedImplementation::addAsFirst(new Interval(CharTraits::getLowerBound(), previousLower));
+         };
+         
+         if (CharTraits::getUpperBound() != nextUpper) {
+            CharTraits::setToNext(nextUpper);
+            inheritedImplementation::addAsLast(new Interval(nextUpper, CharTraits::getUpperBound()));
+         };
+      }
+      else {
+         TypeChar previous = achar, next = achar;
+         inheritedImplementation::freeAll();
+         if (CharTraits::getLowerBound() != previous) {
+            CharTraits::setToPrevious(previous);
+            inheritedImplementation::addAsFirst(new Interval(CharTraits::getLowerBound(), previous));
+         };
+         if (CharTraits::getUpperBound() != next) {
+            CharTraits::setToNext(next);
+            inheritedImplementation::addAsLast(new Interval(next, CharTraits::getUpperBound()));
+         };
+      };
+   };
+   return *this;
+}
+
+template <typename TypeChar, class CharTraits>
+auto
+TAVLBasedCharSet<TypeChar, CharTraits>::remove(const TypeChar& achar) -> thisType& {
+   typename inheritedImplementation::Cursor cursor(*this);
+   typename Interval::Balance balance
+      = inheritedImplementation::tlocateBefore(CharLocate(achar, cursor));
+   if (balance == Interval::BEqual) {
+      Interval* interval = cursor.elementAt();
+      if (interval->min() == interval->max()) {
+         inherited::removeAt(cursor);
+         if (interval)
+            delete interval;
+      }
+      else if (interval->min() == achar)
+         CharTraits::setToNext(interval->min());
+      else if (interval->max() == achar)
+         CharTraits::setToPrevious(interval->max());
+      else if (interval->isLeftBalanced()) { // insertion to the right
+         Interval* rightInterval = new Interval(*interval);
+         TypeChar maxLower(achar), minUpper(achar);
+         CharTraits::setToPrevious(maxLower);
+         CharTraits::setToNext(minUpper);
+         interval->max() = maxLower;
+         rightInterval->min() = minUpper;
+         inheritedImplementation::addAsSon(rightInterval, cursor, Interval::BRight);
+      }
+      else { // insertion to the left
+         Interval* leftInterval = new Interval(*interval);
+         TypeChar maxLower(achar), minUpper(achar);
+         CharTraits::setToPrevious(maxLower);
+         CharTraits::setToNext(minUpper);
+         leftInterval->max() = maxLower;
+         interval->min() = minUpper;
+         inheritedImplementation::addAsSon(leftInterval, cursor, Interval::BLeft);
+      };
+   };
+   return *this;
+}
+
+template <typename TypeChar, class CharTraits>
+auto
+TAVLBasedCharSet<TypeChar, CharTraits>::negate() -> thisType& {
+   typename inheritedImplementation::Cursor cursor(*this);
+   TypeChar min = CharTraits::getLowerBound(), max = CharTraits::getUpperBound();
+   if (cursor.setToFirst(*this)) {
+      Interval* interval = cursor.elementAt();
+      if (interval->min() != min) {
+         bool doesInsert = false;
+         do {
+            TypeChar newMin = interval->max();
+            interval->max() = interval->min();
+            interval->min() = min;
+            CharTraits::setToPrevious(interval->max());
+            min = newMin;
+            bool doesInsert = (min != max);
+            if (doesInsert) {
+               CharTraits::setToNext(min);
+               interval = cursor.setToNext(*this) ? cursor.elementAt() : nullptr;
+            }
+            else
+               interval = nullptr;
+         } while (interval != nullptr);
+         if (doesInsert)
+            inheritedImplementation::addAsLast(new Interval(min, max));
+      }
+      else {
+         cursor.setToLast(*this);
+         interval = cursor.elementAt();
+         if (interval->max() != max) {
+            do {
+               TypeChar newMax = interval->min();
+               interval->min() = interval->max();
+               interval->max() = max;
+               CharTraits::setToNext(interval->min());
+               max = newMax;
+               if (cursor.setToPrevious(*this)) {
+                  interval = cursor.elementAt();
+                  CharTraits::setToPrevious(max);
+               }
+               else
+                  interval = nullptr;
+            } while (interval != nullptr);
+         }
+         else {
+            bool isForward = false;
+            if (inherited::root()->isLeftBalanced()) {
+               cursor.setToFirst(*this);
+               interval = cursor.elementAt();
+               isForward = true;
+            };
+            if (isForward) {
+               min = interval->max();
+               typename inheritedImplementation::CursorMove move = inheritedImplementation::removeAt(cursor);
+               inheritedImplementation::adjustRemove(cursor, Interval::BRight, move);
+               for (bool doesContinue = cursor.isValid(); doesContinue; doesContinue = cursor.setToNext(*this)) {
+                  CharTraits::setToNext(min);
+                  interval = cursor.elementAt();
+                  TypeChar newMin = interval->max();
+                  interval->max() = interval->min();
+                  interval->min() = min;
+                  CharTraits::setToPrevious(interval->max());
+                  min = newMin;
+               };
+            }
+            else {
+               max = interval->min();
+               typename inheritedImplementation::CursorMove move = inheritedImplementation::removeAt(cursor);
+               inheritedImplementation::adjustRemove(cursor, Interval::BLeft, move);
+               for (bool doesContinue = cursor.isValid(); doesContinue; doesContinue = cursor.setToPrevious(*this)) {
+                  CharTraits::setToPrevious(max);
+                  interval = cursor.elementAt();
+                  TypeChar newMax = interval->min();
+                  interval->min() = interval->max();
+                  interval->max() = max;
+                  CharTraits::setToNext(interval->min());
+                  max = newMax;
+               };
+            };
+         };
+      };
+   }
+   else
+      inheritedImplementation::addAsFirst(new Interval(min, max));
+   return *this;
+}
+
+template <typename TypeChar, class CharTraits>
+auto
+TAVLBasedCharSet<TypeChar, CharTraits>::removeInterval(const TypeChar& lower, const TypeChar& upper)
+      -> thisType& {
+   if ((lower > upper) || inheritedImplementation::isEmpty())
+      return *this;
+   typename inheritedImplementation::Cursor minCursor(*this);
+   typename Interval::Balance balanceMin
+      = inheritedImplementation::tlocateBefore(CharLocate(lower, minCursor));
+
+   Interval* interval = minCursor.elementAt();
+   if ((balanceMin == Interval::BEqual) && (interval->max() >= upper)) {
+      if (interval->min() == lower) {
+         if (interval->max() == upper) {
+            inheritedImplementation::removeAt(minCursor);
+            if (interval)
+               delete interval;
+         }
+         else {
+            TypeChar newMin(upper);
+            CharTraits::setToNext(newMin);
+            interval->min() = newMin;
+         };
+      }
+      else if (interval->max() == upper) {
+         TypeChar newMax(lower);
+         CharTraits::setToPrevious(newMax);
+         interval->max() = newMax;
+      }
+      else {
+         if (interval->isLeftBalanced()) {
+            Interval* rightInterval = new Interval(*interval);
+            interval->max()= lower;
+            CharTraits::setToPrevious(interval->max());
+            rightInterval->min() = upper;
+            CharTraits::setToNext(rightInterval->min());
+            if (minCursor.setToRight()) {
+               while (minCursor.setToLeft());
+               inheritedImplementation::addAsSon(rightInterval, minCursor, Interval::BLeft);
+            }
+            else
+               inheritedImplementation::addAsSon(rightInterval, minCursor, Interval::BRight);
+         }
+         else {
+            Interval* leftInterval = new Interval(*interval);
+            interval->min()= upper;
+            CharTraits::setToNext(interval->min());
+            leftInterval->max() = lower;
+            CharTraits::setToPrevious(leftInterval->max());
+            if (minCursor.setToLeft()) {
+               while (minCursor.setToRight());
+               inheritedImplementation::addAsSon(leftInterval, minCursor, Interval::BRight);
+            }
+            else
+               inheritedImplementation::addAsSon(leftInterval, minCursor, Interval::BLeft);
+         };
+      };
+   }
+   else {
+      if (balanceMin == Interval::BRight)
+         interval = minCursor.setToNext(*this) ? minCursor.elementAt() : nullptr;
+      else if (balanceMin == Interval::BEqual) {
+         if (lower > interval->min()) {
+            interval->max() = lower;
+            CharTraits::setToPrevious(interval->max());
+            interval = minCursor.setToNext(*this) ? minCursor.elementAt() : nullptr;
+         };
+      };
+      while (interval && (interval->max() <= upper)) {
+         typename inheritedImplementation::CursorMove move = inheritedImplementation::removeAt(minCursor);
+         inheritedImplementation::adjustRemove(minCursor, Interval::BRight, move);
+         if (interval)
+            delete interval;
+         interval = minCursor.isValid() ? minCursor.elementAt() : nullptr;
+      };
+      if (interval && (interval->min() <= upper)) { // interval->min() <= upper < interval->max()
+         interval->min() = upper;
+         CharTraits::setToNext(interval->min());
+      };
+   };
+   
+   return *this;
+}
+
+template <typename TypeChar, class CharTraits>
+auto
+TAVLBasedCharSet<TypeChar, CharTraits>::removeInterval(const TypeChar& lower, const TypeChar& upper,
+      const ComparisonMode& mode) -> thisType& {
+   if (lower > upper)
+      return *this;
+   removeInterval(lower, upper);
+   if (mode.isCaseInsensitive()) {
+      if ((lower >= sminUpper()) && (upper <= smaxUpper()))
+         removeInterval(slower(lower), slower(upper));
+      else if ((lower >= sminLower()) && (upper <= smaxLower()))
+         removeInterval(supper(lower), supper(upper));
+      else {
+         if ((lower > smaxUpper()) || (upper < sminLower()))
+            return *this;
+         if ((lower > smaxLower()) && (upper < sminUpper()))
+            return *this;
+         if ((lower <= sminLower()) && (upper >= smaxUpper()))
+            return *this;
+
+         if (lower < sminLower()) {
+            // upper < smaxUpper() && upper >= sminLower()
+            if (upper <= smaxLower())
+               removeInterval(sminUpper(), supper(upper));
+            else
+               removeInterval(sminUpper(), smaxUpper());
+         }
+         else if (lower <= smaxLower()) {
+            if (upper <= smaxLower())
+               removeInterval(supper(lower), supper(upper));
+            else {
+               removeInterval(supper(lower), smaxUpper());
+               if (upper >= sminUpper()) {
+                  if (upper <= smaxUpper())
+                     removeInterval(sminLower(), slower(upper));
+                  else
+                     removeInterval(sminLower(), smaxLower());
+               };
+            };
+         }
+         else if (lower < sminUpper()) {
+            // upper >= sminUpper()
+            if (upper <= smaxUpper())
+               removeInterval(sminLower(), slower(upper));
+            else
+               removeInterval(sminLower(), smaxLower());
+         }
+         else if (upper <= smaxUpper())
+            removeInterval(slower(lower), slower(upper));
+         else // lower >= sminUpper() && lower <= smaxUpper()
+            // && upper > smaxUpper()
+            removeInterval(slower(lower), smaxLower());
+      };
+   };
+   return *this;
+}
+
+template <typename TypeChar, class CharTraits>
+auto
+TAVLBasedCharSet<TypeChar, CharTraits>::remove(const thisType& source) -> thisType& {
+   typename inheritedImplementation::Cursor sourceCursor(source);
+   for (bool doesContinue = sourceCursor.setToFirst(source); doesContinue;
+         doesContinue = sourceCursor.setToNext(source)) {
+      const Interval& sourceInterval = *sourceCursor.elementAt();
+      removeInterval(sourceInterval.min(), sourceInterval.max());
+   };
+   return *this;
+}
+
+template <typename TypeChar, class CharTraits>
+auto
+TAVLBasedCharSet<TypeChar, CharTraits>::intersectWith(const thisType& source) -> thisType& {
+   if (this == &source)
+      return *this;
+   typename inheritedImplementation::Cursor cursor(*this), sourceCursor(source);
+   if (!sourceCursor.setToFirst(source)) {
+      inherited::freeAll();
+      return *this;
+   };
+   if (!cursor.setToFirst(*this))
+      return *this;
+   Interval *thisInterval = cursor.elementAt(), *sourceInterval = sourceCursor.elementAt();
+   do {
+      if (thisInterval->min() > sourceInterval->max())
+         sourceInterval = sourceCursor.setToNext(source) ? sourceCursor.elementAt() : nullptr;
+      else if (sourceInterval->min() > thisInterval->max()) {
+         typename inheritedImplementation::CursorMove move = inheritedImplementation::removeAt(cursor);
+         inheritedImplementation::adjustRemove(cursor, Interval::BRight, move);
+         delete thisInterval;
+         thisInterval = cursor.isValid() ? cursor.elementAt() : nullptr;
+      }
+      else {
+         if (thisInterval->min() < sourceInterval->min()) // <= thisInterval->max()
+            thisInterval->min() = sourceInterval->min();
+         if (sourceInterval->max() < thisInterval->max()) {
+            // thisInterval->min() = sourceInterval->min()
+            //                     <= sourceInterval->max() < thisInterval->max()
+            Interval* newInterval = new Interval(*thisInterval);
+            newInterval->min() = sourceInterval->max();
+            CharTraits::setToNext(newInterval->min());
+            thisInterval->max() = sourceInterval->max();
+            if (cursor.setToRight()) {
+               while (cursor.setToLeft());
+               inheritedImplementation::addAsSon(newInterval, cursor, Interval::BLeft);
+            }
+            else
+               inheritedImplementation::addAsSon(newInterval, cursor, Interval::BRight);
+            thisInterval = newInterval;
+            sourceInterval = sourceCursor.setToNext(source) ? sourceCursor.elementAt() : nullptr;
+         }
+         else {
+            // thisInterval->min() = sourceInterval->min()
+            //                     <= thisInterval->max() <= sourceInterval->max()
+            thisInterval = cursor.setToNext(*this) ? cursor.elementAt() : nullptr;
+         };
+      };
+   } while (thisInterval && sourceInterval);
+
+   while (thisInterval) {
+      typename inheritedImplementation::CursorMove move = inheritedImplementation::removeAt(cursor);
+      inheritedImplementation::adjustRemove(cursor, Interval::BRight, move);
+      delete thisInterval;
+      thisInterval = cursor.setToNext(*this) ? cursor.elementAt() : nullptr;
+   };
+   return *this;
+}
+
+template <typename TypeChar, class CharTraits>
+auto
+TAVLBasedCharSet<TypeChar, CharTraits>::separateWith(const thisType& source,
+      thisType& diff1, thisType& intersect, thisType& diff2) const -> const thisType& {
+   AssumeCondition((this != &source) && diff1.isEmpty() && diff2.isEmpty())
+   typename inheritedImplementation::Cursor cursor(*this), sourceCursor(source);
+   if (!sourceCursor.setToFirst(source)) {
+      diff1.duplicate(*this);
+      return *this;
+   };
+   if (!cursor.setToFirst(*this)) {
+      diff2.duplicate(source);
+      return *this;
+   };
+   Interval *thisInterval = cursor.elementAt(), *sourceInterval = sourceCursor.elementAt();
+   TypeChar lower = CharTraits::getLowerBound();
+   do {
+      if (thisInterval->min() > sourceInterval->max()) {
+         diff2.addInterval(lower > sourceInterval->min() ? lower : sourceInterval->min(),
+            sourceInterval->max());
+         sourceInterval = sourceCursor.setToNext(source) ? sourceCursor.elementAt() : nullptr;
+         lower = sourceInterval->max();
+         if (lower != CharTraits::getUpperBound())
+            CharTraits::setToNext(lower);
+      }
+      else if (sourceInterval->min() > thisInterval->max()) {
+         diff1.addInterval(lower > thisInterval->min() ? lower : thisInterval->min(),
+            thisInterval->max());
+         thisInterval = cursor.setToNext(*this) ? cursor.elementAt() : nullptr;
+         lower = thisInterval->max();
+         if (lower != CharTraits::getUpperBound())
+            CharTraits::setToNext(lower);
+      }
+      else {
+         TypeChar minIntersect = thisInterval->min();
+         if ((thisInterval->min() < sourceInterval->min())
+               && (lower < sourceInterval->min())) { // <= thisInterval->max()
+            TypeChar maxDiff = sourceInterval->min();
+            CharTraits::setToPrevious(maxDiff);
+            diff1.addInterval(lower > minIntersect ? lower : minIntersect, maxDiff);
+            minIntersect = sourceInterval->min();
+         }
+         else if ((sourceInterval->min() < thisInterval->min())
+               && (lower < thisInterval->min())) {
+            TypeChar maxDiff = thisInterval->min();
+            CharTraits::setToPrevious(maxDiff);
+            diff2.addInterval(lower > sourceInterval->min() ? lower : sourceInterval->min(),
+               maxDiff);
+         }
+         else if (lower > minIntersect)
+            minIntersect = lower;
+         if (sourceInterval->max() < thisInterval->max()) {
+            // thisInterval->min() = sourceInterval->min()
+            //                     <= sourceInterval->max() < thisInterval->max()
+            lower = sourceInterval->max();
+            intersect.addInterval(minIntersect, lower);
+            CharTraits::setToNext(lower);
+            sourceInterval = sourceCursor.setToNext(source) ? sourceCursor.elementAt() : nullptr;
+         }
+         else {
+            // thisInterval->min() = sourceInterval->min()
+            //                     <= thisInterval->max() <= sourceInterval->max()
+            lower = thisInterval->max();
+            intersect.addInterval(minIntersect, lower);
+            CharTraits::setToNext(lower);
+            thisInterval = cursor.setToNext(*this) ? cursor.elementAt() : nullptr;
+         };
+      };
+   } while (thisInterval && sourceInterval);
+
+   if (thisInterval) {
+      diff1.addInterval(lower > thisInterval->min() ? lower : thisInterval->min(),
+            thisInterval->max());
+      thisInterval = cursor.setToNext(*this) ? cursor.elementAt() : nullptr;
+      while (thisInterval) {
+         diff1.addInterval(thisInterval->min(), thisInterval->max());
+         thisInterval = cursor.setToNext(*this) ? cursor.elementAt() : nullptr;
+      };
+   };
+   if (sourceInterval) {
+      diff2.addInterval(lower > sourceInterval->min() ? lower : sourceInterval->min(),
+            sourceInterval->max());
+      sourceInterval = sourceCursor.setToNext(source) ? sourceCursor.elementAt() : nullptr;
+      while (sourceInterval) {
+         diff2.addInterval(sourceInterval->min(), sourceInterval->max());
+         sourceInterval = sourceCursor.setToNext(source) ? sourceCursor.elementAt() : nullptr;
+      };
+   };
+   return *this;
+}
+
+template <typename TypeChar, class CharTraits>
+auto
+TAVLBasedCharSet<TypeChar, CharTraits>::insensitive() -> thisType& {
+   thisType addSet;
+   typename inheritedImplementation::Cursor cursor(*this);
+   for (bool doesContinue = cursor.setToFirst(*this); doesContinue; doesContinue = cursor.setToNext(*this)) {
+      const Interval& interval = *cursor.elementAt();
+      if (interval.max() >= CharTraits::lowerLowerBound() && (interval.min() <= CharTraits::upperLowerBound()))
+         addSet.addInterval(CharTraits::upper((interval.min() < CharTraits::lowerLowerBound())
+               ?  CharTraits::lowerLowerBound() : interval.min()),
+            CharTraits::upper((interval.max() > CharTraits::upperLowerBound())
+               ?  CharTraits::upperLowerBound() : interval.max()));
+      if (interval.max() >= CharTraits::lowerUpperBound() && (interval.min() <= CharTraits::upperUpperBound()))
+         addSet.addInterval(CharTraits::lower((interval.min() < CharTraits::lowerUpperBound())
+               ?  CharTraits::lowerUpperBound() : interval.min()),
+            CharTraits::lower((interval.max() > CharTraits::upperUpperBound())
+               ?  CharTraits::upperUpperBound() : interval.max()));
+   };
+   if (!addSet.isEmpty())
+      add(addSet);
+   return *this;
+}
+
+template <typename TypeChar, class CharTraits>
+bool
+TAVLBasedCharSet<TypeChar, CharTraits>::contain(const thisType& source) const {
+   typename inheritedImplementation::Cursor thisCursor(*this), sourceCursor(source);
+   Interval* thisInterval = thisCursor.setToFirst(*this) ? thisCursor.elementAt() : nullptr;
+   Interval* sourceInterval = sourceCursor.setToFirst(*this) ? sourceCursor.elementAt() : nullptr;
+   while (thisInterval && sourceInterval) {
+      if (sourceInterval->min() < thisInterval->min())
+         return false;
+      if ((sourceInterval->min() <= thisInterval->max())
+            && (sourceInterval->max() > thisInterval->max()))
+         return false;
+      if (sourceInterval->min() <= thisInterval->max()) // sourceInterval->max() <= thisInterval->max()
+         sourceInterval = sourceCursor.setToNext(*this) ? sourceCursor.elementAt() : nullptr;
+      else // thisInterval->max() < sourceInterval->min()
+         thisInterval = thisCursor.setToNext(*this) ? thisCursor.elementAt() : nullptr;
+   };
+   return true;
+}
+
+template <typename TypeChar, class CharTraits>
+bool
+TAVLBasedCharSet<TypeChar, CharTraits>::isIntersectionEmpty(const thisType& source) const {
+   typename inheritedImplementation::Cursor thisCursor(*this), sourceCursor(source);
+   Interval* thisInterval = thisCursor.setToFirst(*this) ? thisCursor.elementAt() : nullptr;
+   Interval* sourceInterval = sourceCursor.setToFirst(*this) ? sourceCursor.elementAt() : nullptr;
+   while (thisInterval && sourceInterval) {
+      if (thisInterval->max() < sourceInterval->min())
+         thisInterval = thisCursor.setToNext(*this) ? thisCursor.elementAt() : nullptr;
+      else if (thisInterval->min() > sourceInterval->max())
+         sourceInterval = sourceCursor.setToNext(*this) ? sourceCursor.elementAt() : nullptr;
+      else // thisInterval->min() <= sourceInterval->max() <= thisInterval->max()
+           // || sourceInterval->min() <= thisInterval->min() <= thisInterval->max() <= sourceInterval->max()
+           // || thisInterval->min() <= sourceInterval->min() <= thisInterval->max() <= sourceInterval->max()
+         return false;
+   };
+   return true;
+}
+
+template <typename TypeChar, class CharTraits>
+int
+TAVLBasedCharSet<TypeChar, CharTraits>::queryCount() const {
+   int result = 0;
+   typename inheritedImplementation::Cursor cursor(*this);
+   for (bool doesContinue = cursor.setToFirst(*this); doesContinue;
+         doesContinue = cursor.setToNext(*this)) {
+      Interval* interval = cursor.elementAt();
+      result += (int) (interval->max() - interval->min()) + 1;
+   };
+   return result;
+}
+
+template <typename TypeChar, class CharTraits>
+void
+TAVLBasedCharSet<TypeChar, CharTraits>::retrieveNegativeIntervalAround(TypeChar achar,
+      TypeChar& min, TypeChar& max) const {
+   typename inheritedImplementation::Cursor cursor(*this);
+   typename Interval::Balance balance = inheritedImplementation::tlocateBefore(CharLocate(achar, cursor));
+   AssumeCondition(balance == Interval::BLeft || balance == Interval::BRight)
+   if (balance == Interval::BLeft) {
+      if (cursor.isValid()) {
+         max = cursor.elementAt()->min();
+         CharTraits::setToPrevious(max);
+         if (cursor.setToPrevious(*this)) {
+            min = cursor.elementAt()->max();
+            CharTraits::setToNext(min);
+         }
+         else
+            min = CharTraits::getLowerBound();
+      }
+      else {
+         min = CharTraits::getLowerBound();
+         max = CharTraits::getUpperBound();
+      };
+   }
+   else { // balance == Interval::BRight
+      if (cursor.isValid()) {
+         min = cursor.elementAt()->max();
+         CharTraits::setToNext(min);
+         if (cursor.setToNext(*this)) {
+            max = cursor.elementAt()->min();
+            CharTraits::setToPrevious(max);
+         }
+         else
+            max = CharTraits::getUpperBound();
+      }
+      else {
+         min = CharTraits::getLowerBound();
+         max = CharTraits::getUpperBound();
+      };
+   };
+}
+      
+template <typename TypeChar, class CharTraits>
+bool
+TAVLBasedCharSet<TypeChar, CharTraits>::invariant() const {
+   typename inheritedImplementation::Cursor cursor(*this);
+   if (cursor.setToFirst(*this)) {
+      const Interval* interval = cursor.elementAt();
+      if (interval->min() > interval->max())
+         return false;
+      TypeChar previous = interval->max();
+      if (CharTraits::getUpperBound() != previous)
+         CharTraits::setToNext(previous);
+      while (cursor.setToNext(*this)) {
+         interval = cursor.elementAt();
+         if ((interval->min() <= previous) || (interval->min() > interval->max()))
+            return false;
+         previous = interval->max();
+         if (CharTraits::getUpperBound() != previous)
+            CharTraits::setToNext(previous);
+      };
+   };
+   return true;
+}
+
+} // end of namespace STG
+
+#endif // STG_SetOfCharsTEMPLATE
+

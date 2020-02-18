@@ -1,0 +1,438 @@
+/**************************************************************************/
+/*                                                                        */
+/*  Copyright (C) 2013-2019                                               */
+/*    CEA (Commissariat a l'Energie Atomique et aux Energies              */
+/*         Alternatives)                                                  */
+/*                                                                        */
+/*  you can redistribute it and/or modify it under the terms of the GNU   */
+/*  Lesser General Public License as published by the Free Software       */
+/*  Foundation, version 2.1.                                              */
+/*                                                                        */
+/*  It is distributed in the hope that it will be useful,                 */
+/*  but WITHOUT ANY WARRANTY; without even the implied warranty of        */
+/*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         */
+/*  GNU Lesser General Public License for more details.                   */
+/*                                                                        */
+/*  See the GNU Lesser General Public License version 2.1                 */
+/*  for more details (enclosed in the file LICENSE).                      */
+/*                                                                        */
+/**************************************************************************/
+
+/////////////////////////////////
+//
+// Library   : TString
+// Unit      : sub-string
+// File      : SString.template
+// Description :
+//   Implementation of the class SString that defines full strings.
+//
+
+#ifndef STG_TStringTEMPLATE
+#define STG_TStringTEMPLATE
+
+#include "TString/SString.h"
+// #include "TString/String.hpp"
+
+namespace STG {
+
+namespace DIOObject {
+
+template <class TypeSubString>
+int
+TISSubString<TypeSubString>::readsome(const VirtualStringProperty& source, int n) {
+   int length = ssIn.length();
+   int left = (n > length) ? length : n;
+   TChunk<typename TypeSubString::Char> chunk = ssIn.getChunk();
+   if ((int) chunk.length > left)
+      chunk.length = left;
+   source.copy(&chunk);
+   while ((left -= chunk.length) > 0) {
+      ssIn.advance(chunk.length);
+      chunk = ssIn.getChunk();
+      if ((int) chunk.length > left)
+         chunk.length = left;
+      source.cat(&chunk);
+   };
+   ssIn.advance(left + chunk.length);
+   return iLastRead = length-ssIn.length();
+}
+
+template <class TypeSubString>
+IOObject::ISBase&
+TISSubString<TypeSubString>::assume(char ch) {
+   if (ssIn.length() > 0) {
+      iLastRead = 1;
+      char chRead = (char) ssIn;
+      if (ch != chRead)
+        throw EReadError();
+      ssIn.advance(1);
+   }
+   else {
+      iLastRead = 0;
+      throw EReadError();
+   };
+   return *this;
+}
+
+template <class TypeSubString>
+IOObject::ISBase&
+TISSubString<TypeSubString>::assume(void* achunk) {
+   TChunk<typename TypeSubString::Char>& chunk = *((TChunk<typename TypeSubString::Char>*) achunk);
+   if (ssIn.compare(chunk.string, chunk.length) != CREqual) {
+      typename TypeSubString::CharResult result = ssIn.getChar();
+      typename TypeSubString::Char* string = chunk.string;
+      while (result.isValid() && (result.getReadChar() == *string)) {
+         ssIn.advance();
+         result = ssIn.getChar();
+         ++string;
+      };
+      iLastRead = (int) (string - chunk.string);
+      throw EReadError();
+   }
+   ssIn.advance(chunk.length);
+   iLastRead = chunk.length;
+   return *this;
+}
+
+template <class TypeSubString>
+IOObject::ISBase&
+TISSubString<TypeSubString>::assume(const VirtualStringProperty& text) {
+   int textLeft = text.length();
+   text.setToFirstChunk();
+   while (textLeft > 0) {
+      TChunk<typename TypeSubString::Char> chunk = ssIn.getChunk();
+      if (text.compareBound(&chunk, textLeft, false) != CREqual)
+         throw EReadError();
+      ssIn.advance(text.length() - textLeft);
+   };
+   return *this;
+}
+
+template <class TypeSubString>
+IOObject::ISBase&
+TISSubString<TypeSubString>::ignore(int n) {
+   ssIn.advance(n);
+   return *this;
+}
+
+#define StandardRawRead(n, size)                                                    \
+   int charLength = (size-1)/sizeof(typename TypeSubString::Char)+1;                \
+   if (ssIn.length() < charLength)                                                  \
+      throw EReadError();                                                           \
+   ssIn.copyTo((typename TypeSubString::Char*) &n, charLength);                     \
+   ssIn.advance(charLength);
+
+template <class TypeSubString>
+IOObject::ISBase&
+TISSubString<TypeSubString>::read(int& n, bool isRaw) {
+   int length = ssIn.length();
+   if (isRaw) {
+      StandardRawRead(n, sizeof(int))
+   }
+   else
+      n = ssIn.readInteger();
+   iLastRead = length-ssIn.length();
+   return *this;
+}
+
+template <class TypeSubString>
+IOObject::ISBase&
+TISSubString<TypeSubString>::readHexa(int& n) {
+   int length = ssIn.length();
+   n = ssIn.readHexaInteger();
+   iLastRead = length-ssIn.length();
+   return *this;
+}
+
+template <class TypeSubString>
+IOObject::ISBase&
+TISSubString<TypeSubString>::readHexa(unsigned int& n) {
+   int length = ssIn.length();
+   n = ssIn.readHexaUInteger();
+   iLastRead = length-ssIn.length();
+   return *this;
+}
+
+template <class TypeSubString>
+IOObject::ISBase&
+TISSubString<TypeSubString>::read(unsigned int& n, bool isRaw) {
+   int length = ssIn.length();
+   if (isRaw) {
+      StandardRawRead(n, sizeof(unsigned))
+   }
+   else
+      n = ssIn.readUInteger();
+   iLastRead = length-ssIn.length();
+   return *this;
+}
+
+template <class TypeSubString>
+IOObject::ISBase&
+TISSubString<TypeSubString>::read(long int& n, bool isRaw) {
+   int length = ssIn.length();
+   if (isRaw) {
+      StandardRawRead(n, sizeof(long))
+   }
+   else
+      n = ssIn.readLInteger();
+   iLastRead = length-ssIn.length();
+   return *this;
+}
+
+template <class TypeSubString>
+IOObject::ISBase&
+TISSubString<TypeSubString>::readHexa(long int& n) {
+   int length = ssIn.length();
+   n = ssIn.readHexaLInteger();
+   iLastRead = length-ssIn.length();
+   return *this;
+}
+
+template <class TypeSubString>
+IOObject::ISBase&
+TISSubString<TypeSubString>::readHexa(unsigned long int& n) {
+   int length = ssIn.length();
+   n = ssIn.readHexaULInteger();
+   iLastRead = length-ssIn.length();
+   return *this;
+}
+
+template <class TypeSubString>
+IOObject::ISBase&
+TISSubString<TypeSubString>::read(unsigned long int& n, bool isRaw) {
+   int length = ssIn.length();
+   if (isRaw) {
+      StandardRawRead(n, sizeof(unsigned long))
+   }
+   else
+      n = ssIn.readULInteger();
+   iLastRead = length-ssIn.length();
+   return *this;
+}
+
+template <class TypeSubString>
+IOObject::ISBase&
+TISSubString<TypeSubString>::read(double& f, bool fRaw) {
+   int iLength = ssIn.length();
+   if (fRaw) {
+      StandardRawRead(f, sizeof(double))
+   }
+   else
+      f = ssIn.readFloat();
+   iLastRead = iLength-ssIn.length();
+   return *this;
+}
+
+template <class TypeSubString>
+IOObject::ISBase&
+TISSubString<TypeSubString>::readchunk(void* achunk) {
+   TChunk<typename TypeSubString::Char>& chunkDestination = *((TChunk<typename TypeSubString::Char>*) achunk);
+   int destinationLength = chunkDestination.length;
+   typename TypeSubString::Char* destination = chunkDestination.string;
+   int length = ssIn.length();
+   TChunk<typename TypeSubString::Char> chunkSource = ssIn.getChunk();
+   int chars = (length > destinationLength) ? destinationLength : length;
+   while (chars > 0) {
+      int localCopy = ((int) chunkSource.length < chars) ? chunkSource.length : chars;
+      memcpy(destination, chunkSource.string, localCopy*sizeof(typename TypeSubString::Char));
+      destinationLength -= localCopy;
+      destination += localCopy;
+      chars -= localCopy;
+      ssIn.advance(chunkSource.length);
+      chunkSource = ssIn.getChunk();
+   };
+   chunkDestination.length = iLastRead = (int) (destination - chunkDestination.string);
+   return *this;
+}
+
+template <class TypeSubString>
+IOObject::ISBase&
+TISSubString<TypeSubString>::read(const VirtualStringProperty& source, bool isRaw) {
+   int length = ssIn.length();
+   int toread=0;
+   if (isRaw) {
+      StandardRawRead(toread, sizeof(int))
+   }
+   else {
+      toread = ssIn.readInteger();
+      if (!TypeSubString::Traits::isspace(ssIn.getChar().getERead()))
+         throw EReadError();
+      ssIn.advance(1);
+   };
+   iLastRead = length-ssIn.length();
+
+   if ((length = ssIn.length()) < toread)
+      throw STG::EReadError();
+   int left = toread;
+   TChunk<typename TypeSubString::Char> chunk = ssIn.getChunk();
+   source.copy(&chunk);
+   while ((left -= chunk.length) > 0) {
+      ssIn.advance(chunk.length);
+      chunk = ssIn.getChunk();
+      source.cat(&chunk);
+   };
+   ssIn.advance(left + chunk.length);
+   iLastRead += length-ssIn.length();
+   return *this;
+}
+
+#undef StandardRawRead
+
+template <class TypeSubString>
+IOObject::ISBase&
+TISSubString<TypeSubString>::readall(const VirtualStringProperty& source) {
+   TChunk<typename TypeSubString::Char> chunk = ssIn.getChunk();
+   source.copy(&chunk);
+   iLastRead = ssIn.length();
+   while (chunk.length > 0) {
+      ssIn.advance(chunk.length);
+      chunk = ssIn.getChunk();
+      if (chunk.length > 0)
+         source.cat(&chunk);
+   };
+   return *this;
+}
+
+template <class TypeSubString>
+IOObject::ISBase&
+TISSubString<TypeSubString>::read(const VirtualStringProperty& source, int n, bool) {
+   int length = ssIn.length();
+   if (length < n)
+      throw STG::EReadError();
+   int left = n;
+   TChunk<typename TypeSubString::Char> chunk = ssIn.getChunk();
+   source.copy(&chunk);
+   while ((left -= chunk.length) > 0) {
+      ssIn.advance(chunk.length);
+      chunk = ssIn.getChunk();
+      source.cat(&chunk);
+   };
+   ssIn.advance(length + chunk.length);
+   iLastRead = length-ssIn.length();
+   return *this;
+}
+
+   /* class OSSubString */
+
+#define DefineTypeObject TOSSubString
+#define DefineReference inheritedImplementation::
+#include "TString/IOSubStringMethods.incc"
+#undef DefineReference
+#undef DefineTypeObject
+
+#define DefineTypeObject TOSRSubString
+#define DefineReference pssReference->
+#include "TString/IOSubStringMethods.incc"
+#undef DefineReference
+#undef DefineTypeObject
+
+} // end of namespace DIOObject
+
+namespace Lexer {
+
+/****************************************************/
+/* Implementation of the template class TTextBuffer */
+/****************************************************/
+
+template <class TypeSubString>
+void
+TTextBuffer<TypeSubString>::_read(ISBase& in, const FormatParameters& params) {
+   if (!apsCurrent->isEmpty())
+      performTranslation();
+   int bufLength, size;
+   bool isRaw = params.isRaw();
+   in.read(bufLength, isRaw);
+   if (!isRaw)
+      in.assume(' ');
+   in.read(size, isRaw);
+   if (!isRaw)
+      in.assume(' ');
+   if (size > 0) {
+      while (size > bufLength) {
+         in.read(apsCurrent->asPersistent(), bufLength, isRaw);
+         size -= apsCurrent->length();
+         if (apsCurrent->length() != bufLength)
+            throw EReadError();
+         performTranslation();
+      };
+      in.read(apsCurrent->asPersistent(), size, isRaw);
+      if (apsCurrent->length() != size)
+         throw EReadError();
+   };
+}
+
+template <class TypeSubString>
+void
+TTextBuffer<TypeSubString>::_write(OSBase& out, const FormatParameters& params) const {
+   int bufLength = apsCurrent->length() + apsCurrent->getPlace();
+   int size = apsCurrent->length() + lsBuffers.count()*bufLength;
+   bool isRaw = params.isRaw();
+
+   out.write(bufLength, isRaw);
+   if (!isRaw)
+      out.put(' ');
+   out.write(size, isRaw);
+   if (!isRaw)
+      out.put(' ');
+   if (size > 0) {
+      for (const auto& buffer : lsBuffers)
+         out.write(buffer.asPersistent(), isRaw);
+      out.write(apsCurrent->asPersistent(), isRaw);
+   }
+}
+
+template <class TypeSubString>
+void
+TTextBuffer<TypeSubString>::completeRead(const typename TypeSubString::Char* string, int len) {
+   int place = apsCurrent->getPlace();
+   while (len > place) {
+      apsCurrent->cat(string, place);
+      len -= place;
+      string += place;
+      performTranslation();
+      place = apsCurrent->getPlace();
+   };
+   apsCurrent->cat(string, len);
+}
+
+template <class TypeSubString>
+void
+TTextBuffer<TypeSubString>::completeRead(SubString source) {
+   int place = apsCurrent->getPlace();
+   while (source.length() > place) {
+      apsCurrent->cat(source, place);
+      source.advance(place);
+      performTranslation();
+      place = apsCurrent->getPlace();
+   };
+   apsCurrent->cat(source);
+}
+
+template <class TypeSubString>
+void
+TTextBuffer<TypeSubString>::completeWrite(SubString& destination) {
+   destination.bookPlace((apsCurrent->length() + apsCurrent->getPlace())*lsBuffers.count()
+         + apsCurrent->length());
+   while (!lsBuffers.isEmpty()) {
+      destination.cat(lsBuffers.getFirst());
+      lsBuffers.freeFirst();
+   };
+   destination.cat(*apsCurrent);
+   apsCurrent->setLength(0);
+}
+
+template <class TypeSubString>
+typename TypeSubString::Char
+TTextBuffer<TypeSubString>::completeQueryChar(int index) const {
+   for (const auto& buffer : lsBuffers) {
+      if (index < buffer.length())
+         return buffer.getSChar(index);
+      index -= buffer.length();
+   };
+   return apsCurrent->getSChar(index);
+}
+
+}} // end of namespace STG::Lexer
+
+#endif // STG_TStringTEMPLATE
+

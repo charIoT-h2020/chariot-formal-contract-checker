@@ -1,0 +1,20 @@
+/////////////////////////////////
+//
+// Library   : Numerics
+// Unit      : Integer
+// File      : Integer.template
+// Author    : Franck Vedrine
+// Copyright : CEA LIST - 2014, 2015
+//   A previous C++ version of these concepts was written in 1996-2000 by the author.
+//
+// Description :
+//   Implementation of a class of integers with unbound size.
+//
+
+#ifndef Numerics_IntegerTemplate
+#define Numerics_IntegerTemplate
+
+#include "Numerics/Integer.h"
+#include "ForwardNumerics/BaseInteger.template"
+
+#endif // Numerics_IntegerTemplate

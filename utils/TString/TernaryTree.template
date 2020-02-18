@@ -1,0 +1,674 @@
+/**************************************************************************/
+/*                                                                        */
+/*  Copyright (C) 2013-2019                                               */
+/*    CEA (Commissariat a l'Energie Atomique et aux Energies              */
+/*         Alternatives)                                                  */
+/*                                                                        */
+/*  you can redistribute it and/or modify it under the terms of the GNU   */
+/*  Lesser General Public License as published by the Free Software       */
+/*  Foundation, version 2.1.                                              */
+/*                                                                        */
+/*  It is distributed in the hope that it will be useful,                 */
+/*  but WITHOUT ANY WARRANTY; without even the implied warranty of        */
+/*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         */
+/*  GNU Lesser General Public License for more details.                   */
+/*                                                                        */
+/*  See the GNU Lesser General Public License version 2.1                 */
+/*  for more details (enclosed in the file LICENSE).                      */
+/*                                                                        */
+/**************************************************************************/
+
+/////////////////////////////////
+//
+// Library   : TString
+// Unit      : dictionary
+// File      : TernaryTree.template
+// Description :
+//   Implementation of a template class of TernaryTree.
+//
+
+#ifndef STG_TernaryTreeTemplate
+#define STG_TernaryTreeTemplate
+
+#include "TString/TernaryTree.h"
+// #include "TString/String.hpp"
+
+namespace STG {}
+
+#include "Collection/Collection.template"
+#include "TString/TernaryTreeBase.template"
+
+namespace STG {
+
+/* Implementation of the class TImplTernaryTree::Cursor::DescentTrace */
+
+template <class TypeSubString>
+typename TImplTernaryTree<TypeSubString>::ExtendedComparisonResult
+TImplTernaryTree<TypeSubString>::Cursor::DescentTrace::comparePlus(const DescentTrace& source) const {
+   int thisLength = count(), sourceLength = source.count();
+   if ((thisLength == 0) || (sourceLength == 0))
+      return (thisLength == sourceLength) ? ExtendedComparisonResult().setEqual() : ExtendedComparisonResult();
+
+   FollowingCell *thisSon = nullptr, *sourceSon = nullptr;
+   while (sourceLength > thisLength)
+      {  sourceSon = source[--sourceLength]; };
+   while (thisLength > sourceLength)
+      {  thisSon = (*this)[--thisLength]; };
+   while (source[--sourceLength] != (*this)[--thisLength]) {
+      sourceSon = source[sourceLength];
+      thisSon = (*this)[thisLength];
+   };
+   return ((FollowingCellAccess*) (*this)[thisLength])->compareSons(thisSon, sourceSon);
+}
+
+template <class TypeSubString>
+bool
+TImplTernaryTree<TypeSubString>::Cursor::DescentTrace::isValid() const {
+   bool result = inherited::isValid();
+   for (int index = 0; result && (index < count()-1); index++) {
+      FollowingCellAccess *parent = operator[](index), *son = operator[](index+1);
+      result = result && ((parent->left() == son)
+            || (parent->right() == son) || (parent->sfollows() == son));
+   };
+   return result;
+}
+
+/* Implementation of the class TImplTernaryTree::Cursor */
+
+template <class TypeSubString>
+TypeSubString
+TImplTernaryTree<TypeSubString>::Cursor::stringAt() const {
+   AssumeCondition(getReference()->isSuffix())
+   typename TypeSubString::String result;
+   for (int index = 0; index < dtTrace.count()-1; index++)
+      if (dtTrace[index]->sfollows() == dtTrace[index+1])
+         result.cat(dtTrace[index]->getChar());
+   if (getReference()->hasChar()) {
+      result.cat(getReference()->getChar());
+      result.cat(getReference()->suffix().getString());
+   };
+   return result;
+}
+
+template <class TypeSubString>
+TypeSubString
+TImplTernaryTree<TypeSubString>::Cursor::prefixAt() const {
+   typename TypeSubString::String result;
+   for (int index = 0; index < dtTrace.count()-1; index++)
+      if (dtTrace[index]->sfollows() == dtTrace[index+1])
+         result.cat(dtTrace[index]->getChar());
+   if (getReference()->hasChar())
+      result.cat(getReference()->getChar());
+   return result;
+}
+
+template <class TypeSubString>
+bool
+TImplTernaryTree<TypeSubString>::Cursor::isJustAfter(const Cursor& source) const {
+   AssumeCondition(isFinalValid() && source.isFinalValid())
+   const DescentTrace& thisTrace = dtTrace;
+   const DescentTrace& sourceTrace = source.dtTrace;
+   int thisLength = thisTrace.count(), sourceLength = sourceTrace.count();
+
+   FollowingCellAccess* thisSon = nullptr, *sourceSon = nullptr;
+   while (sourceLength > thisLength) {
+      FollowingCellAccess* oldSourceSon = sourceSon;
+      sourceSon = sourceTrace[--sourceLength];
+      if (sourceSon->sfollows() == oldSourceSon) {
+         if (sourceSon->right() != nullptr)
+            return false;
+      }
+      else if (sourceSon->left() == oldSourceSon)
+         return false;
+   };
+   while (thisLength > sourceLength) {
+      FollowingCellAccess* oldThisSon = thisSon;
+      thisSon = thisTrace[--thisLength];
+      if (thisSon->sfollows() == oldThisSon) {
+         if (thisSon->left() != nullptr)
+            return false;
+      }
+      else if (thisSon->right() == oldThisSon)
+         return false;
+   };
+   while (sourceTrace[--sourceLength] != thisTrace[--thisLength]) {
+      sourceSon = sourceTrace[sourceLength];
+      thisSon = thisTrace[thisLength];
+      FollowingCellAccess* oldSourceSon = sourceTrace[sourceLength+1];
+      FollowingCellAccess* oldThisSon = thisTrace[thisLength+1];
+      if (sourceSon->sfollows() == oldSourceSon) {
+         if (sourceSon->right() != nullptr)
+            return false;
+      }
+      else if (sourceSon->left() == oldSourceSon)
+         return false;
+      if (thisSon->sfollows() == oldThisSon) {
+         if (sourceSon->left() != nullptr)
+            return false;
+      }
+      else if (thisSon->right() == oldThisSon)
+         return false;
+   };
+   const FollowingCellAccess& base = *thisTrace[thisLength];
+   return (base.sfollows() == thisSon)
+      ? (sourceSon && (base.left() == sourceSon)) : ((base.sfollows() == sourceSon)
+      ? (thisSon && (base.right() == thisSon)) : false);
+}
+
+template <class TypeSubString>
+bool
+TImplTernaryTree<TypeSubString>::Cursor::isJustBefore(const Cursor& source) const {
+   AssumeCondition(isFinalValid() && source.isFinalValid())
+   const DescentTrace& thisTrace = dtTrace;
+   const DescentTrace& sourceTrace = source.dtTrace;
+   int thisLength = thisTrace.count(), sourceLength = sourceTrace.count();
+
+   FollowingCellAccess* thisSon = nullptr, *sourceSon = nullptr;
+   while (sourceLength > thisLength) {
+      FollowingCellAccess* oldSourceSon = sourceSon;
+      sourceSon = sourceTrace[--sourceLength];
+      if (sourceSon->sfollows() == oldSourceSon) {
+         if (sourceSon->left() != nullptr)
+            return false;
+      }
+      else if (sourceSon->right() == oldSourceSon)
+         return false;
+   };
+   while (thisLength > sourceLength) {
+      FollowingCellAccess* oldThisSon = thisSon;
+      thisSon = thisTrace[--thisLength];
+      if (thisSon->sfollows() == oldThisSon) {
+         if (thisSon->right() != nullptr)
+            return false;
+      }
+      else if (thisSon->left() == oldThisSon)
+         return false;
+   };
+   while (sourceTrace[--sourceLength] != thisTrace[--thisLength]) {
+      sourceSon = sourceTrace[sourceLength];
+      thisSon = thisTrace[thisLength];
+      FollowingCellAccess* oldSourceSon = sourceTrace[sourceLength+1];
+      FollowingCellAccess* oldThisSon = thisTrace[thisLength+1];
+      if (sourceSon->sfollows() == oldSourceSon) {
+         if (sourceSon->left() != nullptr)
+            return false;
+      }
+      else if (sourceSon->right() == oldSourceSon)
+         return false;
+      if (thisSon->sfollows() == oldThisSon) {
+         if (sourceSon->right() != nullptr)
+            return false;
+      }
+      else if (thisSon->left() == oldThisSon)
+         return false;
+   };
+   const FollowingCellAccess& base = *thisTrace[thisLength];
+   return (base.sfollows() == thisSon)
+      ? (sourceSon && (base.right() == sourceSon)) : ((base.sfollows() == sourceSon)
+      ? (thisSon && (base.left() == thisSon)) : false);
+}
+
+template <class TypeSubString>
+bool
+TImplTernaryTree<TypeSubString>::Cursor::isJustAfterKey(const TypeSubString& key) const {
+   AssumeCondition(isFinalValid())
+   const DescentTrace& thisTrace = dtTrace;
+   int thisLength = thisTrace.count();
+
+   TypeSubString suffix(key);
+
+   int thisIndex = -1, thisSonIndex = 0;
+   FollowingCellAccess
+      *thisFatherSonSuffix = nullptr,
+      *thisSonSuffix = (thisLength > 0) ? thisTrace[0] : nullptr;
+
+   while (thisSonIndex < thisLength-1) {
+      thisFatherSonSuffix = thisSonSuffix;
+      thisSonSuffix = thisTrace[++thisSonIndex];
+      if (thisFatherSonSuffix->sfollows() == thisSonSuffix) {
+         if (thisSonSuffix->getChar() != suffix.getChar())
+            break;
+         thisIndex = thisSonIndex;
+         suffix.advance();
+      };
+   };
+
+   FollowingCellAccess* rootSuffix = thisTrace[thisIndex];
+   FollowingCellAccess* sourceSuffix = nullptr, *thisSuffix=nullptr;
+
+   thisSuffix = thisTrace[++thisIndex];
+   AssumeCondition(suffix.getChar() != thisSuffix->getChar())
+   if (suffix.getChar() > thisSuffix->getChar())
+      return false;
+
+   // suffix.getChar() < thisSuffix->getChar()
+   if (thisSuffix == rootSuffix->left())
+      return true;
+   if (thisSuffix == rootSuffix->sfollows()) {
+      if (!rootSuffix->left())
+         return true;
+      sourceSuffix = rootSuffix->left();
+   }
+   else { // thisSuffix == rootSuffix->right()
+      if (rootSuffix->sfollows()->getChar() > suffix.getChar())
+         return false;
+      if (rootSuffix->isSuffix()) {
+         if (suffix.compare(rootSuffix->suffix().getString()) == CRLess)
+            return false;
+      }
+      else {
+         sourceSuffix = rootSuffix->sfollows();
+         if (sourceSuffix->getChar() < suffix.getChar())
+            return true;
+         suffix.advance();
+      };
+   };
+   
+   if (thisIndex < thisLength)
+      thisFatherSonSuffix = thisTrace[thisIndex];
+   // thisSuffix should be on the most left
+   for (++thisIndex; thisIndex < thisLength; ++thisIndex) {
+      thisSonSuffix = thisTrace[thisIndex];
+      if (thisFatherSonSuffix->sfollows() == thisSonSuffix) {
+         if (thisFatherSonSuffix->left() != nullptr)
+            return false;
+      }
+      else if (thisFatherSonSuffix->right() == thisSonSuffix)
+         return false;
+      thisFatherSonSuffix = thisSonSuffix;
+   };
+
+   // suffix should be on the right of sourceSuffix
+   while (sourceSuffix != nullptr) {
+      if (sourceSuffix->getChar() < suffix.getChar())
+         sourceSuffix = sourceSuffix->right();
+      else if (sourceSuffix->getChar() > suffix.getChar())
+         return false;
+      else { // sourceSuffix->getChar() == suffix.getChar() 
+         if (sourceSuffix->isSuffix()) {
+            if (suffix.compare(sourceSuffix->suffix().getString()) == CRLess)
+               return false;
+            return true;
+         };
+
+         sourceSuffix = sourceSuffix->sfollows();
+      };
+   };
+   return true;
+}
+
+template <class TypeSubString>
+bool
+TImplTernaryTree<TypeSubString>::Cursor::isJustBeforeKey(const TypeSubString& key) const {
+   AssumeCondition(isFinalValid())
+   const DescentTrace& thisTrace = dtTrace;
+   int thisLength = thisTrace.count();
+
+   TypeSubString suffix(key);
+
+   int thisIndex = -1, thisSonIndex = 0;
+   FollowingCellAccess
+      *thisFatherSonSuffix = nullptr,
+      *thisSonSuffix = (thisLength > 0) ? thisTrace[0] : nullptr;
+
+   while (thisSonIndex < thisLength-1) {
+      thisFatherSonSuffix = thisSonSuffix;
+      thisSonSuffix = thisTrace[++thisSonIndex];
+      if (thisFatherSonSuffix->sfollows() == thisSonSuffix) {
+         if (thisSonSuffix->getChar() != suffix.getChar())
+            break;
+         thisIndex = thisSonIndex;
+         suffix.advance();
+      };
+   };
+
+   FollowingCellAccess* rootSuffix = thisTrace[thisIndex];
+   FollowingCellAccess* sourceSuffix = nullptr, *thisSuffix=nullptr;
+
+   thisSuffix = thisTrace[++thisIndex];
+   AssumeCondition(suffix.getChar() != thisSuffix->getChar())
+   if (suffix.getChar() < thisSuffix->getChar())
+      return false;
+
+   // suffix.getChar() > thisSuffix->getChar()
+   if (thisSuffix == rootSuffix->right())
+      return true;
+   if (thisSuffix == rootSuffix->sfollows()) {
+      if (!rootSuffix->right())
+         return true;
+      sourceSuffix = rootSuffix->right();
+   }
+   else { // thisSuffix == rootSuffix->right()
+      if (rootSuffix->sfollows()->getChar() < suffix.getChar())
+         return false;
+      if (rootSuffix->isSuffix()) {
+         if (suffix.compare(rootSuffix->suffix().getString()) == CRGreater)
+            return false;
+      }
+      else {
+         sourceSuffix = rootSuffix->sfollows();
+         if (sourceSuffix->getChar() > suffix.getChar())
+            return true;
+         suffix.advance();
+      };
+   };
+   
+   if (thisIndex < thisLength)
+      thisFatherSonSuffix = thisTrace[thisIndex];
+   // thisSuffix should be on the most left
+   for (++thisIndex; thisIndex < thisLength; ++thisIndex) {
+      thisSonSuffix = thisTrace[thisIndex];
+      if (thisFatherSonSuffix->sfollows() == thisSonSuffix) {
+         if (thisFatherSonSuffix->right() != nullptr)
+            return false;
+      }
+      else if (thisFatherSonSuffix->left() == thisSonSuffix)
+         return false;
+      thisFatherSonSuffix = thisSonSuffix;
+   };
+
+   // suffix should be on the right of sourceSuffix
+   while (sourceSuffix != nullptr) {
+      if (sourceSuffix->getChar() > suffix.getChar())
+         sourceSuffix = sourceSuffix->left();
+      else if (sourceSuffix->getChar() < suffix.getChar())
+         return false;
+      else { // sourceSuffix->getChar() == suffix.getChar() 
+         if (sourceSuffix->isSuffix()) {
+            if (suffix.compare(sourceSuffix->suffix().getString()) == CRGreater)
+               return false;
+            return true;
+         };
+
+         sourceSuffix = sourceSuffix->sfollows();
+      };
+   };
+   return true;
+}
+
+template <class TypeSubString>
+bool
+TImplTernaryTree<TypeSubString>::Cursor::isInnerLeft(const Cursor* source) const {
+   int thisLength = dtTrace.count();
+   FollowingCell* sourceRef = source ? source->getReference() : nullptr;
+
+   FollowingCellAccess *thisSon = nullptr, *thisFather = nullptr;
+   if (thisLength > 0) {
+      thisSon = dtTrace[--thisLength];
+      while ((thisLength != 0) && (thisSon != sourceRef)) {
+         thisFather = dtTrace[--thisLength];
+         if (thisFather->sfollows() == thisSon) {
+            if (thisFather->left() != nullptr)
+               return false;
+         }
+         else if (thisFather->right() == thisSon)
+            return false;
+         thisSon = thisFather;
+      };
+   };
+   AssumeCondition(!sourceRef || (thisSon == sourceRef))
+   return true;
+}
+
+template <class TypeSubString>
+bool
+TImplTernaryTree<TypeSubString>::Cursor::isInnerRight(const Cursor* source) const {
+   int thisLength = dtTrace.count();
+   FollowingCell* sourceRef = source ? source->getReference() : nullptr;
+
+   FollowingCellAccess *thisSon = nullptr, *thisFather = nullptr;
+   if (thisLength > 0) {
+      thisSon = dtTrace[--thisLength];
+      while ((thisLength != 0) && (thisSon != sourceRef)) {
+         thisFather = dtTrace[--thisLength];
+         if (thisFather->sfollows() == thisSon) {
+            if (thisFather->right() != nullptr)
+               return false;
+         }
+         else if (thisFather->left() == thisSon)
+            return false;
+         thisSon = thisFather;
+      };
+   };
+   AssumeCondition(!sourceRef || (thisSon == sourceRef))
+   return true;
+}
+
+/* Implementation of the template class TImplTernaryTree */
+
+template <class TypeSubString>
+void
+TImplTernaryTree<TypeSubString>::freeAll() {
+   RouteFreeAction<thisType> freeAction(*this);
+   foreachNodeDo(*this, freeAction);
+}
+
+template <class TypeSubString>
+void
+TImplTernaryTree<TypeSubString>::removeAll() {
+   RouteRemoveAction<thisType> removeAction(*this);
+   foreachNodeDo(*this, removeAction);
+}
+
+template <class TypeSubString>
+auto
+TImplTernaryTree<TypeSubString>::operator=(const thisType& source) -> thisType& {
+   inherited::operator=(source);
+   if (this != &source) {
+      if (pfcRoot)
+         removeAll();
+      RouteCopyAction<thisType> copyAction(*this, source, false);
+      foreachNodeDo(*this, copyAction);
+   };
+   return *this;
+}
+
+template <class TypeSubString>
+TImplTernaryTree<TypeSubString>&
+TImplTernaryTree<TypeSubString>::fullAssign(const thisType& source, const VirtualCast* retrieveRegistrationFromCopy) {
+   if (this != &source) {
+      if (pfcRoot)
+         freeAll();
+      RouteCopyAction<thisType> copyAction(*this, source, true, retrieveRegistrationFromCopy);
+      foreachNodeDo(*this, copyAction);
+   };
+   return *this;
+}
+
+template <class TypeSubString>
+bool
+TImplTernaryTree<TypeSubString>::isValid() const {
+   RouteHeightValidityAction<thisType> validityAction;
+   return foreachNodeDo(*this, validityAction);
+}
+
+// Implementation of the balance methods
+
+#define DefineTemplate template <class TypeSubString>
+#define DefineTypeBinaryTree TImplTernaryTree<TypeSubString>
+#define DefineTernary
+#include "Pointer/BinaryBalance.incc"
+#undef DefineTernary
+#undef DefineTypeBinaryTree
+#undef DefineTemplate
+
+template <class TypeSubString>
+void
+TImplTernaryTree<TypeSubString>::addAsSon(TypeSubString& subString, EnhancedObject* object,
+      Cursor& cursor, LocationResult locationResult, InsertionNotification* notification) {
+   int thisHeight = cursor.depth();
+   if (cursor.isValid()) {
+      FollowingCell* parentNode = cursor.getReference();
+      if (locationResult == LRExact)
+         return;
+      uCount++;
+      switch (locationResult) {
+         case LRUndefined: AssumeUncalled
+         case LRLess:
+            if (parentNode->setLeft(new FollowingCell(subString, object))) {
+               cursor.setToLeft();
+               if (balanceAfterInsertion(cursor, notification ? &notification->notifications() : nullptr))
+                  thisHeight++;
+            }
+            else
+               cursor.setToLeft();
+            break;
+         case LRLessSuffix:
+            {  thisHeight += parentNode->splitSuffix(subString);
+               while (cursor.setToFollows());
+               if (cursor.getReference()->setLeft(new FollowingCell(subString, object))) {
+                  cursor.setToLeft();
+                  if (balanceAfterInsertion(cursor, notification ? &notification->notifications() : nullptr))
+                     thisHeight++;
+               }
+               else
+                  cursor.setToLeft();
+            };
+            break;
+         case LRNewSuffix:
+            parentNode->setSuffix(subString, object);
+            break;
+         case LRGreaterSuffix:
+            {  thisHeight += parentNode->splitSuffix(subString);
+               while (cursor.setToFollows());
+               if (cursor.getReference()->setRight(new FollowingCell(subString, object))) {
+                  cursor.setToRight();
+                  if (balanceAfterInsertion(cursor, notification ? &notification->notifications() : nullptr))
+                     thisHeight++;
+               }
+               else
+                  cursor.setToRight();
+            };
+            break;
+         case LRGreater:
+            if (parentNode->setRight(new FollowingCell(subString, object))) {
+               cursor.setToRight();
+               if (balanceAfterInsertion(cursor, notification ? &notification->notifications() : nullptr))
+                  thisHeight++;
+            }
+            else
+               cursor.setToRight();
+            break;
+         default: AssumeUncalled
+      };
+      if (thisHeight > uHeight)
+         uHeight = thisHeight;
+   }
+   else {
+      AssumeCondition(pfcRoot == nullptr)
+      pfcRoot = new FollowingCell(subString, object);
+      cursor.setToRoot(pfcRoot);
+      uHeight = uCount = 1;
+   };
+}
+
+template <class TypeSubString>
+DTernaryTree::BaseTernaryTree::CursorMove
+TImplTernaryTree<TypeSubString>::removeAt(Cursor& cursor, bool doesFree, SuppressionNotification* notification) {
+   AssumeCondition(cursor.isValid() && cursor.getReference()->isSuffix())
+   CursorMove result;
+   FollowingCell* removedNode = cursor.getReference();
+   FollowingCell* parentRemovedNode = nullptr;
+   if (doesFree)
+      removedNode->free();
+   else
+      removedNode->clear();
+
+   if (cursor.depth() > 1) {
+      parentRemovedNode = cursor[cursor.depth()-2];
+      while (parentRemovedNode && (parentRemovedNode->sfollows() == removedNode)
+            && removedNode->isSingleton()) {
+         if (notification)
+            notification->setFollowRemoved(removedNode);
+         parentRemovedNode->clear();
+         removedNode = parentRemovedNode;
+         cursor.setToParent();
+         parentRemovedNode = (cursor.depth() > 1)
+            ? (FollowingCell*) cursor[cursor.depth()-2] : nullptr;
+      };
+   };
+
+   if (!removedNode->left() || !removedNode->right()) { // direct removal
+      if (notification)
+         notification->setStart(removedNode, cursor.depth()-1);
+      cursor.setToParent();
+   }
+   else if (removedNode->isLeftBalanced()) {
+      result.setSwapBefore();
+      int removedIndex = cursor.depth()-1;
+      cursor.setToLeft();
+      while (cursor.setToRight());
+      FollowingCell* mountNode = cursor.getReference();
+      cursor.setToParent();
+      FollowingCell* parentMountNode = cursor.getReference();
+      FollowingCell::swap(removedNode, mountNode, parentRemovedNode, parentMountNode, pfcRoot);
+      cursor[removedIndex] = mountNode;
+      if (notification)
+         notification->setStart(removedNode, cursor.depth(), mountNode, removedIndex);
+   }
+   else { // we pick on the right
+      result.setSwapAfter();
+      int removedIndex = cursor.depth()-1;
+      cursor.setToRight();
+      while (cursor.setToLeft());
+      FollowingCell* mountNode = cursor.getReference();
+      cursor.setToParent();
+      FollowingCell* parentMountNode = cursor.getReference();
+      FollowingCell::swap(removedNode, mountNode, parentRemovedNode, parentMountNode, pfcRoot);
+      cursor[removedIndex] = mountNode;
+      if (notification)
+         notification->setStart(removedNode, cursor.depth(), mountNode, removedIndex);
+   };
+
+   if (parentRemovedNode) {
+      uCount--;
+      if (parentRemovedNode->sfollows() == removedNode) {
+         typename FollowingCell::Balance balance = parentRemovedNode->disconnectFollowing();
+         result.setReplace(balance);
+         cursor.setToSon(parentRemovedNode->sfollows());
+      }
+      else {
+         typename FollowingCell::Balance balance;
+         if (parentRemovedNode->left() == removedNode) {
+            balance = FollowingCell::BLeft;
+            result.setAfter();
+         }
+         else {
+            balance = FollowingCell::BRight;
+            result.setBefore();
+         };
+         parentRemovedNode->removeSon(balance);
+         balanceAfterSuppression(cursor, balance, notification ? &notification->notifications() : nullptr);
+      };
+   }
+   else {
+      if (removedNode->left()) {
+         pfcRoot = removedNode->left();
+         result.setReplace(FollowingCell::BLeft);
+         uCount--;
+         cursor.setToRoot(pfcRoot);
+      }
+      else if (removedNode->right()) {
+         pfcRoot = removedNode->right();
+         result.setReplace(FollowingCell::BRight);
+         uCount--;
+         cursor.setToRoot(pfcRoot);
+      }
+      else {
+         AssumeCondition(uCount == 1)
+         pfcRoot = nullptr;
+         uCount = uHeight = 0;
+         result.invalidate();
+         cursor.invalidate();
+      };
+      removedNode->disconnect();
+   };
+   if (removedNode)
+      delete removedNode;
+   return result;
+}
+
+} // end of namespace STG
+
+#endif // STG_TernaryTreeTemplate
+

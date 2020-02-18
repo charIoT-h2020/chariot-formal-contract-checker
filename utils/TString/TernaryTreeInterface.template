@@ -1,0 +1,218 @@
+/**************************************************************************/
+/*                                                                        */
+/*  Copyright (C) 2013-2019                                               */
+/*    CEA (Commissariat a l'Energie Atomique et aux Energies              */
+/*         Alternatives)                                                  */
+/*                                                                        */
+/*  you can redistribute it and/or modify it under the terms of the GNU   */
+/*  Lesser General Public License as published by the Free Software       */
+/*  Foundation, version 2.1.                                              */
+/*                                                                        */
+/*  It is distributed in the hope that it will be useful,                 */
+/*  but WITHOUT ANY WARRANTY; without even the implied warranty of        */
+/*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         */
+/*  GNU Lesser General Public License for more details.                   */
+/*                                                                        */
+/*  See the GNU Lesser General Public License version 2.1                 */
+/*  for more details (enclosed in the file LICENSE).                      */
+/*                                                                        */
+/**************************************************************************/
+
+/////////////////////////////////
+//
+// Library   : TString
+// Unit      : dictionary
+// File      : TernaryTreeInterface.template
+// Description :
+//   Implementation of a collection interface to the dictionaries based on ternary trees.
+//
+
+#ifndef COL_TernaryTreeInterfaceTemplate
+#define COL_TernaryTreeInterfaceTemplate
+
+#include "TString/TernaryTreeInterface.h"
+// #include "TString/String.hpp"
+
+namespace COL {}
+
+#include "Collection/Collection.template"
+#include "TString/TernaryTreeInterfaceBase.template"
+#include "TString/TernaryTree.template"
+
+namespace COL {
+
+template <class TypeSubString>
+void
+TernaryTree<TypeSubString>::_fullAssign(const thisType& source, const ExtendedReplaceParameters& parameters) {
+   inherited::_fullAssign(source, parameters);
+   if (this != &source) {
+      typename inherited::InvalidateNotification invalidation;
+      inherited::notifyCursorUpdate(invalidation);
+      if (parameters.isDuplicate()) {
+         if (!parameters.isFree())
+            inherited::inheritedImplementation::removeAll();
+         try {
+            inherited::inheritedImplementation::fullAssign(source.getImplementation());
+         }
+         catch (...) {
+            inherited::inheritedImplementation::freeAll();
+            throw;
+         }
+      }
+      else {
+         if (parameters.isFree())
+            inherited::inheritedImplementation::freeAll();
+         try {
+            inherited::inheritedImplementation::_assign(source.getImplementation());
+         }
+         catch (...) {
+            inherited::inheritedImplementation::removeAll();
+            throw;
+         }
+      }
+   };
+}
+
+template <class TypeSubString>
+void
+TernaryTree<TypeSubString>::_add(EnhancedObject* newElement, const ExtendedInsertionParameters& parameters,
+      Cursor* cursor) {
+   inherited::_add(newElement, parameters, cursor);
+   COL::VirtualCollection::AddGuardian<EnhancedObject> guard(*this, newElement, parameters);
+   newElement = guard.handleDuplication();
+   InsertionNotification notificationData;
+   InsertionNotification* notification = nullptr;
+
+   inherited::normalizeCursors(cursor);
+   const typename inherited::KeyHandler& keyHandler
+      = (const typename inherited::KeyHandler&) parameters.getKeyHandler();
+   TypeSubString key = keyHandler.queryKey();
+   if (parameters.isInsertion() && cursor && keyHandler.hasLocate()) {
+      const LocationResultAccess& locateResult = (const LocationResultAccess&) keyHandler.getLocation();
+      if (locateResult.doesKnowCursor(cursor->getImplementation())
+            && (parameters.isAfter() ? (cursor->isRightCursor() && locateResult.isGreater())
+               : (cursor->isLeftCursor() && locateResult.isLess()))) {
+         if (cursor ? (!inherited::CastCursorHandler::castTo(*this).isSingleReferenced())
+               : (inherited::CastCursorHandler::castTo(*this).isReferenced()))
+            notification = &notificationData;
+
+         typename TernaryTreeCursor<TypeSubString>::CursorImplementationAccess& implCursor
+            = (typename TernaryTreeCursor<TypeSubString>::CursorImplementationAccess&) cursor->getImplementation();
+         TypeSubString insertionKey = locateResult.getInsertionKey();
+         typename inherited::inheritedImplementation::FollowingCell* oldSuffix = implCursor.isValid() ? implCursor.getReference() : nullptr;
+         inherited::inheritedImplementation::addAsSon(insertionKey, newElement,
+               implCursor, locateResult.getSearchResult(), notification);
+         guard.release();
+         cursor->assumeFinal();
+
+         if (notification) {
+            if (cursor)
+               notification->setOrigin(*cursor);
+            inherited::notifyCursorUpdate(*notification);
+         };
+         if (parameters.isRemote()) {
+            if (parameters.isBefore())
+               implCursor.setToNext(inherited::getImplementation());
+            else
+               implCursor.setToPrevious(inherited::getImplementation());
+         };
+         if (locateResult.getSearchResult() == inherited::inheritedImplementation::LRLessSuffix
+               || locateResult.getSearchResult() == inherited::inheritedImplementation::LRGreaterSuffix) {
+            AssumeCondition(oldSuffix)
+            SplitSuffixNotification splitSuffixNotification(*oldSuffix);
+            inherited::notifyCursorUpdate(splitSuffixNotification);
+         };
+         return;
+      };
+   };
+
+   typename TernaryTreeCursor<TypeSubString>::CursorImplementation garbageCursor(inherited::getImplementation());
+   typename TernaryTreeCursor<TypeSubString>::CursorImplementationAccess* implCursor = (cursor && !parameters.isRemote())
+      ? (typename TernaryTreeCursor<TypeSubString>::CursorImplementationAccess*) &cursor->getImplementation()
+      : (typename TernaryTreeCursor<TypeSubString>::CursorImplementationAccess*) &garbageCursor;
+   if (cursor ? ((implCursor != &cursor->getImplementation()) ||
+                     !inherited::CastCursorHandler::castTo(*this).isSingleReferenced())
+         : inherited::CastCursorHandler::castTo(*this).isReferenced())
+      notification = &notificationData;
+   implCursor->invalidate();
+   typename inherited::inheritedImplementation::LocationResult result
+         = inherited::inheritedImplementation::locate(key, *implCursor);
+   AssumeCondition((result != inherited::inheritedImplementation::LRExact)
+         && (result != inherited::inheritedImplementation::LRUndefined))
+   typename inherited::inheritedImplementation::FollowingCell* oldSuffix = implCursor->isValid() ? implCursor->getReference() : nullptr;
+   inherited::inheritedImplementation::addAsSon(key, newElement, *implCursor, result, notification);
+   guard.release();
+
+   if (implCursor == &cursor->getImplementation())
+      cursor->assumeFinal();
+   if (notification) {
+      if (implCursor == &cursor->getImplementation())
+         notification->setOrigin(*cursor);
+      inherited::notifyCursorUpdate(*notification);
+   };
+   if (result == inherited::inheritedImplementation::LRLessSuffix
+         || result == inherited::inheritedImplementation::LRGreaterSuffix) {
+      AssumeCondition(oldSuffix)
+      SplitSuffixNotification splitSuffixNotification(*oldSuffix);
+      inherited::notifyCursorUpdate(splitSuffixNotification);
+   };
+}
+
+template <class TypeSubString>
+void
+TernaryTree<TypeSubString>::_addAll(const thisType& source, const ExtendedInsertionParameters& parameters,
+      TernaryTreeCursor<TypeSubString>* cursor, const TernaryTreeCursor<TypeSubString>* startSource,
+      const TernaryTreeCursor<TypeSubString>* endSource) {
+   inherited::_addAll(source, parameters, cursor, startSource, endSource);
+   if (inherited::inheritedImplementation::isEmpty() && !startSource && !endSource) {
+      if (this != &source) {
+         try {
+            if (parameters.isDuplicate())
+               inherited::inheritedImplementation::fullAssign(source.getImplementation());
+            else
+               inherited::inheritedImplementation::_assign(source.getImplementation());
+         }
+         catch (...) {
+            if (parameters.isDuplicate())
+               inherited::inheritedImplementation::freeAll();
+            else
+               inherited::inheritedImplementation::removeAll();
+            throw;
+         }
+      };
+   }
+   else
+      inherited::paddAll(source, parameters, cursor, startSource, endSource);
+}
+
+template <class TypeSubString>
+void
+TernaryTree<TypeSubString>::_remove(const ExtendedSuppressParameters& parameters, Cursor* cursor)
+   {  inherited::tremove(*this, parameters, cursor); }
+
+template <class TypeSubString>
+void
+TernaryTree<TypeSubString>::_replace(EnhancedObject* element, const ExtendedReplaceParameters& parameters,
+      Cursor* cursor)
+   {  inherited::treplace(*this, element, parameters, cursor); }
+
+template <class TypeSubString>
+TernaryTree<TypeSubString>::TernaryTree(const InitialValues& initialValues)
+   {  COL::DVirtualMapCollection::Access::TMapInsertInitialValue<TernaryTree<TypeSubString>,
+            EnhancedObject, COL::LightCopyKeyTraits<TypeSubString>, SimpleCast>
+         insertInitialValue(*this);
+      initialValues.foreachDo(insertInitialValue);
+   }
+
+template <class TypeSubString>
+TernaryTree<TypeSubString>::TernaryTree(const InitialNewValues& initialValues)
+   {  COL::DVirtualMapCollection::Access::TMapInsertInitialNewValue<TernaryTree<TypeSubString>,
+            EnhancedObject, COL::LightCopyKeyTraits<TypeSubString>, SimpleCast>
+         insertInitialValue(*this);
+      initialValues.foreachDo(insertInitialValue);
+   }
+
+} // end of namespace COL
+
+#endif // COL_TernaryTreeInterfaceTemplate
+

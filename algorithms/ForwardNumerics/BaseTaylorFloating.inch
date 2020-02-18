@@ -1,0 +1,110 @@
+/////////////////////////////////
+//
+// Library   : ForwardNumerics
+// Unit      : Floating
+// File      : BaseTaylorFloating.inch
+// Author    : Franck Vedrine
+// Copyright : CEA LIST - 2015, 2016
+//
+// Description :
+//   Definition of a class of floating points with mathematic functions
+//   defined by Taylor approximations
+//
+
+#ifndef DefineGeneric
+
+#define DefineTaylorDouble TTaylorDouble
+#define DefineBaseTypeConstReference                       \
+   unsigned int
+
+#else
+
+#define DefineTaylorDouble TGTaylorDouble
+#define DefineBaseTypeConstReference                       \
+   typename inherited::BuiltDouble::BaseStoreTraits::BaseTypeConstReference
+
+#endif
+
+template <class TypeDouble, class TypeDouble_n, class TypeBigInteger>
+class DefineTaylorDouble : public TypeDouble {
+  private:
+   typedef DefineTaylorDouble<TypeDouble, TypeDouble_n, TypeBigInteger> thisType;
+   typedef TypeDouble inherited;
+
+  public:
+   typedef typename inherited::ReadParameters ReadParameters;
+   class EnhancedDouble : public TypeDouble_n {
+     private:
+      typedef TypeDouble_n inherited;
+
+     public:
+      EnhancedDouble() {}
+      EnhancedDouble(const inherited& source) : inherited(source) {}
+      EnhancedDouble(inherited&& source) : inherited(source) {}
+      EnhancedDouble(const TypeDouble& source)
+         {  for (int index = 0; index <= source.getMantissa().lastCellIndex(); ++index)
+               inherited::getSMantissa()[index] = source.getMantissa()[index];
+            inherited::getSMantissa() <<= (inherited::bitSizeMantissa() - source.bitSizeMantissa());
+            for (int index = 0; index <= source.getBasicExponent().lastCellIndex(); ++index)
+               inherited::getSBasicExponent()[index] = source.getBasicExponent()[index];
+            inherited::setSign(source.isPositive());
+         }
+      EnhancedDouble(const TypeBigInteger& integer, typename TypeDouble::ReadParameters& params, bool isNegative=false);
+      EnhancedDouble& operator=(const inherited& source) { return (EnhancedDouble&) inherited::operator=(source); }
+      EnhancedDouble& operator=(inherited&& source) { return (EnhancedDouble&) inherited::operator=(source); }
+      EnhancedDouble& operator=(const TypeDouble& source)
+         {  for (int index = 0; index <= source.getMantissa().lastCellIndex(); ++index)
+               inherited::getSMantissa()[index] = source.getMantissa()[index];
+            inherited::getSMantissa() <<= (inherited::bitSizeMantissa() - source.bitSizeMantissa());
+            for (int index = 0; index <= source.getBasicExponent().lastCellIndex(); ++index)
+               inherited::getSBasicExponent()[index] = source.getBasicExponent()[index];
+            inherited::setSign(source.isPositive());
+            return *this;
+         }
+      EnhancedDouble& operator=(const EnhancedDouble& source) = default;
+
+      void adjustComputation(typename TypeDouble::ReadParameters& params, EnhancedDouble& minError, EnhancedDouble& maxError)
+         {  if (params.isApproximate()) {
+               EnhancedDouble semiUlp;
+               semiUlp.setBasicExponent(inherited::getBasicExponent());
+               semiUlp.getSBasicExponent().minusAssign(inherited::bitSizeMantissa()+1);
+               if (params.isUpApproximate()) {
+                  typename TypeDouble::ReadParameters maxParams(params);
+                  maxParams.setHighestRound();
+                  maxError.plusAssign(semiUlp, maxParams);
+               }
+               else {
+                  typename TypeDouble::ReadParameters minParams(params);
+                  minParams.setLowestRound();
+                  minError.minusAssign(semiUlp, minParams);
+               }
+            };
+            params.clear();
+         }
+
+      void retrieveDouble(TypeDouble& source, typename TypeDouble::ReadParameters& params,
+            EnhancedDouble* minError=nullptr, EnhancedDouble* maxError=nullptr) const;
+   };
+
+   void logAssignLimited(EnhancedDouble& copy,
+      EnhancedDouble& minCopyError, EnhancedDouble& maxCopyError,
+      ReadParameters& nearestParams, ReadParameters& minParams, ReadParameters& maxParams);
+
+  public:
+   DefineTaylorDouble() {}
+   DefineTaylorDouble(DefineBaseTypeConstReference value)
+      :  inherited(value) {}
+
+   DefineTaylorDouble(const typename inherited::IntConversion& value, ReadParameters& params)
+      :  inherited(value, params) {}
+   DefineTaylorDouble(const typename inherited::FloatConversion& value, ReadParameters& params)
+      :  inherited(value, params) {}
+   DefineTaylorDouble(const typename inherited::BuiltDouble& source) : inherited(source) {}
+
+   void expAssign(TypeDouble& errorMin, TypeDouble& errorMax, ReadParameters& params);
+   void logAssign(TypeDouble& errorMin, TypeDouble& errorMax, ReadParameters& params);
+};
+
+#undef DefineTaylorDouble
+#undef DefineBaseTypeConstReference
+

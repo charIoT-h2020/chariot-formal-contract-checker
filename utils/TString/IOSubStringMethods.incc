@@ -1,0 +1,82 @@
+/**************************************************************************/
+/*                                                                        */
+/*  Copyright (C) 2013-2019                                               */
+/*    CEA (Commissariat a l'Energie Atomique et aux Energies              */
+/*         Alternatives)                                                  */
+/*                                                                        */
+/*  you can redistribute it and/or modify it under the terms of the GNU   */
+/*  Lesser General Public License as published by the Free Software       */
+/*  Foundation, version 2.1.                                              */
+/*                                                                        */
+/*  It is distributed in the hope that it will be useful,                 */
+/*  but WITHOUT ANY WARRANTY; without even the implied warranty of        */
+/*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         */
+/*  GNU Lesser General Public License for more details.                   */
+/*                                                                        */
+/*  See the GNU Lesser General Public License version 2.1                 */
+/*  for more details (enclosed in the file LICENSE).                      */
+/*                                                                        */
+/**************************************************************************/
+
+/////////////////////////////////
+//
+// Library   : String
+// Unit      : Persistency
+// File      : IOSubStringMethods.incc
+// Description :
+//   Implementation of the inline interface methods that do the link between
+//   the substring based streams and the classes IOObject::ISBase and IOObject::OSBase.
+//
+
+/* DefineTypeObject     : Type of the class under implementation derived from OSBase   */
+/* DefineReference      : Substring reference in DefineTypeObject                      */
+
+template <class TypeSubString>
+IOObject::OSBase&
+DefineTypeObject<TypeSubString>::seekp(int pos, int origin) {
+   TypeSubString support(buffer());
+   DefineReference advance(support.length());
+   DefineReference setUpperInfinite();
+   DefineReference setUpperOpened();
+   DefineReference seek(pos, origin);
+   support.setUpperBoundTo(buffer());
+   DefineReference assign(support);
+   return *this;
+}
+
+template <class TypeSubString>
+IOObject::OSBase&
+DefineTypeObject<TypeSubString>::write(const VirtualStringProperty& source, bool isRaw) {
+   int length = source.length();
+   if (isRaw) {
+      static const int nbChars = (sizeof(length)-1)/sizeof(typename TypeSubString::Char)+1;
+      typename TypeSubString::Char string[nbChars];
+      memset(&string, 0, nbChars*sizeof(typename TypeSubString::Char));
+      memcpy(&string, &length, sizeof(length));
+      DefineReference cat(string, nbChars);
+   }
+   else
+      DefineReference catInteger(length).cat(' ');
+   if (source.setToFirstChunk()) {
+      TChunk<typename TypeSubString::Char>* chunk = nullptr;
+      do {
+         chunk = (TChunk<typename TypeSubString::Char>*) source.getChunk();
+         DefineReference cat(chunk->string, chunk->length);
+      } while (source.setToNextChunk());
+   };
+   return *this;
+}
+
+template <class TypeSubString>
+IOObject::OSBase&
+DefineTypeObject<TypeSubString>::writeall(const VirtualStringProperty& source) {
+   if (source.setToFirstChunk()) {
+      TChunk<typename TypeSubString::Char>* chunk = nullptr;
+      do {
+         chunk = (TChunk<typename TypeSubString::Char>*) source.getChunk();
+         DefineReference cat(chunk->string, chunk->length);
+      } while (source.setToNextChunk());
+   };
+   return *this;
+}
+

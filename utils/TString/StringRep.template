@@ -1,0 +1,1431 @@
+/**************************************************************************/
+/*                                                                        */
+/*  Copyright (C) 2013-2019                                               */
+/*    CEA (Commissariat a l'Energie Atomique et aux Energies              */
+/*         Alternatives)                                                  */
+/*                                                                        */
+/*  you can redistribute it and/or modify it under the terms of the GNU   */
+/*  Lesser General Public License as published by the Free Software       */
+/*  Foundation, version 2.1.                                              */
+/*                                                                        */
+/*  It is distributed in the hope that it will be useful,                 */
+/*  but WITHOUT ANY WARRANTY; without even the implied warranty of        */
+/*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         */
+/*  GNU Lesser General Public License for more details.                   */
+/*                                                                        */
+/*  See the GNU Lesser General Public License version 2.1                 */
+/*  for more details (enclosed in the file LICENSE).                      */
+/*                                                                        */
+/**************************************************************************/
+
+/////////////////////////////////
+//
+// Library   : TString
+// Unit      : sub-string
+// File      : StringRep.template
+// Description :
+//   Implementation of a storage class that defines the support for the sub-strings.
+//
+
+#include "TString/StringRep.h"
+// #include "TString/String.hpp"
+
+namespace {}
+
+#include <iostream>
+
+namespace STG {
+
+namespace DStringRep {
+
+template <typename TypeChar>
+TBasicRepository<TypeChar>&
+TBasicRepository<TypeChar>::operator=(const thisType& source) {
+   if (this != &source) {
+      AssumeCondition(source.isValid())
+      TypeChar* newString = new TypeChar[source.uLength+1];
+      AssumeAllocation(newString)
+      if (szString)
+         delete [] szString;
+      szString = newString;
+      uAllocatedSize = source.uLength;
+      if (source.uLength > 0)
+         TBasicRepositoryTraits<TypeChar>::memcpy(szString, source.szString, source.uLength+1);
+      else
+         szString[0] = '\0';
+      uLength = source.uLength;
+   };
+   return *this;
+}
+
+template <typename TypeChar>
+void
+TBasicRepository<TypeChar>::realloc(int size) {
+   AssumeCondition(size >= uLength)
+   TypeChar* oldString = szString;
+   szString = new TypeChar[size+1];
+   if (szString == nullptr) {
+      szString = oldString;
+      throw EMemoryExhausted();
+   };
+   if (oldString) {
+      TBasicRepositoryTraits<TypeChar>::memcpy((TypeChar*) szString, (TypeChar*) oldString, uLength+1);
+      delete [] oldString;
+   }
+   else
+      szString[0] = '\0';
+   uAllocatedSize = size;
+}
+
+/* read and write methods on streams */
+
+template <typename TypeChar>
+void
+TBasicRepository<TypeChar>::read(std::basic_istream<TypeChar>& in) {
+   AssumeCondition(!szString)
+
+   TypeChar* buffer = new TypeChar[5001];
+   AssumeAllocation(buffer)
+
+   int readChars;                     // number of characters read in the buffer
+   int ch;                            // next character
+   std::streampos pos = in.tellg();   // current position in the stream: handle exceptions
+
+   try {
+      while (((ch = in.peek()) !=
+#ifdef EOF
+            EOF
+#else
+            -1
+#endif
+            ) && (ch != '\0')) {
+         in.get(buffer, 5000, '\0');
+         readChars = in.gcount();
+         bookPlace(readChars);
+         TBasicRepositoryTraits<TypeChar>::memcpy(szString + uLength, buffer, readChars);
+         uLength += readChars;
+         szString[uLength] = '\0';
+      };
+   }
+   catch (...) {
+      delete [] buffer;
+      if (szString)
+         szString[0] = '\0';
+      else
+         uAllocatedSize = 0;
+      uLength = 0;
+      szString = nullptr;
+      in.seekg(pos);
+      throw;
+   };
+   delete [] buffer;
+}
+
+template <typename TypeChar>
+void
+TBasicRepository<TypeChar>::write(std::basic_ostream<TypeChar>& out) const {
+   if (szString)
+      out.write(szString, uLength);
+}
+
+} // end of namespace DStringRep
+
+/*
+template <typename TypeChar>
+void
+TRepository<TypeChar>::MoveNotification::update(Position& position, int* length) {
+   if (uShift <= 0) { // suppression
+      if (position.uPosition >= pSource.uPosition) {
+         if (position.uPosition >= pSource.uPosition - uShift)
+            position.uPosition += uShift;
+         else { // pSource.uPosition <= position.uPosition - uShift < pSource.uPosition
+            if (length) {
+               if (position.uPosition + *length >= pSource.uPosition - uShift)
+                  *length += position.uPosition - pSource.uPosition + uShift;
+               else
+                  *length = 0;
+            };
+            position.uPosition = pSource.uPosition;
+         };
+      }
+      else if (length && (position.uPosition + *length > pSource.uPosition)) {
+         // position.uPosition - uShift < pSource.uPosition <= pSource.uPosition
+         if (position.uPosition + *length >= pSource.uPosition - uShift)
+            *length += uShift;
+         else
+            *length = pSource.uPosition - position.uPosition;
+      };
+   }
+   else { // 0 < uShift = insertion
+      if (position.uPosition >= pSource.uPosition)
+         position.uPosition += uShift;
+      else { // position.uPosition < pSource.uPosition < pSource.uPosition + uShift
+         if (length && (position.uPosition + *length > pSource.uPosition))
+            *length += uShift;
+      };
+   };
+}
+*/
+
+namespace DListRepository {
+
+/********************************************/
+/* Implementation du patron TListRepository */
+/********************************************/
+
+template <typename TypeChar, class RepositoryPolicy>
+TBasicRepository<TypeChar, RepositoryPolicy>::TBasicRepository(const thisType& source) : uTotalLength(0) {
+   if (source.uTotalLength > 0) {
+      int availablePlace = 0;
+      int charsToCopy = source.uTotalLength;
+      TypeChar *string = nullptr, *sourceString = nullptr;
+      typename ListStrings::Cursor sourceCursor(source.larStrings);
+      sourceCursor.setToFirst();
+      const AtomicRepository* atom = &sourceCursor.elementAt();
+      sourceString = atom->getString();
+      int sourceLength = atom->length();
+      do {
+         if (availablePlace == 0) {
+            if (string)
+               *string = (TypeChar) 0;
+            AtomicRepository* support = createAtomic(sourceLength);
+            larStrings.insertNewAtEnd(support);
+            availablePlace = support->getPlace();
+            string = support->getString();
+         };
+         if (sourceLength == 0) {
+            sourceCursor.setToNext();
+            atom = &sourceCursor.elementAt();
+            sourceString = atom->getString();
+            sourceLength = atom->length();
+            if (sourceLength > charsToCopy)
+               sourceLength = charsToCopy;
+         };
+         int copy = ((sourceLength < availablePlace) ? sourceLength : availablePlace);
+         TBasicRepositoryTraits<TypeChar>::memcpy(string, sourceString, copy);
+         string += copy;
+         sourceString += copy;
+         *string = (TypeChar) 0;
+         sourceLength -= copy;
+         charsToCopy -= copy;
+         availablePlace -= copy;
+      } while (charsToCopy > 0);
+      uTotalLength = source.uTotalLength;
+   };
+}
+
+template <typename TypeChar, class RepositoryPolicy>
+bool
+TBasicRepository<TypeChar, RepositoryPolicy>::invariant() const {
+   bool result = (uTotalLength >= 0) && ((uTotalLength == 0) == larStrings.isEmpty());
+   if (result) {
+      int leftLength = uTotalLength;
+      result = larStrings.foreachDo([&leftLength](const AtomicRepository& source)
+         {  return (leftLength -= source.getLength()) >= 0; });
+      result = result && (leftLength == 0);
+   };
+   return result;
+}
+
+template <typename TypeChar, class RepositoryPolicy>
+void
+TBasicRepository<TypeChar, RepositoryPolicy>::read(std::basic_istream<TypeChar>& in) {
+   AssumeCondition(larStrings.isEmpty() && uTotalLength == 0)
+
+   int readChars;                       // number of characters read in the buffer
+   int ch;                              // next caracter
+   std::streampos pos = in.tellg();     // current position in the stream: handle exceptions
+                                        // [WARN] be careful of non-portability tellg <-> peek
+
+   try {
+      PNT::AutoPointer<AtomicRepository> atomicRepository;
+      while (((ch = in.peek()) !=
+#ifdef EOF
+            EOF
+#else
+            -1
+#endif
+            ) && (ch != '\0')) {
+         atomicRepository.absorbElement(createAtomic(5000));
+         in.get(atomicRepository->getString(), atomicRepository->getAllocatedSize()-1, '\0');
+         readChars = (int) in.gcount();
+         uTotalLength += readChars;
+         atomicRepository->length() += readChars;
+         atomicRepository->getString()[atomicRepository->length()] = '\0';
+         larStrings.insertNewAtEnd(atomicRepository.extractElement());
+      };
+   }
+   catch (...) {
+      larStrings.freeAll();
+      uTotalLength = 0;
+      in.seekg(pos);
+      throw;
+   };
+}
+
+template <typename TypeChar, class RepositoryPolicy>
+void
+TBasicRepository<TypeChar, RepositoryPolicy>::write(std::basic_ostream<TypeChar>& out) const {
+   if (!larStrings.isEmpty()) {
+      larStrings.foreachDo([&out](const AtomicRepository& source)
+         {  TypeChar* achar = source.getString();
+            if (achar)
+               out.write(achar, source.getLength());
+            return true;
+         });
+   };
+}
+
+template <typename TypeChar, class RepositoryPolicy>
+void
+TBasicRepository<TypeChar, RepositoryPolicy>::retrieveChunk(const Position& position,
+      TChunk<TypeChar>& chunk, bool isBackward) const {
+   if (!isBackward) {
+      if (position.parSupport) {
+         chunk.string = position.parSupport->getString() + position.uPosition;
+         chunk.length = position.parSupport->length() - position.uPosition;
+      }
+      else {
+         chunk.string = nullptr;
+         chunk.length = 0;
+      };
+   }
+   else {
+      AtomicRepository* support = position.parSupport;
+      int startPosition = position.uPosition;
+      if (startPosition == 0) {
+         if (support) {
+            typename ListStrings::Cursor cursor(larStrings);
+            cursor.gotoReference(*support);
+            if (cursor.setToPrevious()) {
+               support = &cursor.elementSAt();
+               startPosition = support->length();
+            }
+            else {
+               support = nullptr;
+               startPosition = 0;
+            };
+         }
+         else {
+            support = !larStrings.isEmpty() ? &larStrings.getSLast() : nullptr;
+            startPosition = support ? support->length() : 0;
+         };
+      };
+      if (support) {
+         AssumeCondition(startPosition > 0)
+         chunk.length = startPosition;
+         chunk.string = support->getString() + startPosition;
+         --chunk.string;
+      }
+      else {
+         chunk.length = 0;
+         chunk.string = nullptr;
+      };
+   };
+}
+
+template <typename TypeChar, class RepositoryPolicy>
+bool
+TBasicRepository<TypeChar, RepositoryPolicy>::setToNextChunk(Position& position, TChunk<TypeChar>& chunk, bool isBackward) const {
+   typename ListStrings::Cursor cursor(larStrings);
+   if (position.parSupport)
+      cursor.gotoReference(*position.parSupport);
+   typename ListStrings::Cursor::Position positionCursor;
+   if (cursor.position(!isBackward ? positionCursor.setForward() : positionCursor.setBackward())) {
+      position.parSupport = &cursor.elementSAt();
+      if (!isBackward) {
+         position.uPosition = 0;
+         chunk.string = position.parSupport->getString();
+      }
+      else {
+         position.uPosition = position.parSupport->length()-1;
+         chunk.string = position.parSupport->getString()+position.uPosition;
+      };
+      chunk.length = position.parSupport->length();
+      return true;
+   };
+   position.uPosition = 0;
+   chunk.string = nullptr;
+   chunk.length = 0;
+   position.parSupport = nullptr;
+   return false;
+}
+
+template <typename TypeChar, class RepositoryPolicy>
+inline int
+TBasicRepository<TypeChar, RepositoryPolicy>::insertSupport(MoveNotification& notification,
+      AtomicRepository& support, int& shift) {
+   AssumeCondition(notification.pSource.parSupport == &support)
+   int place = support.getPlace();
+   int position = notification.pSource.uPosition;
+   int count = place < shift ? place : shift;
+   TBasicRepositoryTraits<TypeChar>::memmove(support.getString()+position+count,
+      support.getString()+position, support.length()-position+1);
+   notification.lcCurrent.parSupport = &support;
+   notification.lcCurrent.uLength = support.length();
+   support.length() += count;
+   shift -= count;
+   return count;
+}
+
+template <typename TypeChar, class RepositoryPolicy>
+inline int
+TBasicRepository<TypeChar, RepositoryPolicy>::suppressSupport(MoveNotification& notification,
+      AtomicRepository& support, int& shift) {
+   AssumeCondition(notification.pSource.parSupport == &support)
+   int position = notification.pSource.uPosition;
+   int suppress = support.length()-position;
+   suppress = suppress < shift ? suppress : shift;
+   TBasicRepositoryTraits<TypeChar>::memmove(support.getString()+position,
+      support.getString()+position+suppress, support.length()-(position+suppress)+1);
+   notification.lcCurrent.parSupport = &support;
+   notification.lcCurrent.uLength = support.length();
+   support.length() -= suppress;
+   shift -= suppress;
+   return suppress;
+}
+
+template <typename TypeChar, class RepositoryPolicy>
+inline int
+TBasicRepository<TypeChar, RepositoryPolicy>::insertPreviousSupport(MoveNotification& notification,
+      AtomicRepository& previousSupport, int& shift, AtomicRepository& support,
+      int& firstPosition, int sourcePosition) {
+   int place = previousSupport.getPlace();
+   int extendPrevious = place < shift ? place : shift;
+   notification.lcLeft.parSupport = &previousSupport;
+   notification.lcLeft.uLength = previousSupport.length();
+   previousSupport.length() += extendPrevious;
+   previousSupport.getString()[previousSupport.length()] = (TypeChar) 0;
+   if (sourcePosition > 0) {
+      TBasicRepositoryTraits<TypeChar>::memcpy(previousSupport.getString()
+         +previousSupport.length()-extendPrevious, support.getString(),
+         (extendPrevious >= sourcePosition) ? sourcePosition : extendPrevious);
+      if (extendPrevious < sourcePosition)
+         TBasicRepositoryTraits<TypeChar>::memmove(support.getString(),
+            support.getString()+extendPrevious, sourcePosition-extendPrevious);
+   };
+   firstPosition = sourcePosition - extendPrevious;
+   shift -= extendPrevious;
+   return extendPrevious;
+}
+
+template <typename TypeChar, class RepositoryPolicy>
+inline int
+TBasicRepository<TypeChar, RepositoryPolicy>::insertNextSupport(MoveNotification& notification,
+      AtomicRepository& nextSupport, int& shift, AtomicRepository& support, int sourcePosition) {
+   int place = nextSupport.getPlace();
+   int extendNext = (shift < place) ? shift : place;
+   if (extendNext > 0) {
+      TBasicRepositoryTraits<TypeChar>::memmove(nextSupport.getString()+extendNext,
+            nextSupport.getString(), nextSupport.length()+1);
+      notification.rmRightMove.parSupport = &nextSupport;
+      notification.rmRightMove.uPosition = 0;
+      notification.rmRightMove.pNewPosition.parSupport = &nextSupport;
+      notification.rmRightMove.pNewPosition.uPosition = extendNext;
+      nextSupport.length() += extendNext;
+      TBasicRepositoryTraits<TypeChar>::memcpy(nextSupport.getString(),
+         support.getString()+support.length()-extendNext, extendNext);
+      TBasicRepositoryTraits<TypeChar>::memmove(support.getString()+sourcePosition+extendNext,
+         support.getString()+sourcePosition, support.length()+1-sourcePosition);
+      shift -= extendNext;
+   };
+   return extendNext;
+}
+
+template <typename TypeChar, class RepositoryPolicy>
+inline int
+TBasicRepository<TypeChar, RepositoryPolicy>::suppressNextSupport(MoveNotification& notification,
+      AtomicRepository& support, AtomicRepository& nextSupport, int shift) {
+   int position = notification.pSource.uPosition;
+   int suppress = support.length()-position;
+   position += (notification.uShift - support.length());
+   AssumeCondition(!notification.lcCurrent.isValid())
+   notification.lcCurrent.parSupport = &support;
+   notification.lcCurrent.uLength = support.length();
+   support.length() -= suppress;
+   support.getString()[support.length()] = (TypeChar) 0;
+   int destinationPosition = position + shift - support.length();
+   if (destinationPosition > 0) {
+      TBasicRepositoryTraits<TypeChar>::memmove(nextSupport.getString(),
+         nextSupport.getString()+destinationPosition, nextSupport.length()-destinationPosition+1);
+      notification.rmRightMove.parSupport = &nextSupport;
+      notification.rmRightMove.uPosition = destinationPosition;
+      notification.rmRightMove.pNewPosition.parSupport = &nextSupport;
+      notification.rmRightMove.pNewPosition.uPosition = 0;
+      nextSupport.length() -= destinationPosition;
+   };
+   return suppress+destinationPosition;
+}
+
+template <typename TypeChar, class RepositoryPolicy>
+inline void
+TBasicRepository<TypeChar, RepositoryPolicy>::mergeSupport(MoveNotification& notification,
+      AtomicRepository& mergeSupport, AtomicRepository& deleteSupport, int leftMoveIndex) {
+   TBasicRepositoryTraits<TypeChar>::memcpy(mergeSupport.getString()+mergeSupport.length(),
+      deleteSupport.getString(), deleteSupport.length()+1);
+   typename MoveNotification::LengthRemember& oldLength = (leftMoveIndex == 1)
+      ? notification.lcCurrent : notification.lcLeft;
+/* if (leftMoveIndex == 1) {
+      if (!notification.lcCurrent.isValid()) {
+         notification.lcCurrent.parSupport = &mergeSupport;
+         notification.lcCurrent.uLength = mergeSupport.length();
+      };
+//    AssumeCondition(!notification.rmRightMove.isValid()
+//          || ((&deleteSupport == notification.rmRightMove.pNewPosition.parSupport)
+//                && (notification.rmRightMove.pNewPosition.uPosition == 0)))
+//    if (!notification.rmRightMove.isValid()) {
+//       notification.rmRightMove.parSupport = &deleteSupport;
+//       notification.rmRightMove.uPosition = 0;
+//    };
+//    notification.rmRightMove.pNewPosition.parSupport = &mergeSupport;
+//    notification.rmRightMove.pNewPosition.uPosition += mergeSupport.length();
+   }
+   else if ((leftMoveIndex == 0) && !notification.lcLeft.isValid()) {
+      notification.lcLeft.parSupport = &mergeSupport;
+      notification.lcLeft.uLength = mergeSupport.length();
+   }; */
+   if (!oldLength.isValid()) {
+      oldLength.parSupport = &mergeSupport;
+      oldLength.uLength = mergeSupport.length();
+   };
+   mergeSupport.length() += deleteSupport.length();
+   typename ListStrings::Cursor cursor(larStrings);
+   cursor.gotoReference(deleteSupport);
+   larStrings.deleteAt(cursor);
+   deleteSupport.suppress();
+   notification.larSuppressedRep.add(&deleteSupport, COL::VirtualCollection::ExtendedInsertionParameters()
+      .setRelativePosition((leftMoveIndex == 1)
+         ? COL::VirtualCollection::RPBefore : COL::VirtualCollection::RPAfter));
+}
+
+template <typename TypeChar, class RepositoryPolicy>
+void
+TBasicRepository<TypeChar, RepositoryPolicy>::insert(MoveNotification& notification, int shift) {
+   AtomicRepository* support = notification.pSource.parSupport;
+   int availablePlace = support->getPlace();
+   if (shift <= availablePlace) {
+      insertSupport(notification, *support, shift);
+      return;
+   };
+   typename ListStrings::Cursor sourceCursor(larStrings);
+   sourceCursor.gotoReference(*notification.pSource.parSupport);
+   AtomicRepository* previousSupport = nullptr;
+   if (sourceCursor.setToPrevious()) {
+      previousSupport = &sourceCursor.elementSAt();
+      availablePlace += previousSupport->getPlace();
+   };
+   if (shift <= availablePlace) {
+      int firstCopyPosition = 0;
+      availablePlace -= insertPreviousSupport(notification, *previousSupport, shift,
+         *support, firstCopyPosition, notification.pSource.uPosition);
+      if (firstCopyPosition < 0) {
+         notification.pNewPosition.parSupport = previousSupport;
+         notification.pNewPosition.uPosition = previousSupport->length() + firstCopyPosition;
+      }
+      else
+         notification.pNewPosition.uPosition = firstCopyPosition;
+      if (shift > 0)
+         insertSupport(notification, *support, shift);
+      return;
+   };
+   sourceCursor.setToNext();
+   AtomicRepository* nextSupport = nullptr;
+   if (sourceCursor.setToNext()) {
+      nextSupport = &sourceCursor.elementSAt();
+      availablePlace += nextSupport->getPlace();
+   };
+   if (shift <= availablePlace) {
+      availablePlace -= insertNextSupport(notification, *nextSupport,
+            shift, *support, notification.pSource.uPosition);
+      if (shift > 0) {
+         availablePlace -= insertSupport(notification, *support, shift);
+         if (shift > 0) {
+            AssumeCondition(shift <= availablePlace)
+            int firstPosition = 0;
+            insertPreviousSupport(notification, *previousSupport, shift, *support,
+               firstPosition, notification.pSource.uPosition);
+            if (firstPosition < 0) {
+               notification.pNewPosition.parSupport = previousSupport;
+               notification.pNewPosition.uPosition = previousSupport->length() + firstPosition;
+            }
+            else
+               notification.pNewPosition.uPosition = firstPosition;
+         };
+      };
+      return;
+   };
+
+   if (notification.pSource.uPosition <= notification.pSource.parSupport->length()/2) {
+      // creates new cells before notification.pSource.parSupport
+      sourceCursor.setToPrevious();
+      sourceCursor.setToPrevious();
+      while (shift > availablePlace) {
+         AtomicRepository* temp = createAtomic(shift-availablePlace);
+         larStrings.add(temp, COL::VirtualCollection::ExtendedInsertionParameters()
+            .setFreeOnError().setAfter().setRemote(), &sourceCursor);
+         notification.aarNewRep.insertAtEnd(temp);
+         availablePlace += temp->getPlace();
+      };
+      if (nextSupport && (availablePlace - shift < nextSupport->getPlace()))
+         availablePlace -= insertNextSupport(notification, *nextSupport, shift,
+            *support, notification.pSource.uPosition);
+      if ((availablePlace - shift) < support->getPlace())
+         availablePlace -= insertSupport(notification, *support, shift);
+      int sourceCopy = notification.pSource.uPosition;
+      if (previousSupport && (availablePlace - shift) < previousSupport->getPlace()) {
+         availablePlace -= insertPreviousSupport(notification, *previousSupport,
+            shift, *support, sourceCopy, notification.pSource.uPosition);
+         if (sourceCopy < 0) {
+            notification.pNewPosition.parSupport = previousSupport;
+            notification.pNewPosition.uPosition = previousSupport->length() + sourceCopy;
+         }
+         else
+            notification.pNewPosition.uPosition = sourceCopy;
+      };
+      AtomicRepository* temp = nullptr;
+      int firstCopyPosition = 0;
+      while (sourceCursor.setToNext()
+            && ((temp = &sourceCursor.elementSAt()) != support)) {
+         int length = shift < temp->getPlace() ? shift : temp->getPlace();
+         temp->length() = length;
+         temp->getString()[length] = (TypeChar) 0;
+         shift -= length;
+         availablePlace -= length;
+         if (sourceCopy >= 0) {
+            notification.pNewPosition.parSupport = temp;
+            notification.pNewPosition.uPosition = sourceCopy;
+         };
+         if (sourceCopy > 0) {
+            int copy = sourceCopy;
+            if (copy >= length) {
+               sourceCopy -= length;
+               copy = length;
+            }
+            else
+               sourceCopy = -1;
+            TBasicRepositoryTraits<TypeChar>::memcpy(temp->getString(),
+               support->getString()+firstCopyPosition, copy);
+            firstCopyPosition += copy;
+         }
+         else if (sourceCopy == 0)
+            sourceCopy = -1;
+      };
+      AssumeCondition(&sourceCursor.elementSAt() == support)
+      if (sourceCopy > 0)
+         TBasicRepositoryTraits<TypeChar>::memmove(support->getString(),
+            support->getString()+sourceCopy,
+            notification.pSource.uPosition - sourceCopy);
+   }
+   else {
+      // create new cells after notification.pSource.parSupport
+      while (shift > availablePlace) {
+         AtomicRepository* temp = createAtomic(shift - availablePlace);
+         larStrings.add(temp, COL::VirtualCollection::ExtendedInsertionParameters()
+            .setFreeOnError().setBefore().setRemote(), &sourceCursor);
+         notification.aarNewRep.insertAtEnd(temp);
+         availablePlace += temp->getPlace();
+      };
+      int sourceCopy = notification.pSource.uPosition,
+          lengthCopy = support->length()-sourceCopy;
+      if ((availablePlace - shift) < support->getPlace()) {
+         int realShift = insertSupport(notification, *support, shift);
+         availablePlace -= realShift;
+         sourceCopy += realShift;
+      }
+      else
+         availablePlace -= support->getPlace();
+      if (previousSupport && (availablePlace - shift < previousSupport->getPlace())) {
+         int firstCopyPosition = 0;
+         availablePlace -= insertPreviousSupport(notification, *previousSupport, shift,
+            *support, firstCopyPosition, notification.pSource.uPosition);
+         if (firstCopyPosition < 0) {
+            notification.pNewPosition.parSupport = previousSupport;
+            notification.pNewPosition.uPosition = previousSupport->length() + firstCopyPosition;
+         }
+         else
+            notification.pNewPosition.uPosition = firstCopyPosition;
+      }
+      else if (previousSupport)
+         availablePlace -= previousSupport->getPlace();
+      if (nextSupport && (availablePlace - shift) < nextSupport->getPlace()) {
+         int realShift = insertNextSupport(notification, *nextSupport,
+            shift, *support, notification.pSource.uPosition);
+         availablePlace -= realShift;
+         sourceCopy += realShift;
+         lengthCopy -= realShift;
+      }
+      else if (nextSupport)
+         availablePlace -= nextSupport->getPlace();
+      while (sourceCursor.setToPrevious() && (&sourceCursor.elementSAt() != support)) {
+         AtomicRepository* temp = &sourceCursor.elementSAt();
+         int length = shift < temp->getPlace() ? shift : temp->getPlace();
+         temp->length() = length;
+         temp->getString()[length] = (TypeChar) 0;
+         shift -= length;
+         availablePlace -= length;
+         if (lengthCopy > 0) {
+            int copy = lengthCopy;
+            if (copy > length)
+               copy = length;
+            TBasicRepositoryTraits<TypeChar>::memcpy(temp->getString()+temp->length()-copy,
+               support->getString()+sourceCopy, copy);
+            sourceCopy += copy;
+            lengthCopy -= copy;
+         };
+      };
+      AssumeCondition(&sourceCursor.elementSAt() == support)
+   };
+}
+
+template <typename TypeChar, class RepositoryPolicy>
+void
+TBasicRepository<TypeChar, RepositoryPolicy>::suppress(MoveNotification& notification, int shift) {
+   AtomicRepository* support = notification.pSource.parSupport;
+   typename ListStrings::Cursor destinationCursor(larStrings);
+   destinationCursor.gotoReference(*support);
+   AtomicRepository* nextSupport = destinationCursor.setToNext()
+      ? &destinationCursor.elementSAt() : nullptr;
+   if (shift <= support->length()-notification.pSource.uPosition) {
+      suppressSupport(notification, *support, shift);
+      goto LCompress;
+   };
+   {  int leftShift = shift - (support->length()-notification.pSource.uPosition);
+      while (leftShift >= nextSupport->length()) {
+         destinationCursor.setToNext();
+         larStrings.deletePrevious(destinationCursor);
+         nextSupport->suppress();
+         notification.larSuppressedRep.insertAtEnd(nextSupport);
+         leftShift -= nextSupport->length();
+         shift -= nextSupport->length();
+         nextSupport = &destinationCursor.elementSAt();
+      };
+   };
+   suppressNextSupport(notification, *support, *nextSupport, shift);
+
+LCompress:
+   destinationCursor.setToPrevious();
+   if (nextSupport && (nextSupport->length() <= support->getPlace()))
+      mergeSupport(notification, *support, *nextSupport, 1);
+   AtomicRepository* previousSupport=nullptr;
+   if (destinationCursor.setToPrevious()
+         && ((previousSupport = &destinationCursor.elementSAt())->getPlace() >= support->length())) {
+      notification.pNewPosition.uPosition += previousSupport->length();
+      mergeSupport(notification, *previousSupport, *support, 0);
+      notification.pNewPosition.parSupport = previousSupport;
+   };
+}
+
+template <typename TypeChar, class RepositoryPolicy>
+void
+TMoveNotification<TypeChar, RepositoryPolicy>::update(Position& position, int* length, bool doesInclude) {
+   if (uShift == 0)
+      return;
+
+   if (position.parSupport == pSource.parSupport) {
+      int diff = position.uPosition - pSource.uPosition;
+      if ((uShift > 0 && !doesInclude) ? (diff < 0) : (diff <= 0)) { // position.uPosition <= pSource.uPosition
+         if ((length) && (diff + *length > 0)) {
+            if ((uShift > 0) || (diff + *length > -uShift))
+               *length += uShift;
+            else 
+               *length = -diff;
+         };
+         position = pNewPosition;
+         position.plusAssign(diff, rRepository);
+      }
+      else { // position.uPosition > pSource.uPosition, diff > 0
+         if ((uShift < 0) && (diff < -uShift)) {
+            if (length) {
+               if (diff + *length <= -uShift)
+                  *length = 0;
+               else // position.uPosition + *length > pSource.uPosition - uShift
+                  *length += uShift + diff;
+            };
+            position = pNewPosition;
+         }
+         else {
+            position = pNewPosition;
+            position.plusAssign(diff + uShift, rRepository);
+         };
+      };
+   }
+   else if ((uShift < 0) && position.parSupport->isSuppressed()) {
+      int diff = (lcCurrent.isValid() ? lcCurrent.uLength : pSource.parSupport->length())
+         - pSource.uPosition;
+      typename SuppressedRepositories::Cursor cursor(larSuppressedRep);
+      cursor.setToFirst();
+      if (pSource.parSupport->isSuppressed()) {
+         AssumeCondition(&cursor.elementAt() == pSource.parSupport)
+         cursor.setToNext();
+      };
+      while (&cursor.elementAt() != position.parSupport) {
+         diff += cursor.elementAt().length();
+         cursor.setToNext();
+      };
+      diff += position.uPosition;
+      if ((uShift < 0) && (diff < -uShift)) {
+         if (length) {
+            if (diff + *length <= -uShift)
+               *length = 0;
+            else // position.uPosition + *length > pSource.uPosition - uShift
+               *length += uShift + diff;
+         };
+         position = pNewPosition;
+      }
+      else {
+         position = pNewPosition;
+         position.plusAssign(diff + uShift, rRepository);
+      };
+   }
+   else if (position.parSupport == rmRightMove.parSupport) {
+      int diff = position.uPosition - rmRightMove.uPosition;
+      if ((uShift < 0) && (diff < 0)) {
+         if (length) {
+            if (diff + *length <= 0)
+               *length = 0;
+            else // position.uPosition + *length > pSource.uPosition - uShift
+               *length += diff;
+         };
+         position = pNewPosition;
+      }
+      else {
+         position = rmRightMove.pNewPosition;
+         position.plusAssign(diff, rRepository);
+      };
+   }
+   else if (length) { // the origin of the notification could give additional information
+                      // and the first atomic support in particular
+      typename Repository::ListStrings::Cursor positionCursor(rRepository.strings()), sourceCursor(rRepository.strings());
+      positionCursor.gotoReference(*position.parSupport);
+      sourceCursor.gotoReference(*pNewPosition.parSupport);
+      ComparisonResult compareSupport = positionCursor.compare(sourceCursor);
+      if ((compareSupport == CRLess) || (compareSupport == CREqual)) {
+         int diff = (compareSupport == CRLess) ? (position.parSupport->length() - position.uPosition)
+            : (pNewPosition.uPosition - position.uPosition);
+         if (compareSupport == CRLess) {
+            positionCursor.setToNext();
+            AtomicRepository* currentPosition = &positionCursor.elementSAt();
+            while (currentPosition != pNewPosition.parSupport) {
+               diff += position.parSupport->length();
+               positionCursor.setToNext();
+               currentPosition = &positionCursor.elementSAt();
+            };
+            diff += pNewPosition.uPosition;
+         };
+         if (*length > diff) {
+            if ((uShift < 0) && (*length < diff - uShift))
+               *length = diff;
+            else
+               *length += uShift;
+         };
+      };
+   };
+}
+
+template <typename TypeChar, class RepositoryPolicy>
+void
+TMoveNotification<TypeChar, RepositoryPolicy>::update(
+      typename RepositoryPolicy::BaseSubString& subString, int& length, bool doesInclude) {
+   Position position;
+   subString.retrieveStartPosition(position.parSupport, position.uPosition);
+   Position updatePosition(position);
+   update(updatePosition, &length, doesInclude);
+   if ((position.parSupport != updatePosition.parSupport) || (position.uPosition != updatePosition.uPosition)) {
+      subString.setStartPosition(position.parSupport, position.uPosition);
+      subString.increaseEndPosition(length);
+   }
+   else if (subString.isAffectedBy(*this)
+         && (lcLeft.parSupport || rmRightMove.parSupport
+            || (subString.getEndPositionEstimate() == lcCurrent.parSupport))) {
+      subString.setEndToStartPosition();
+      subString.increaseEndPosition(length);
+   };
+}
+
+template <typename TypeChar, class RepositoryPolicy>
+void
+TBasicRepository<TypeChar, RepositoryPolicy>::copy(const Position& destinationPosition,
+      const thisType& source, const Position& sourcePosition, int len) {
+   if (!sourcePosition.parSupport) {
+      AssumeCondition(source.larStrings.isEmpty())
+      return;
+   };
+   typename ListStrings::Cursor destinationCursor(larStrings), sourceCursor(source.larStrings);
+   AssumeCondition(destinationPosition.parSupport && sourcePosition.parSupport)
+   destinationCursor.gotoReference(*destinationPosition.parSupport);
+   sourceCursor.gotoReference(*sourcePosition.parSupport);
+   TypeChar *destinationString = destinationPosition.parSupport->getString() + destinationPosition.uPosition,
+            *sourceString = sourcePosition.parSupport->getString() + sourcePosition.uPosition;
+   int destinationLength = destinationPosition.parSupport->length() - destinationPosition.uPosition,
+       sourceLength = sourcePosition.parSupport->length() - sourcePosition.uPosition;
+   
+   while (len > 0) {
+      AssumeCondition((destinationLength > 0) && (sourceLength > 0))
+      bool isNextSource = false, isNextDestination = false;
+      if (sourceLength < destinationLength) {
+         TBasicRepositoryTraits<TypeChar>::memcpy(destinationString, sourceString,
+            (len < sourceLength) ? len : sourceLength);
+         len -= sourceLength;
+         destinationString += sourceLength;
+         destinationLength -= sourceLength;
+         isNextSource = true;
+      }
+      else if (sourceLength > destinationLength) {
+         TBasicRepositoryTraits<TypeChar>::memcpy(destinationString, sourceString,
+            (len < destinationLength) ? len : destinationLength);
+         len -= destinationLength;
+         sourceString += destinationLength;
+         sourceLength -= destinationLength;
+         isNextDestination = true;
+      }
+      else {
+         TBasicRepositoryTraits<TypeChar>::memcpy(destinationString, sourceString,
+            (len < sourceLength) ? len : sourceLength);
+         len -= sourceLength;
+         isNextSource = isNextDestination = true;
+      };
+      if (len > 0) {
+         if (isNextSource) {
+            sourceCursor.setToNext();
+            sourceString = sourceCursor.elementSAt().getString();
+            sourceLength = sourceCursor.elementAt().length();
+         };
+         if (isNextDestination) {
+            destinationCursor.setToNext();
+            destinationString = destinationCursor.elementSAt().getString();
+            destinationLength = destinationCursor.elementAt().length();
+         };
+      };
+   };
+}
+
+template <typename TypeChar, class RepositoryPolicy>
+void
+TBasicRepository<TypeChar, RepositoryPolicy>::copy(const Position& destination, const TypeChar* source, int len) {
+   if (len <= 0)
+      return;
+   typename ListStrings::Cursor destinationCursor(larStrings);
+   AssumeCondition(destination.parSupport)
+   destinationCursor.gotoReference(*destination.parSupport);
+   TypeChar *destinationString = destination.parSupport->getString() + destination.uPosition;
+   int destinationLength = destination.parSupport->length() - destination.uPosition;
+   
+   while (len > 0) {
+      AssumeCondition(destinationLength > 0)
+      TBasicRepositoryTraits<TypeChar>::memcpy(destinationString, source,
+         (len < destinationLength) ? len : destinationLength);
+      len -= destinationLength;
+      source += destinationLength;
+      if (len > 0) {
+         destinationCursor.setToNext();
+         auto& atomicRepository = destinationCursor.elementSAt();
+         destinationString = atomicRepository.getString();
+         destinationLength = atomicRepository.length();
+      };
+   };
+}
+
+template <typename TypeChar, class RepositoryPolicy>
+void
+TBasicRepository<TypeChar, RepositoryPolicy>::set(const Position& destination,
+      const TypeChar& achar, int number) {
+   if (number <= 0)
+      return;
+   typename ListStrings::Cursor destinationCursor(larStrings);
+   AssumeCondition(destination.parSupport)
+   destinationCursor.gotoReference(*destination.parSupport);
+   TypeChar *destinationString = destination.parSupport->getString() + destination.uPosition;
+   int destinationLength = destination.parSupport->length() - destination.uPosition;
+   
+   while (number > 0) {
+      AssumeCondition(destinationLength > 0)
+      TBasicRepositoryTraits<TypeChar>::memset(destinationString, achar,
+         (number < destinationLength) ? number : destinationLength);
+      if ((number -= destinationLength) > 0) {
+         destinationCursor.setToNext();
+         auto& atomicRepository = destinationCursor.elementSAt();
+         destinationString = atomicRepository.getString();
+         destinationLength = atomicRepository.length();
+      };
+   };
+}
+
+template <typename TypeChar, class RepositoryPolicy>
+bool
+TBasicRepository<TypeChar, RepositoryPolicy>::bookPlace(Position& position, int places) {
+   if (places <= 0)
+      return true;
+   if (position.parSupport && (position.parSupport->getPlace() > 0))
+      return true;
+   if (larStrings.isEmpty()
+         || ((position.parSupport == &larStrings.getLast())
+            && (position.uPosition == position.parSupport->length()))) {
+      AssumeCondition(!larStrings.isEmpty() || (!position.parSupport && (position.uPosition == 0)))
+      AtomicRepository* newSupport;
+      if ((newSupport = createAtomic(places)) == nullptr)
+         throw EMemoryExhausted();
+
+      larStrings.insertNewAtEnd(newSupport);
+      position.parSupport = newSupport;
+      position.uPosition = 0;
+      return false;
+   };
+   AssumeCondition(position.parSupport && (position.uPosition == 0))
+   typename ListStrings::Cursor cursor(larStrings);
+   cursor.gotoReference(*position.parSupport);
+   if (cursor.setToPrevious()) {
+      if (cursor.elementAt().getPlace() > 0) {
+         position.parSupport = &cursor.elementSAt();
+         position.uPosition = position.parSupport->length();
+         return false;
+      };
+   };
+   if ((position.parSupport = createAtomic(places)) == nullptr)
+      throw EMemoryExhausted();
+   larStrings.insertNewAt(cursor, position.parSupport, COL::VirtualCollection::RPAfter);
+   position.uPosition = 0;
+   return false;
+}
+
+/**************************************************/
+/* Implementation of the template class TPosition */
+/**************************************************/
+
+template <typename TypeChar, class RepositoryPolicy>
+ComparisonResult
+TPosition<TypeChar, RepositoryPolicy>::_compare(const thisType& source, const Repository& repository) const {
+   AssumeCondition(parSupport != source.parSupport)
+   if (!parSupport)
+      return CRLess;
+   if (!source.parSupport)
+      return CRGreater;
+   typename ListStrings::Cursor thisCursor(repository.larStrings), sourceCursor(repository.larStrings);
+   thisCursor.gotoReference(*parSupport);
+   sourceCursor.gotoReference(*source.parSupport);
+   return thisCursor.compare(sourceCursor);
+}
+
+template <typename TypeChar, class RepositoryPolicy>
+int
+TPosition<TypeChar, RepositoryPolicy>::_minus(const thisType& source, const Repository& repository) const {
+   AssumeCondition(isValid() && source.isValid())
+   typename ListStrings::Cursor thisCursor(repository.larStrings), sourceCursor(repository.larStrings);
+   thisCursor.gotoReference(*parSupport);
+   sourceCursor.gotoReference(*source.parSupport);
+   ComparisonResult compare = thisCursor.compare(sourceCursor);
+   if (compare == CRGreater)
+      thisCursor.swap(sourceCursor);
+   const thisType* thisPosition = (compare == CRLess) ? this : &source;
+   const thisType* sourcePosition = (compare == CRLess) ? &source : this;
+
+   int result = thisPosition->parSupport->length() - thisPosition->uPosition;
+   while (thisCursor.setToNext() && !thisCursor.isEqual(sourceCursor))
+      result += thisCursor.elementAt().length();
+   AssumeCondition(thisCursor.isEqual(sourceCursor))
+   result += sourcePosition->uPosition;
+   return (compare == CRLess) ? -result : result;
+}
+
+template <typename TypeChar, class RepositoryPolicy>
+int
+TPosition<TypeChar, RepositoryPolicy>::getPosition(const Repository& repository) const {
+   if (!parSupport)
+      return 0;
+   if (&repository.larStrings.getSFirst() == parSupport)
+      return uPosition;
+   else if (&repository.larStrings.getSLast() == parSupport)
+      return repository.length() - parSupport->length() + uPosition;
+   typename ListStrings::Cursor cursor(repository.larStrings);
+   cursor.setToFirst();
+   const AtomicRepository* current;
+   int result = 0;
+   do {
+      current = &cursor.elementAt();
+      result += (current != parSupport) ? current->length() : uPosition;
+   } while ((current != parSupport) && cursor.setToNext());
+   return result;
+}
+
+template <typename TypeChar, class RepositoryPolicy>
+bool
+TPosition<TypeChar, RepositoryPolicy>::normalize(const Repository& repository) {
+   bool result = false;
+   if (uPosition < 0) {
+      bool doesContinue = parSupport && (&repository.larStrings.getFirst() != parSupport);
+      if (doesContinue) {
+         typename ListStrings::Cursor cursor(repository.larStrings);
+         cursor.gotoReference(*parSupport);
+         do {
+            if ((doesContinue = cursor.setToPrevious()) != false) {
+               parSupport = &cursor.elementSAt();
+               uPosition += parSupport->length();
+            };
+         } while (doesContinue && uPosition < 0);
+      };
+      if (!doesContinue) {
+         uPosition = 0;
+         parSupport = !repository.strings().isEmpty() ? &repository.strings().getSFirst() : nullptr;
+         result = true;
+      };
+   }
+   else if (!parSupport || uPosition >= parSupport->length()) {
+      bool doesContinue = parSupport || !repository.larStrings.isEmpty();
+      if (!parSupport && doesContinue)
+         parSupport = &repository.larStrings.getSFirst();
+      if (doesContinue && (uPosition >= parSupport->length())) {
+         typename ListStrings::Cursor cursor(repository.larStrings);
+         cursor.gotoReference(*parSupport);
+         do {
+            if ((doesContinue = cursor.setToNext()) != false) {
+               uPosition -= parSupport->length();
+               parSupport = &cursor.elementSAt();
+            };
+         } while (doesContinue && (uPosition >= parSupport->length()));
+      };
+      if (!doesContinue && parSupport && (uPosition > parSupport->length())) {
+         uPosition = parSupport->length();
+         result = true;
+      }
+      else if (!parSupport && (uPosition > 0)) {
+         uPosition = 0;
+         result = true;
+      };
+   };
+   return result;
+}
+
+/******************************************************/
+/* Implementation of the class GlobalRepositoryPolicy */
+/******************************************************/
+
+template <typename TypeChar>
+bool
+GlobalRepositoryPolicy<TypeChar>::BaseSubString::increaseStartPosition(int add) {
+   AssumeCondition(add >= 0)
+   if (add > 0) {
+      uStartPosition += add;
+   
+      if (!parStart || uStartPosition >= parStart->length()) {
+         typedef TListRepository<TypeChar, GlobalRepositoryPolicy<TypeChar> > Repository;
+         AssumeCondition(dynamic_cast<const Repository*>(&inherited::getElement()));
+         const Repository& repository = (const Repository&) inherited::getElement();
+         typename Repository::ListStrings::Cursor cursor(repository.strings());
+         if (parStart)
+            cursor.gotoReference(*parStart);
+         do {
+            if (!cursor.setToNext()) {
+               AssumeCondition(parStart ? (uStartPosition == parStart->length()) : (uStartPosition == 0))
+               return true;
+            };
+            if (parStart)
+               uStartPosition -= parStart->length();
+            parStart = &cursor.elementSAt();
+         } while (uStartPosition >= parStart->length());
+      };
+   };
+   return false;
+}
+
+template <typename TypeChar>
+bool
+GlobalRepositoryPolicy<TypeChar>::BaseSubString::decreaseStartPosition(int sub) {
+   AssumeCondition(sub >= 0)
+   if (sub > 0) {
+      uStartPosition -= sub;
+   
+      if (uStartPosition < 0) {
+         AssumeCondition(parStart)
+         typedef TListRepository<TypeChar, GlobalRepositoryPolicy<TypeChar> > Repository;
+         AssumeCondition(dynamic_cast<const Repository*>(&inherited::getElement()));
+         const Repository& repository = (const Repository&) inherited::getElement();
+         typename Repository::ListStrings::Cursor cursor(repository.strings());
+         cursor.gotoReference(*parStart);
+         do {
+            if (!cursor.setToPrevious()) {
+               uStartPosition = 0;
+               return true;
+            };
+            parStart = &cursor.elementSAt();
+            uStartPosition += parStart->length();
+         } while (uStartPosition < 0);
+      };
+   };
+   return false;
+}
+
+/*****************************************************/
+/* Implementation of the class LocalRepositoryPolicy */
+/*****************************************************/
+
+template <typename TypeChar>
+bool
+LocalRepositoryPolicy<TypeChar>::BaseSubString::increaseStartPosition(int add) {
+   if (add > 0) {
+      AtomicRepository* current = inheritedImplementation::getPFirst();
+      AssumeCondition(current)
+      uLocalStart += add;
+      while (uLocalStart >= current->length()) {
+         AtomicRepository* oldCurrent = current;
+         inheritedImplementation::removeElement(*current);
+         current = inheritedImplementation::getPFirst();
+         if (current)
+            uLocalStart -= oldCurrent->length();
+         else {
+            inheritedImplementation::addElement(*oldCurrent);
+            return true;
+         };
+      };
+      AssumeCondition((inheritedImplementation::count() > 1) || (uLocalStart <= uLocalEnd))
+   };
+   return (inheritedImplementation::count() <= 1) && (uLocalStart == uLocalEnd);
+}
+
+template <typename TypeChar>
+bool
+LocalRepositoryPolicy<TypeChar>::BaseSubString::decreaseStartPosition(int sub) {
+   AssumeCondition(sub >= 0)
+   if (sub > 0) {
+      uLocalStart -= sub;
+   
+      if (uLocalStart < 0) {
+         AssumeCondition(!inheritedImplementation::isEmpty())
+         typedef TListRepository<TypeChar, LocalRepositoryPolicy<TypeChar> > Repository;
+         AssumeCondition(dynamic_cast<const Repository*>(&inherited::getElement()));
+         const Repository& repository = (const Repository&) inherited::getElement();
+         typename Repository::ListStrings::Cursor cursor(repository.strings());
+         cursor.gotoReference(inheritedImplementation::getFirst());
+         AtomicRepository* start = nullptr;
+         do {
+            if (!cursor.setToPrevious()) {
+               uLocalStart = 0;
+               return true;
+            };
+            inheritedImplementation::addElementAfter(*(start = &cursor.elementSAt()), nullptr);
+            uLocalStart += start->length();
+         } while (uLocalStart < 0);
+      };
+   };
+   return false;
+}
+
+template <typename TypeChar>
+void
+LocalRepositoryPolicy<TypeChar>::BaseSubString::decreaseStartTo(AtomicRepository* start, int localPos) {
+   AssumeCondition(start && !inheritedImplementation::isEmpty())
+   if (inheritedImplementation::getPFirst() != start) {
+      typedef TListRepository<TypeChar, LocalRepositoryPolicy<TypeChar> > Repository;
+      AssumeCondition(dynamic_cast<const Repository*>(&inherited::getElement()));
+      const Repository& repository = (const Repository&) inherited::getElement();
+      typename Repository::ListStrings::Cursor cursor(repository.strings());
+      cursor.gotoReference(inheritedImplementation::getFirst());
+      AtomicRepository* current = nullptr;
+      do {
+         cursor.setToPrevious();
+         inheritedImplementation::addElementAfter(*(current = &cursor.elementSAt()), nullptr);
+      } while (start != current);
+   };
+   uLocalStart = localPos;
+}
+
+template <typename TypeChar>
+void
+LocalRepositoryPolicy<TypeChar>::BaseSubString::increaseStartTo(AtomicRepository* start, int localPos) {
+   AtomicRepository* current;
+   while ((current = inheritedImplementation::getPFirst()) != start) {
+      AssumeCondition(current)
+      inheritedImplementation::removeElement(*current);
+   };
+   uLocalStart = localPos;
+}
+
+template <typename TypeChar>
+void
+LocalRepositoryPolicy<TypeChar>::BaseSubString::increaseEndPosition(int add) {
+   AssumeCondition(add >= 0)
+   if (add > 0) {
+      uLocalEnd += add;
+      AtomicRepository* end = inheritedImplementation::getPLast();
+      AssumeCondition(end)
+   
+      if (uLocalEnd >= end->length()) {
+         typedef TListRepository<TypeChar, LocalRepositoryPolicy<TypeChar> > Repository;
+         AssumeCondition(dynamic_cast<const Repository*>(&inherited::getElement()));
+         const Repository& repository = (const Repository&) inherited::getElement();
+         typename Repository::ListStrings::Cursor cursor(repository.strings());
+         cursor.gotoReference(*end);
+         bool doesContinue=false;
+         do {
+            if (!cursor.setToNext()) {
+               AssumeCondition(uLocalEnd == end->length())
+               doesContinue = false;
+            }
+            else {
+               uLocalEnd -= end->length();
+               inheritedImplementation::addElementBefore(*(end = &cursor.elementSAt()), nullptr);
+               doesContinue = uLocalEnd >= end->length(); 
+            };
+         } while (doesContinue);
+      };
+   };
+}
+
+template <typename TypeChar>
+void
+LocalRepositoryPolicy<TypeChar>::BaseSubString::decreaseEndPosition(int sub) {
+   if (sub > 0) {
+      uLocalEnd -= sub;
+      AtomicRepository* oldCurrent = inheritedImplementation::getPLast();
+      AssumeCondition(oldCurrent)
+      while (uLocalEnd < 0) {
+         inheritedImplementation::removeElement(*oldCurrent);
+         oldCurrent = inheritedImplementation::getPLast();
+         AssumeCondition(oldCurrent)
+         uLocalEnd += oldCurrent->length();
+      };
+   };
+}
+
+template <typename TypeChar>
+void
+LocalRepositoryPolicy<TypeChar>::BaseSubString::increaseEndTo(AtomicRepository* newEnd, int localPos) {
+   AtomicRepository* end = inheritedImplementation::getPLast();
+   AssumeCondition(newEnd && end)
+
+   if (end != newEnd) {
+      typedef TListRepository<TypeChar, LocalRepositoryPolicy<TypeChar> > Repository;
+      AssumeCondition(dynamic_cast<const Repository*>(&inherited::getElement()));
+      const Repository& repository = (const Repository&) inherited::getElement();
+      typename Repository::ListStrings::Cursor cursor(repository.strings());
+      cursor.gotoReference(*end);
+      do {
+         cursor.setToNext();
+         inheritedImplementation::addElementBefore(*(end = &cursor.elementSAt()), nullptr);
+      } while (end != newEnd);
+   };
+   uLocalEnd = localPos;
+}
+
+template <typename TypeChar>
+void
+LocalRepositoryPolicy<TypeChar>::BaseSubString::decreaseEndTo(AtomicRepository* newEnd, int localPos) {
+   AtomicRepository* current;
+   while ((current = inheritedImplementation::getPLast()) != newEnd) {
+      AssumeCondition(current)
+      inheritedImplementation::removeElement(*current);
+   };
+   uLocalEnd = localPos;
+}
+
+template <typename TypeChar>
+void
+LocalRepositoryPolicy<TypeChar>::BaseSubString::setEndToLastPosition() {
+   AtomicRepository* end = inheritedImplementation::getPLast();
+   if (end) {
+      typedef TListRepository<TypeChar, LocalRepositoryPolicy<TypeChar> > Repository;
+      AssumeCondition(dynamic_cast<const Repository*>(&inherited::getElement()))
+      const Repository& repository = (const Repository&) inherited::getElement();
+      typename Repository::ListStrings::Cursor cursor(repository.strings());
+      cursor.gotoReference(*end);
+      while (cursor.setToNext())
+         inheritedImplementation::addElement(cursor.elementSAt());
+
+      uLocalEnd = repository.strings().getLast().length();
+   }
+   else
+      uLocalEnd = 0;
+}
+
+template <typename TypeChar>
+void
+LocalRepositoryPolicy<TypeChar>::MoveNotification::update(const SharedRegistration& arepository,
+      void* first) {
+   typedef TListRepository<TypeChar, LocalRepositoryPolicy<TypeChar> > Repository;
+   typedef TMoveNotification<TypeChar, LocalRepositoryPolicy<TypeChar> > DerivedMoveNotification;
+   typedef TPosition<TypeChar, LocalRepositoryPolicy<TypeChar> > Position;
+   AssumeCondition(dynamic_cast<const Repository*>(&arepository));
+   const Repository& repository = (const Repository&) arepository;
+   AssumeCondition(dynamic_cast<const DerivedMoveNotification*>(this))
+   const DerivedMoveNotification& thisNotification = (const DerivedMoveNotification&) *this;
+   const Position* firstPosition = (const Position*) first;   
+   PNT::TSharedCollection<AtomicRepository, typename AtomicRepository::NotificationCast> updateRepositories;
+
+   if (first && (firstPosition->parSupport != thisNotification.pSource.parSupport) && !firstPosition->parSupport->isSuppressed()) {
+      AtomicRepository* end = nullptr;
+      if (!thisNotification.pSource.parSupport->isSuppressed()) {
+         typename Repository::ListStrings::Cursor cursor(repository.strings());
+         cursor.gotoReference(*thisNotification.pSource.parSupport);
+         cursor.setToPrevious();
+         end = &cursor.elementSAt();
+      }
+      else {
+         AssumeCondition(thisNotification.lcLeft.isValid())
+         end = thisNotification.lcLeft.parSupport;
+      };
+         
+      typename Repository::ListStrings::Cursor cursor(repository.strings());
+      AtomicRepository* current = nullptr;
+      cursor.gotoReference(*firstPosition->parSupport);
+      do {
+         current = &cursor.elementSAt();
+         updateRepositories.addElement(*current);
+      } while ((current != end) && cursor.setToNext()); 
+   };
+   if (thisNotification.lcCurrent.isValid() && !thisNotification.lcCurrent.parSupport->isSuppressed())
+      updateRepositories.addElement(*thisNotification.lcCurrent.parSupport);
+   if (!thisNotification.larSuppressedRep.isEmpty())
+      thisNotification.larSuppressedRep.foreachDo([&updateRepositories](AtomicRepository& localRepository)
+         {  updateRepositories.addElement(localRepository); return true; });
+   if (thisNotification.rmRightMove.isValid() && !thisNotification.rmRightMove.parSupport->isSuppressed())
+      updateRepositories.addElement(*thisNotification.rmRightMove.parSupport);
+   updateRepositories.linearNotifyUpdate(*this);
+}
+
+template <typename TypeChar>
+void
+LightLocalRepositoryPolicy<TypeChar>::MoveNotification::update(const SharedRegistration& arepository, void* first) {
+   typedef TListRepository<TypeChar, LocalRepositoryPolicy<TypeChar> > Repository;
+   typedef typename TMoveNotification<TypeChar, LocalRepositoryPolicy<TypeChar> >::Access DerivedMoveNotification;
+   typedef TPosition<TypeChar, LocalRepositoryPolicy<TypeChar> > Position;
+   AssumeCondition(dynamic_cast<const Repository*>(&arepository));
+   const Repository& repository = (const Repository&) arepository;
+   AssumeCondition(dynamic_cast<DerivedMoveNotification*>(this))
+   const DerivedMoveNotification& thisNotification = (const DerivedMoveNotification&) *this;
+   const Position* firstPosition = (const Position*) first;   
+
+   PNT::SharedCollection::LinearUpdate update(*this);
+   if (first
+         && (DerivedMoveNotification::getSupport(*firstPosition)
+               != DerivedMoveNotification::getSupport(thisNotification.source()))
+         && !DerivedMoveNotification::getSupport(*firstPosition)->isSuppressed()) {
+      typename DerivedMoveNotification::AtomicRepository* end = nullptr;
+      if (!DerivedMoveNotification::getSupport(thisNotification.source())->isSuppressed()) {
+         typename Repository::ListStrings::Cursor cursor(repository.strings());
+         cursor.gotoReference(*DerivedMoveNotification::getSupport(thisNotification.source()));
+         cursor.setToPrevious();
+         end = &cursor.elementSAt();
+      }
+      else {
+         AssumeCondition(thisNotification.left().isValid())
+         end = thisNotification.left().ssupport();
+      };
+
+      typename Repository::ListStrings::Cursor cursor(repository.strings());
+      typename DerivedMoveNotification::AtomicRepository* current = nullptr;
+      cursor.gotoReference(*DerivedMoveNotification::getSupport(*firstPosition));
+      do {
+         current = &cursor.elementSAt();
+         current->linearNotifyUpdate(update);
+      } while ((current != end) && cursor.setToNext()); 
+   };
+   if (thisNotification.current().isValid() && !thisNotification.current().ssupport()->isSuppressed())
+      thisNotification.current().ssupport()->linearNotifyUpdate(update);
+   if (!thisNotification.suppressedRep().isEmpty())
+      thisNotification.suppressedRep().foreachDo([&update](const PNT::SharedCollection::Element& localRepository)
+         {  localRepository.linearNotifyUpdate(update); return true; });
+   if (thisNotification.rightMove().isValid() && !thisNotification.rightMove().ssupport()->isSuppressed())
+      thisNotification.rightMove().ssupport()->linearNotifyUpdate(update);
+}
+
+} // end of namespace DListRepository
+
+} // end of namespace STG

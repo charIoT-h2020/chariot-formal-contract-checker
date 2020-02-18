@@ -1,0 +1,2520 @@
+/**************************************************************************/
+/*                                                                        */
+/*  Copyright (C) 2013-2019                                               */
+/*    CEA (Commissariat a l'Energie Atomique et aux Energies              */
+/*         Alternatives)                                                  */
+/*                                                                        */
+/*  you can redistribute it and/or modify it under the terms of the GNU   */
+/*  Lesser General Public License as published by the Free Software       */
+/*  Foundation, version 2.1.                                              */
+/*                                                                        */
+/*  It is distributed in the hope that it will be useful,                 */
+/*  but WITHOUT ANY WARRANTY; without even the implied warranty of        */
+/*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         */
+/*  GNU Lesser General Public License for more details.                   */
+/*                                                                        */
+/*  See the GNU Lesser General Public License version 2.1                 */
+/*  for more details (enclosed in the file LICENSE).                      */
+/*                                                                        */
+/**************************************************************************/
+
+/////////////////////////////////
+//
+// Library   : TString
+// Unit      : sub-string
+// File      : SubString.template
+// Description :
+//   Implementation of the class SubString (and the template class TSubString).
+//
+
+#ifndef STG_SubStringTemplate
+#define STG_SubStringTemplate
+
+#include "TString/SubString.h"
+// #include "TString/String.hpp"
+
+namespace STG {}
+
+#include <ctype.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdarg.h>
+#if defined(__GNUC__)
+#include <math.h>
+#endif
+#include <string.h>
+
+namespace STG {
+
+namespace DSubString {
+
+template <class TypeBase, typename TypeChar>
+void
+TSearchTraits<TypeBase, TypeChar>::ScanResult::setVariant(const TypeChar* pattern, int patternLength,
+      const SearchParameters& params) {
+   if (params.isCaseSensitive()) {
+      for (int patternIndex = 0; patternIndex < patternLength; ++patternIndex)
+         uResultVariant += (int) pattern[patternIndex];
+   }
+   else {
+      for (int patternIndex = 0; patternIndex < patternLength; ++patternIndex)
+         uResultVariant += (int) tolower(pattern[patternIndex]);
+   };
+}
+
+template <class TypeBase, typename TypeChar>
+int
+TSearchTraits<TypeBase, TypeChar>::maxPrefix(const TypeChar* string, int length,
+      const TypeChar* pattern, int patternLength, int start, const SearchParameters& params) {
+   bool caseSensitive = params.isCaseSensitive();
+   if (params.isForward()) {
+      do {
+         if (caseSensitive) {
+            while ((--length >= start)
+                  && ((string[0] != pattern[start]) || (string[length-start] != pattern[length])))
+               ++string;
+         }
+         else {
+            while ((--length >= start)
+                  && ((tolower(string[0]) != tolower(pattern[start])) || (tolower(string[length]) != tolower(pattern[length]))))
+               ++string;
+         };
+         if (length >= start) {
+            bool match = true;
+            for (int index = start+1; match && (index < length); ++index)
+               match = caseSensitive ? (string[index-start] == pattern[index])
+                  : (tolower(string[index-start]) == tolower(pattern[index]));
+            if (match)
+               return length+1;
+         };
+      } while (length > start);
+   }
+   else {
+      do {
+         if (caseSensitive)
+            while ((--length >= start)
+                  && ((string[length-start] != pattern[patternLength-start-1])
+                     || (string[0] != pattern[patternLength-1-length])));
+         else
+            while ((--length >= start)
+                  && ((tolower(string[length-start]) != tolower(pattern[patternLength-start-1]))
+                     || (tolower(string[0]) != tolower(pattern[patternLength-1-length]))));
+         if (length >= start) {
+            bool match = true;
+            for (int index = start+1; match && (index < length); ++index)
+               match = caseSensitive
+                  ? (string[length-index] == pattern[patternLength-index-1])
+                  : (tolower(string[length-index]) == tolower(pattern[patternLength-index-1]));
+            if (match)
+               return length+1;
+         };
+      } while (length > start);
+   };
+   return 0;
+}
+
+template <class TypeBase, typename TypeChar>
+void
+TSearchTraits<TypeBase, TypeChar>::scanPartial(TypeChar* string, int length, const TypeChar* pattern,
+      int patternLength, const SearchParameters& params, ScanResult& result) {
+   if (patternLength == result.uPatternPosition) {
+      result.uResultPosition = !params.isBackward() ? -result.uPatternPosition-1
+         : length+result.uPatternPosition;
+      result.fFound = true;
+      return;
+   };
+   if (length == 0)
+      return;
+
+   bool caseSensitive = params.isCaseSensitive();
+   AssumeCondition((patternLength > result.uPatternPosition) && (result.uPatternPosition >= 0))
+   if (length >= patternLength-result.uPatternPosition) {
+      if (params.isForward()) {
+         for (int patternIndex = 0; patternIndex < patternLength-result.uPatternPosition; ++patternIndex)
+            result.uVariant += (int) (caseSensitive ? string[patternIndex] : tolower(string[patternIndex]));
+         int oldPosition = -result.uPatternPosition,
+            newPosition = patternLength-1-result.uPatternPosition;
+         TypeChar lastPattern = caseSensitive ? pattern[patternLength-1] : tolower(pattern[patternLength-1]);
+         TypeChar firstPattern = caseSensitive ? pattern[0] : tolower(pattern[0]);
+
+         bool first=true;
+         do {
+            while (!first || ((length >= patternLength-result.uPatternPosition)
+                  && ((result.uVariant != result.uResultVariant)
+                     || (lastPattern != (caseSensitive
+                              ? string[newPosition] : tolower(string[newPosition])))
+                     || ((oldPosition >= 0) && (firstPattern != (caseSensitive
+                              ? string[oldPosition] : tolower(string[oldPosition]))))))) {
+               first = true;
+               TypeChar achar = (oldPosition >= 0) ? string[oldPosition]
+                                       : pattern[result.uPatternPosition+oldPosition];
+               result.uVariant -= (int) (caseSensitive ? achar : tolower(achar));
+               ++oldPosition;
+               ++newPosition;
+               --length;
+               if (length >= patternLength-result.uPatternPosition)
+                  result.uVariant += (int) (caseSensitive ? string[newPosition] : tolower(string[newPosition]));
+            };
+            first = false;
+            if (length >= patternLength-result.uPatternPosition) {
+               int indexPosition = (oldPosition >= 0) ? oldPosition : -1;
+               bool found = true;
+               for (int patternIndex = (oldPosition >= 0) ? 1 : -oldPosition;
+                     found && (patternIndex < patternLength-1); ++patternIndex) {
+                  ++indexPosition;
+                  found = caseSensitive ? (string[indexPosition] == pattern[patternIndex])
+                     : (tolower(string[indexPosition]) == tolower(pattern[patternIndex]));
+               };
+               if (found) {
+                  result.uResultPosition = oldPosition;
+                  result.fFound = true;
+                  return;
+               };
+            };
+            result.uPatternPosition = (oldPosition < 0) ? -oldPosition : 0;
+         } while (length >= patternLength-result.uPatternPosition);
+      }
+      else { // params.isBackward()
+         for (int patternIndex = 0; patternIndex < patternLength-result.uPatternPosition; ++patternIndex)
+            result.uVariant += (int) (caseSensitive
+               ? string[length-1-patternIndex] : tolower(string[length-1-patternIndex]));
+         int posResult = -result.uPatternPosition,
+            oldPosition = length-1+result.uPatternPosition,
+            newPosition = length-patternLength+result.uPatternPosition;
+         TypeChar lastPattern = caseSensitive ? pattern[0] : tolower(pattern[0]);
+         TypeChar firstPattern = caseSensitive ? pattern[patternLength-1] : tolower(pattern[patternLength-1]);
+         bool first = true;
+
+         do {
+            while (!first || ((length >= patternLength-result.uPatternPosition)
+                  && ((result.uVariant != result.uResultVariant)
+                     || (lastPattern != (caseSensitive ? string[newPosition] : tolower(string[newPosition])))
+                     || ((posResult >= 0) && (firstPattern != (caseSensitive
+                           ? string[oldPosition] : tolower(string[oldPosition]))))))) {
+               first = true;
+               TypeChar achar = (posResult >= 0) ? string[oldPosition]
+                  : (pattern[patternLength-1-result.uPatternPosition-posResult]);
+               result.uVariant -= (int) (caseSensitive ? achar : tolower(achar));
+               --oldPosition;
+               --newPosition;
+               --length;
+               ++posResult;
+               if (newPosition >= 0)
+                  result.uVariant += (int) (caseSensitive
+                     ? string[newPosition] : tolower(string[newPosition]));
+            };
+
+            first = false;
+            if (length >= patternLength-result.uPatternPosition) {
+               int indexPosition = (posResult >= 0) ? oldPosition : length;
+               bool found = true;
+               for (int patternIndex = (posResult >= 0) ? 1 : -posResult;
+                     found && (patternIndex < patternLength-1); ++patternIndex) {
+                  --indexPosition;
+                  found = caseSensitive
+                     ? (string[indexPosition] == pattern[patternLength-patternIndex-1])
+                     : (tolower(string[indexPosition]) == tolower(pattern[patternLength-patternIndex-1]));
+               };
+               if (found) {
+                  result.uResultPosition = newPosition;
+                  result.fFound = true;
+                  return;
+               };
+            };
+            result.uPatternPosition = (posResult < 0) ? -posResult : 0;
+         } while (length >= patternLength-result.uPatternPosition);
+      };
+   };
+
+   result.uVariant = 0;
+   int maxPrefixIndex = maxPrefix(string, length, pattern, patternLength, result.uPatternPosition, params);
+   if (params.isForward()) {
+      for (int patternIndex = 0; patternIndex < maxPrefixIndex; ++patternIndex)
+         result.uVariant += (int) (caseSensitive ? pattern[patternIndex] : tolower(pattern[patternIndex]));
+   }
+   else {
+      for (int patternIndex = 0; patternIndex < maxPrefixIndex; ++patternIndex)
+         result.uVariant += (int) (caseSensitive ? pattern[patternLength-1-patternIndex]
+            : tolower(pattern[patternLength-1-patternIndex]));
+   };
+   result.uPatternPosition = maxPrefixIndex;
+}
+
+} // end of namespace DSubString
+
+/* constructors and assignment */
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>::TSubString(const thisType& source, int first, TypeBoundary type)
+   :  inherited(source), uTypeLength(type) {
+   const Repository& repository = getRepository();
+   AssumeCondition((first >= 0) && (first <= source.length()))
+   if ((type != TBInfinite) || (source.getUpperType() == TBInfinite))
+      uTypeLength |= (source.length() - first) << CTypeShift;
+   else {
+      uTypeLength |= (repository.length() - start().getPosition()) << CTypeShift;
+      end().setToEnd();
+   };
+   if (isUpperOpened() && !source.isUpperOpened() && !isUpperInfinite())
+      end().inc();
+   else if (!isUpperOpened() && source.isUpperOpened())
+      end().dec();
+
+   if ((first > 0) && (first == length()) && !isUpperOpened())
+      end().inc();
+   start().plusAssign(first);
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>::TSubString(const thisType& source, int first)
+   :  inherited(source), uTypeLength(source.uTypeLength) {
+   if (first < 0)
+      first = 0;
+   else if (first > source.length())
+      first = source.length();
+   if ((first > 0) && (first == length()) && !isUpperOpened())
+      end().inc();
+   start().plusAssign(first);
+   uTypeLength -= (first << CTypeShift);
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>::TSubString(const thisType& source, int first, int len)
+   :  inherited(source), uTypeLength(0) {
+   if (first < 0)
+      first = 0;
+   else if (first > source.length()) {
+      first = source.length();
+      len = 0;
+   };
+   if (len < 0)
+      len = 0;
+   else if (len > source.length()-first)
+      len = source.length()-first;
+
+   if ((len == 0) && (source.length() > 0) && !source.isUpperOpened())
+      end().minusAssign(source.length()-first-len-1);
+   else {
+      end().minusAssign(source.length()-first-len);
+      if (source.isUpperOpened() && (len > 0))
+         end().dec();
+   };
+   if (first > 0)
+      start().plusAssign(first);
+   uTypeLength = (len << CTypeShift) |
+      ((!source.isUpperRestricted() || (source.length() > first + len)) ? TBClosed : TBRestricted);
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+auto
+TSubString<TypeChar, TypePolicy, SubStringTraits>::operator=(const thisType& source) -> thisType& {
+   inherited::operator=(source);
+   uTypeLength = source.uTypeLength;
+   return *this;
+}
+
+/* low level access methods */
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::setLength(int len) {
+   if (len < 0)
+      len = 0;
+   int oldLength = length();
+   if (len >= oldLength)
+      return *this;
+
+   if (isUpperInfinite()) {
+      Repository& repository = getRepository();
+      SuppressionNotification suppression(*this);
+      suppression.setSource(getStartPosition());
+      suppression.source().plusAssign(len, repository);
+      suppression.setShift(start().getPosition() + len - repository.length());
+      if (!repository.move(suppression))
+         end().setToEnd();
+      suppression.update(getRepository());
+   }
+   else
+      end().minusAssign(oldLength-len - (((len == 0) && !isUpperOpened()) ? 1 : 0));
+   uTypeLength = (uTypeLength & CTypeMask) + (len << CTypeShift);
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::clear() {
+   int uOldLength = length();
+   if (uOldLength == 0)
+      return *this;
+   if (isUpperInfinite()) {
+      Repository& repository = getRepository();
+      SuppressionNotification suppression(*this);
+      suppression.setSource(getStartPosition());
+      suppression.setShift(start().getPosition() - repository.length());
+      repository.move(suppression);
+      suppression.update(getRepository());
+   }
+   else
+      end().setToStart();
+   uTypeLength = (uTypeLength & CTypeMask);
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::setUpperBoundTo(const thisType& source) {
+   if (inherited::key() == source.inherited::key()) {
+      const Repository& repository = getRepository();
+      Position endPosSource, endPosThis;
+      source.start().retrievePosition(endPosSource);
+      start().retrievePosition(endPosThis);
+      endPosSource.plusAssign(source.length(), repository);
+      endPosThis.plusAssign(length(), repository);
+      int endSourceStart = endPosSource.minus(getStartPosition(), repository);
+      int sourceStartEnd = source.getStartPosition().minus(endPosThis, repository);
+      if ((endSourceStart >= -1) && (sourceStartEnd <= 1)) {
+         unsigned int oldTypeLength = uTypeLength;
+         uTypeLength += (endPosSource.minus(endPosThis, repository) << CTypeShift);
+         if (isUpperOpened())
+            endPosSource.inc(repository);
+         if (uTypeLength < oldTypeLength) {
+            if ((uTypeLength & CTypeMask) == TBInfinite) {
+               Repository& repository = getRepository();
+               SuppressionNotification suppression(*this);
+               suppression.setSource(endPosSource);
+               suppression.setShift((uTypeLength - oldTypeLength) >> CTypeShift);
+               if (!repository.move(suppression))
+                  end().setToEnd();
+               suppression.update(getRepository());
+            }
+            else {
+               if (uTypeLength <= TBClosed)
+                  endPosSource.inc(repository);
+               end().decreaseToPosition(endPosSource);
+            };
+         }
+         else if (uTypeLength > oldTypeLength)
+            end().increaseToPosition(endPosSource);
+      };
+   };
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+int
+TSubString<TypeChar, TypePolicy, SubStringTraits>::seek(int offset, int origin) {
+   int firstChar = start().getPosition();
+   const Repository& repository = getRepository();
+   switch (origin) {
+      case 0:
+         {  start().setToBegin();
+            end().setToStart();
+            if (offset < 0)
+               offset = 0;
+            if (offset > firstChar + length()) {
+               if (offset > repository.length())
+                  offset = repository.length();
+               uTypeLength &= CTypeMask;
+            }
+            else
+               uTypeLength += ((firstChar - offset) << CTypeShift);
+            end().plusAssign(length()+offset);
+            if (isUpperOpened() || (uTypeLength <= TBClosed))
+               end().inc();
+            firstChar = offset;
+            start().plusAssign(firstChar);
+         };
+         break;
+      case 1:
+         {  if (offset < -firstChar)
+               offset = -firstChar;
+            if (offset >= length()) {
+               if (offset > repository.length()-length()-firstChar)
+                  offset = repository.length()-length()-firstChar;
+               end().plusAssign(offset-length() + ((!isUpperOpened() && (uTypeLength > TBClosed)) ? 1 : 0));
+               uTypeLength &= CTypeMask;
+               start().plusAssign(offset);
+            }
+            else {
+               start().plusAssign(offset);
+               if ((offset < 0) && (uTypeLength <= TBClosed))
+                  end().dec();
+               uTypeLength += ((-offset) << CTypeShift);
+            };
+            firstChar += offset;
+         };
+         break;
+      case 2:
+         {  if (offset < 0)
+               offset = 0;
+            else if (offset > repository.length())
+               offset = repository.length();
+            if (offset <= repository.length()-length()-firstChar) {
+               end().setToEnd();
+               uTypeLength &= CTypeMask;
+               end().minusAssign(offset);
+               start().plusAssign(repository.length() - offset - firstChar);
+            }
+            else {
+               start().plusAssign(repository.length() - offset - firstChar);
+               if (uTypeLength <= TBClosed)
+                  end().dec();
+               uTypeLength = (offset << CTypeShift) | (uTypeLength & CTypeMask);
+            };
+            firstChar =  repository.length() - offset;
+         };
+         break;
+   };
+   return firstChar;
+}
+
+/* Definition of the comparison methods */
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+ComparisonResult
+TSubString<TypeChar, TypePolicy, SubStringTraits>::compare(const TChunk<TypeChar>& source, const ComparisonMode& mode) const {
+   TChunk<TypeChar> chunkThis, chunkSource(source);
+   const Repository& repository = getRepository();
+   Position position;
+   start().retrievePosition(position);
+   repository.retrieveChunk(position, chunkThis);
+   chunkThis.length = length();
+
+   if ((chunkThis.length == 0) && (chunkSource.length == 0))
+      return CREqual;
+   else if (chunkThis.length == 0)
+      return CRLess;
+   else if (chunkSource.length == 0)
+      return CRGreater;
+   do {
+      if (chunkSource.length >= chunkThis.length) {
+         int result = mode.isCaseInsensitive() ?
+            SubStringTraits::strnicmp(chunkThis.string, chunkSource.string, chunkThis.length):
+            SubStringTraits::strncmp(chunkThis.string, chunkSource.string, chunkThis.length);
+         if (result < 0)
+            return CRLess;
+         if (result > 0)
+            return CRGreater;
+         chunkSource.length -= chunkThis.length;
+         chunkSource.string += chunkThis.length;
+      }
+      else {
+         int result = mode.isCaseInsensitive()
+            ? SubStringTraits::strnicmp(chunkThis.string, chunkSource.string, chunkSource.length)
+            : SubStringTraits::strncmp(chunkThis.string, chunkSource.string, chunkSource.length);
+         return (result < 0) ? CRLess : CRGreater;
+      };
+   } while (repository.setToNextChunk(position, chunkThis));
+   return (chunkSource.length == 0) ? CREqual : CRLess;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+ComparisonResult
+TSubString<TypeChar, TypePolicy, SubStringTraits>::compareBounded(const TChunk<TypeChar>& chunk, const ComparisonMode& mode) const {
+   TChunk<TypeChar> chunkThis, chunkSource(chunk);
+   const Repository& repository = getRepository();
+   Position position;
+   start().retrievePosition(position);
+   repository.retrieveChunk(position, chunkThis);
+   chunkThis.length = length();
+
+   if (chunkSource.length == 0)
+      return CREqual;
+   else if (chunkThis.length == 0)
+      return CRLess;
+   do {
+      if (chunkSource.length > chunkThis.length) {
+         int result = mode.isCaseInsensitive() ?
+            SubStringTraits::strnicmp(chunkThis.string, chunkSource.string, chunkThis.length):
+            SubStringTraits::strncmp(chunkThis.string, chunkSource.string, chunkThis.length);
+         if (result < 0)
+            return CRLess;
+         if (result > 0)
+            return CRGreater;
+         chunkSource.length -= chunkThis.length;
+         chunkSource.string += chunkThis.length;
+      }
+      else {
+         int result = mode.isCaseInsensitive()
+            ? SubStringTraits::strnicmp(chunkThis.string, chunkSource.string, chunkSource.length)
+            : SubStringTraits::strncmp(chunkThis.string, chunkSource.string, chunkSource.length);
+         return (result < 0) ? CRLess : ((result > 0) ? CRGreater : CREqual);
+      };
+   } while (repository.setToNextChunk(position, chunkThis));
+   return CRLess;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+ComparisonResult
+TSubString<TypeChar, TypePolicy, SubStringTraits>::compare(const thisType& source, int len, const ComparisonMode& mode) const {
+   TChunk<TypeChar> chunkThis, chunkSource;
+   const Repository &repository = getRepository(), &sourceRepository = source.getRepository();
+   Position positionThis, positionSource;
+   start().retrievePosition(positionThis);
+   source.start().retrievePosition(positionSource);
+   repository.retrieveChunk(positionThis, chunkThis);
+   chunkThis.length = length();
+   sourceRepository.retrieveChunk(positionSource, chunkSource);
+   chunkSource.length = source.length();
+
+   ComparisonResult lengthCompare = ((length() >= len) && (source.length() >= len))
+      ? CREqual : fcompare(length(), source.length()); 
+   bool doesContinue = false;
+   do {
+      if (chunkSource.length > chunkThis.length) {
+         int minLen = ((int) chunkThis.length) <= len ? chunkThis.length : len;
+         int result = mode.isCaseInsensitive()
+            ? SubStringTraits::strnicmp(chunkThis.string, chunkSource.string, minLen)
+            : SubStringTraits::strncmp(chunkThis.string, chunkSource.string, minLen);
+         if (result < 0)
+            return CRLess;
+         if (result > 0)
+            return CRGreater;
+         chunkSource.length -= minLen;
+         chunkSource.string += minLen;
+         len -= minLen;
+         doesContinue = (len > 0) && repository.setToNextChunk(positionThis, chunkThis);
+      }
+      else if (chunkSource.length < chunkThis.length) {
+         int minLen = ((int) chunkSource.length <= len) ? chunkSource.length : len;
+         int result = mode.isCaseInsensitive()
+            ? SubStringTraits::strnicmp(chunkThis.string, chunkSource.string, minLen)
+            : SubStringTraits::strncmp(chunkThis.string, chunkSource.string, minLen);
+         if (result < 0)
+            return CRLess;
+         if (result > 0)
+            return CRGreater;
+         chunkThis.length -= minLen;
+         chunkThis.string += minLen;
+         len -= minLen;
+         doesContinue = (len > 0) && sourceRepository.setToNextChunk(positionSource, chunkSource);
+      }
+      else {
+         int minLen = ((int) chunkThis.length <= len) ? chunkThis.length : len;
+         int result = mode.isCaseInsensitive()
+            ? SubStringTraits::strnicmp(chunkThis.string, chunkSource.string, minLen)
+            : SubStringTraits::strncmp(chunkThis.string, chunkSource.string, minLen);
+         if (result < 0)
+            return CRLess;
+         if (result > 0)
+            return CRGreater;
+         len -= minLen;
+         doesContinue = (len > 0) && repository.setToNextChunk(positionThis, chunkThis)
+               && sourceRepository.setToNextChunk(positionSource, chunkSource);
+      };
+   } while (doesContinue);
+   return lengthCompare;
+}
+
+/* implemenation of conversion methods */
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TypeChar*
+TSubString<TypeChar, TypePolicy, SubStringTraits>::createString() const {
+   const Repository& repository = getRepository();
+   int len = length();
+   if (len > 0) {
+      TypeChar* result = new TypeChar[len+1];
+      TypeChar* index = result;
+      TChunk<TypeChar> chunk;
+      Position position;
+      start().retrievePosition(position);
+      repository.retrieveChunk(position, chunk);
+      do {
+         TBasicRepositoryTraits<TypeChar>::memcpy(index, chunk.string, ((int) chunk.length < len) ? chunk.length : len);
+         index += ((int) chunk.length < len) ? chunk.length : len; 
+         len -= chunk.length;
+      } while ((len > 0) && repository.setToNextChunk(position, chunk));
+      *index = '\0';
+      return result;
+   };
+   return nullptr;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+int
+TSubString<TypeChar, TypePolicy, SubStringTraits>::copyTo(TypeChar* destination, int len) const {
+   int result = 0; 
+   if (len <= 0)
+      return 0;
+   if (len > length())
+      len = length();
+   if (len > 0) {
+      TChunk<TypeChar> chunk;
+      Position position;
+      start().retrievePosition(position);
+      const Repository& repository = getRepository();
+      repository.retrieveChunk(position, chunk);
+      do {
+         if ((int) chunk.length >= len) {
+            TBasicRepositoryTraits<TypeChar>::memcpy(destination, chunk.string, len);
+            destination[len] = '\0';
+            result += len;
+            return result;
+         };
+         TBasicRepositoryTraits<TypeChar>::memcpy(destination, chunk.string, chunk.length);
+         destination += chunk.length;
+         len -= chunk.length;
+         result += chunk.length;
+      } while (repository.setToNextChunk(position, chunk));
+   };
+   *destination = '\0';
+   return result;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+bool
+TSubString<TypeChar, TypePolicy, SubStringTraits>::readBoolean() {
+   Position firstPos;
+   start().retrievePosition(firstPos);
+   int first = 0;
+   const Repository& repository = getRepository();
+   while ((first < length()) && (SubStringTraits::isspace(repository[firstPos]))) {
+      firstPos.inc(repository);
+      ++first;
+   };
+   Position lastPos(firstPos);
+   int last = first;
+   bool shouldNum = false;
+   while ((last < length()) && (shouldNum
+         ? SubStringTraits::isdigit(repository[lastPos]) : SubStringTraits::isalnum(repository[lastPos]))) {
+      if (!shouldNum && SubStringTraits::isdigit(repository[lastPos]))
+         shouldNum = true;
+      lastPos.inc(repository);
+      ++last;
+   };
+   bool result = thisType(*this, first, last-first).queryBoolean();
+   uTypeLength -= last << CTypeShift;
+   if (uTypeLength <= TBClosed)
+      end().inc();
+   start().increaseToPosition(lastPos);
+   return result;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+int
+TSubString<TypeChar, TypePolicy, SubStringTraits>::queryInteger() const {
+   TChunk<TypeChar> chunk;
+   getRepository().retrieveChunk(getStartPosition(), chunk);
+   if (((int) chunk.length >= length()) && (!chunk.string
+         || chunk.string[length()] == (TypeChar) 0))
+      return chunk.string ? SubStringTraits::atoi(chunk.string) : 0;
+
+   TypeChar* intSupport = createString();
+   if (intSupport) {
+      int value = SubStringTraits::atoi(intSupport);
+      delete [] intSupport;
+      return value;
+   };
+   return 0;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+unsigned int
+TSubString<TypeChar, TypePolicy, SubStringTraits>::queryUInteger() const {
+   TChunk<TypeChar> chunk;
+   getRepository().retrieveChunk(getStartPosition(), chunk);
+   if (((int) chunk.length >= length()) && (chunk.string[length()] == (TypeChar) 0))
+      return chunk.string ? SubStringTraits::atou(chunk.string) : 0;
+
+   TypeChar* intSupport = createString();
+   if (intSupport) {
+      unsigned value = SubStringTraits::atou(intSupport);
+      delete [] intSupport;
+      return value;
+   };
+   return 0;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+long int
+TSubString<TypeChar, TypePolicy, SubStringTraits>::queryLInteger() const {
+   TChunk<TypeChar> chunk;
+   getRepository().retrieveChunk(getStartPosition(), chunk);
+   if (((int) chunk.length >= length()) && (chunk.string[length()] == (TypeChar) 0))
+      return chunk.string ? SubStringTraits::atol(chunk.string) : 0;
+
+   TypeChar* intSupport = createString();
+   if (intSupport) {
+      long int value = SubStringTraits::atol(intSupport);
+      delete [] intSupport;
+      return value;
+   };
+   return 0;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+unsigned long int
+TSubString<TypeChar, TypePolicy, SubStringTraits>::queryULInteger() const {
+   TChunk<TypeChar> chunk;
+   getRepository().retrieveChunk(getStartPosition(), chunk);
+   if (((int) chunk.length >= length()) && (chunk.string[length()] == (TypeChar) 0))
+      return chunk.string ? SubStringTraits::atoul(chunk.string) : 0;
+
+   TypeChar* intSupport = createString();
+   if (intSupport) {
+      long int value = SubStringTraits::atoul(intSupport);
+      delete [] intSupport;
+      return value;
+   };
+   return 0;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::setInteger(int source, Operation operation) {
+   TypeChar result[((sizeof(int)*8 + 7) / 3 /* 2^3 = 8 < 10 */ + 2)
+      /* could be 12 = [ln(2^32) / ln(10)] + 2 (sign + \0) */ ];
+   SubStringTraits::itoa(source, result);
+   if (operation == OCopy)
+      return copy(result);
+   else if (operation == OCat)
+      return cat(result);
+   else if (operation == OInsert)
+      return insert(result);
+   else
+      {  AssumeUncalled }
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::setUInteger(unsigned int source, Operation operation) {
+   TypeChar result[((sizeof(unsigned int)*8 + 7) / 3 /* 2^3 = 8 < 10 */ + 1)];
+   SubStringTraits::utoa(source, result);
+   if (operation == OCopy)
+      return copy(result);
+   else if (operation == OCat)
+      return cat(result);
+   else if (operation == OInsert)
+      return insert(result);
+   else
+      {  AssumeUncalled }
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::setLInteger(long int source, Operation operation) {
+   TypeChar result[((sizeof(long int)*8 + 7) / 3 /* 2^3 = 8 < 10 */ + 2)];
+   SubStringTraits::ltoa(source, result);
+   if (operation == OCopy)
+      return copy(result);
+   else if (operation == OCat)
+      return cat(result);
+   else if (operation == OInsert)
+      return insert(result);
+   else
+      {  AssumeUncalled }
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::setULInteger(unsigned long int source, Operation operation) {
+   TypeChar result[((sizeof(unsigned long int)*8 + 7) / 3 /* 2^3 = 8 < 10 */ + 1)];
+   SubStringTraits::ultoa(source, result);
+   if (operation == OCopy)
+      return copy(result);
+   else if (operation == OCat)
+      return cat(result);
+   else if (operation == OInsert)
+      return insert(result);
+   else
+      {  AssumeUncalled }
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+int
+TSubString<TypeChar, TypePolicy, SubStringTraits>::readInteger() {
+   const Repository& repository = getRepository();
+   Position firstPos;
+   start().retrievePosition(firstPos);
+   int first = 0;
+   while ((first < length()) && (SubStringTraits::isspace(repository[firstPos]))) {
+      firstPos.inc(repository);
+      ++first;
+   };
+   Position lastPos(firstPos);
+   int last = first;
+   if (SubStringTraits::issign(repository[lastPos])) {
+      lastPos.inc(repository);
+      ++last;
+      while ((last < length()) && (SubStringTraits::isspace(repository[lastPos]))) {
+         lastPos.inc(repository);
+         ++last;
+      };
+   };
+   while ((last < length()) && SubStringTraits::isdigit(repository[lastPos])) {
+      lastPos.inc(repository);
+      ++last;
+   };
+
+   int result = thisType(*this, first, last-first).queryInteger();
+   uTypeLength -= last << CTypeShift;
+   if (uTypeLength <= TBClosed)
+      end().inc();
+   start().increaseToPosition(lastPos);
+   return result;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+unsigned int
+TSubString<TypeChar, TypePolicy, SubStringTraits>::readUInteger() {
+   const Repository& repository = getRepository();
+   Position firstPos;
+   start().retrievePosition(firstPos);
+   int first = 0;
+   while ((first < length()) && (SubStringTraits::isspace(repository[firstPos]))) {
+      firstPos.inc(repository);
+      ++first;
+   };
+   Position lastPos(firstPos);
+   int last = first;
+   if (SubStringTraits::issign(repository[lastPos])) {
+      lastPos.inc(repository);
+      ++last;
+      while ((last < length()) && (SubStringTraits::isspace(repository[lastPos]))) {
+         lastPos.inc(repository);
+         ++last;
+      };
+   };
+   while ((last < length()) && SubStringTraits::isdigit(repository[lastPos])) {
+      lastPos.inc(repository);
+      ++last;
+   };
+
+   unsigned int result = thisType(*this, first, last-first).queryUInteger();
+   uTypeLength -= last << CTypeShift;
+   if (uTypeLength <= TBClosed)
+      end().inc();
+   start().increaseToPosition(lastPos);
+   return result;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+long int
+TSubString<TypeChar, TypePolicy, SubStringTraits>::readLInteger() {
+   const Repository& repository = getRepository();
+   Position firstPos;
+   start().retrievePosition(firstPos);
+   int first = 0;
+   while ((first < length()) && (SubStringTraits::isspace(repository[firstPos]))) {
+      firstPos.inc(repository);
+      ++first;
+   };
+   Position lastPos(firstPos);
+   int last = first;
+   if (SubStringTraits::issign(repository[lastPos])) {
+      lastPos.inc(repository);
+      ++last;
+      while ((last < length()) && (SubStringTraits::isspace(repository[lastPos]))) {
+         lastPos.inc(repository);
+         ++last;
+      };
+   };
+   while ((last < length()) && SubStringTraits::isdigit(repository[lastPos])) {
+      lastPos.inc(repository);
+      ++last;
+   };
+
+   long int result = thisType(*this, first, last-first).queryLInteger();
+   uTypeLength -= last << CTypeShift;
+   if (uTypeLength <= TBClosed)
+      end().inc();
+   start().increaseToPosition(lastPos);
+   return result;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+unsigned long int
+TSubString<TypeChar, TypePolicy, SubStringTraits>::readULInteger() {
+   const Repository& repository = getRepository();
+   Position firstPos;
+   start().retrievePosition(firstPos);
+   int first = 0;
+   while ((first < length()) && (SubStringTraits::isspace(repository[firstPos]))) {
+      firstPos.inc(repository);
+      ++first;
+   };
+   Position lastPos(firstPos);
+   int last = first;
+   if (SubStringTraits::issign(repository[lastPos])) {
+      lastPos.inc(repository);
+      ++last;
+      while ((last < length()) && (SubStringTraits::isspace(repository[lastPos]))) {
+         lastPos.inc(repository);
+         ++last;
+      };
+   };
+   while ((last < length()) && SubStringTraits::isdigit(repository[lastPos])) {
+      lastPos.inc(repository);
+      ++last;
+   };
+
+   unsigned long int result = thisType(*this, first, last-first).queryULInteger();
+   uTypeLength -= last << CTypeShift;
+   if (uTypeLength <= TBClosed)
+      end().inc();
+   start().increaseToPosition(lastPos);
+   return result;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+unsigned int
+TSubString<TypeChar, TypePolicy, SubStringTraits>::queryHexaUInteger() const {
+   const Repository& repository = getRepository();
+   Position position;
+   start().retrievePosition(position);
+   int index = 0;
+   while ((index < length()) && (SubStringTraits::isspace(repository[position]))) {
+      position.inc(repository);
+      ++index;
+   };
+   unsigned int result = 0;
+   while ((index < length()) && SubStringTraits::ishexadigit(repository[position])) {
+      result <<= 4;
+      result |= SubStringTraits::getHexaDigit(repository[position]);
+      position.inc(repository);
+      ++index;
+   };
+   return result;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+unsigned long int
+TSubString<TypeChar, TypePolicy, SubStringTraits>::queryHexaULInteger() const {
+   const Repository& repository = getRepository();
+   Position position;
+   start().retrievePosition(position);
+   int index = 0;
+   while ((index < length()) && (SubStringTraits::isspace(repository[position]))) {
+      position.inc(repository);
+      ++index;
+   };
+   unsigned long int result = 0;
+   while ((index < length()) && SubStringTraits::ishexadigit(repository[position])) {
+      result <<= 4;
+      result |= SubStringTraits::getHexaDigit(repository[position]);
+      position.inc(repository);
+      ++index;
+   };
+   return result;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::setHexaInteger(int asource, Operation operation) {
+   TypeChar result[sizeof(int)*2+1];
+   unsigned int source;
+   memcpy(&source, &asource, sizeof(unsigned));
+   int index = sizeof(int)*2;
+   while (--index >= 0) {
+      result[index] = SubStringTraits::convertHexa(source & 0x0f);
+      source >>= 4;
+   };
+   result[sizeof(int)*2] = (TypeChar) 0;
+   if (operation == OCopy)
+      return copy(result);
+   else if (operation == OCat)
+      return cat(result);
+   else if (operation == OInsert)
+      return insert(result);
+   else
+      {  AssumeUncalled }
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::setHexaUInteger(unsigned int source, Operation operation) {
+   TypeChar result[sizeof(unsigned int)*2+1];
+   int index = sizeof(unsigned int)*2;
+   while (--index >= 0) {
+      result[index] = SubStringTraits::convertHexa(source & 0x0f);
+      source >>= 4;
+   };
+   result[sizeof(int)*2] = (TypeChar) 0;
+   if (operation == OCopy)
+      return copy(result);
+   else if (operation == OCat)
+      return cat(result);
+   else if (operation == OInsert)
+      return insert(result);
+   else
+      {  AssumeUncalled }
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::setHexaLInteger(long int asource, Operation operation) {
+   TypeChar result[sizeof(long int)*2+1];
+   unsigned long int source;
+   memcpy(&source, &asource, sizeof(unsigned long));
+   int index = sizeof(long int)*2;
+   while (--index >= 0) {
+      result[index] = SubStringTraits::convertHexa(source & 0x0f);
+      source >>= 4;
+   };
+   result[sizeof(int)*2] = (TypeChar) 0;
+   if (operation == OCopy)
+      return copy(result);
+   else if (operation == OCat)
+      return cat(result);
+   else if (operation == OInsert)
+      return insert(result);
+   else
+      {  AssumeUncalled }
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::setHexaULInteger(unsigned long int source, Operation operation) {
+   TypeChar result[sizeof(unsigned long int)*2+1];
+   int index = sizeof(unsigned long int)*2;
+   while (--index >= 0) {
+      result[index] = SubStringTraits::convertHexa(source & 0x0f);
+      source >>= 4;
+   };
+   result[sizeof(int)*2] = (TypeChar) 0;
+   if (operation == OCopy)
+      return copy(result);
+   else if (operation == OCat)
+      return cat(result);
+   else if (operation == OInsert)
+      return insert(result);
+   else
+      {  AssumeUncalled }
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+int
+TSubString<TypeChar, TypePolicy, SubStringTraits>::readHexaInteger() {
+   const Repository& repository = getRepository();
+   Position position;
+   start().retrievePosition(position);
+   int index = 0;
+   while ((index < length()) && (SubStringTraits::isspace(repository[position]))) {
+      position.inc(repository);
+      ++index;
+   };
+   int result = 0;
+   while ((index < length()) && SubStringTraits::ishexadigit(repository[position])) {
+      result <<= 4;
+      result |= SubStringTraits::getHexaDigit(repository[position]);
+      position.inc(repository);
+      ++index;
+   };
+   uTypeLength -= index << CTypeShift;
+   if (uTypeLength <= TBClosed)
+      end().inc();
+   start().increaseToPosition(position);
+   return result;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+unsigned int
+TSubString<TypeChar, TypePolicy, SubStringTraits>::readHexaUInteger() {
+   const Repository& repository = getRepository();
+   Position position;
+   start().retrievePosition(position);
+   int index = 0;
+   while ((index < length()) && (SubStringTraits::isspace(repository[position]))) {
+      position.inc(repository);
+      ++index;
+   };
+   unsigned int result = 0;
+   while ((index < length()) && SubStringTraits::ishexadigit(repository[position])) {
+      result <<= 4;
+      result |= SubStringTraits::getHexaDigit(repository[position]);
+      position.inc(repository);
+      ++index;
+   };
+   uTypeLength -= index << CTypeShift;
+   if (uTypeLength <= TBClosed)
+      end().inc();
+   start().increaseToPosition(position);
+   return result;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+long int
+TSubString<TypeChar, TypePolicy, SubStringTraits>::readHexaLInteger() {
+   const Repository& repository = getRepository();
+   Position position;
+   start().retrievePosition(position);
+   int index = 0;
+   while ((index < length()) && (SubStringTraits::isspace(repository[position]))) {
+      position.inc(repository);
+      ++index;
+   };
+   long int result = 0;
+   while ((index < length()) && SubStringTraits::ishexadigit(repository[position])) {
+      result <<= 4;
+      result |= SubStringTraits::getHexaDigit(repository[position]);
+      position.inc(repository);
+      ++index;
+   };
+   uTypeLength -= index << CTypeShift;
+   if (uTypeLength <= TBClosed)
+      end().inc();
+   start().increaseToPosition(position);
+   return result;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+unsigned long int
+TSubString<TypeChar, TypePolicy, SubStringTraits>::readHexaULInteger() {
+   const Repository& repository = getRepository();
+   Position position;
+   start().retrievePosition(position);
+   int index = 0;
+   while ((index < length()) && (SubStringTraits::isspace(repository[position]))) {
+      position.inc(repository);
+      ++index;
+   };
+   unsigned long int result = 0;
+   while ((index < length()) && SubStringTraits::ishexadigit(repository[position])) {
+      result <<= 4;
+      result |= SubStringTraits::getHexaDigit(repository[position]);
+      position.inc(repository);
+      ++index;
+   };
+   uTypeLength -= index << CTypeShift;
+   if (uTypeLength <= TBClosed)
+      end().inc();
+   start().increaseToPosition(position);
+   return result;
+}
+
+#ifdef __GNUC__
+
+#ifdef strtod
+#undef strtod
+#endif
+
+#endif
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+double
+TSubString<TypeChar, TypePolicy, SubStringTraits>::queryFloat() const {
+   TChunk<TypeChar> chunk;
+   getRepository().retrieveChunk(getStartPosition(), chunk);
+   TypeChar* endptr = nullptr;
+   if (((int) chunk.length >= length()) && (chunk.string[length()] == (TypeChar) 0))
+      return chunk.string ? SubStringTraits::strtod(chunk.string, &endptr) : 0.0;
+
+   TypeChar* doubleSupport = createString();
+   if (doubleSupport) {
+      double value = SubStringTraits::strtod(doubleSupport, &endptr);
+      delete [] doubleSupport;
+      return value;
+   };
+   return 0.0;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+double
+TSubString<TypeChar, TypePolicy, SubStringTraits>::readFloat() {
+   const Repository& repository = getRepository();
+   Position position;
+   start().retrievePosition(position);
+   int index = 0;
+   while ((index < length()) && (SubStringTraits::isspace(repository[position]))) {
+      position.inc(repository);
+      ++index;
+   };
+   int first = index;
+   if (SubStringTraits::issign(repository[position])) {
+      position.inc(repository);
+      ++index;
+      while ((index < length()) && (SubStringTraits::isspace(repository[position]))) {
+         position.inc(repository);
+         ++index;
+      };
+   };
+   if ((index < length()) && SubStringTraits::isdigit(repository[position])) {
+      while ((index < length()) && SubStringTraits::isdigit(repository[position])) {
+         position.inc(repository);
+         ++index;
+      };
+      while ((index < length()) && (SubStringTraits::isspace(repository[position]))) {
+         position.inc(repository);
+         ++index;
+      };
+   };
+   if (SubStringTraits::ispoint(repository[position])) {
+      position.inc(repository);
+      ++index;
+      while ((index < length()) && (SubStringTraits::isspace(repository[position]))) {
+         position.inc(repository);
+         ++index;
+      };
+   };
+   if ((index < length()) && SubStringTraits::isdigit(repository[position])) {
+      while ((index < length()) && SubStringTraits::isdigit(repository[position])) {
+         position.inc(repository);
+         ++index;
+      };
+      while ((index < length()) && (SubStringTraits::isspace(repository[position]))) {
+         position.inc(repository);
+         ++index;
+      };
+   };
+   if (SubStringTraits::isexponent(repository[position])) {
+      position.inc(repository);
+      ++index;
+      while ((index < length()) && (SubStringTraits::isspace(repository[position]))) {
+         position.inc(repository);
+         ++index;
+      };
+      if (SubStringTraits::issign(repository[position])) {
+         position.inc(repository);
+         ++index;
+         while ((index < length()) && (SubStringTraits::isspace(repository[position]))) {
+            position.inc(repository);
+            ++index;
+         };
+         while ((index < length()) && SubStringTraits::isdigit(repository[position])) {
+            position.inc(repository);
+            ++index;
+         };
+      };
+   };
+
+   double result = thisType(*this, first, index-first).queryFloat();
+   uTypeLength -= index << CTypeShift;
+   if (uTypeLength <= TBClosed)
+      end().inc();
+   start().increaseToPosition(position);
+   return result;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::setFloat(double source, Operation operation) {
+   TypeChar result[49];
+   SubStringTraits::gcvt(source, result);
+   if (operation == OCopy)
+      return copy(result);
+   else if (operation == OCat)
+      return cat(result);
+   else if (operation == OInsert)
+      return insert(result);
+   else
+      {  AssumeUncalled }
+   return *this;
+}
+
+/* extraction method */
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+PNT::PassPointer<TSubString<TypeChar, TypePolicy, SubStringTraits> >
+TSubString<TypeChar, TypePolicy, SubStringTraits>::newString(int start, int len) const {
+   if (start > length())
+      start = length();
+   if (len + start > length())
+      len = length() - start;
+   PNT::PassPointer<thisType> result;
+   if (length() > 0) 
+      result.absorbElement(new TString<TypeChar, TypePolicy, SubStringTraits>(*this, start, len));
+   return result;
+}
+
+/* implementation of stream methods */
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+void
+TSubString<TypeChar, TypePolicy, SubStringTraits>::read(std::basic_istream<TypeChar>& in) {
+   AssumeCondition(isUpperInfinite())
+   clear();
+   int readChars;
+   Repository& repository = getRepository();
+   Position position;
+   start().retrievePosition(position);
+   int places;
+   do {
+      repository.bookPlace(position, 5000);
+      places = repository.getPlace(position);
+      if (places == 0)
+         return;
+      int localLength = repository.getLength(position);
+      repository.setLength(position, localLength + places);
+      TChunk<TypeChar> chunk;
+      try {
+         repository.retrieveChunk(position, chunk);
+         in.read(chunk.string, places);
+         readChars = (int) in.gcount();
+      }
+      catch (...) {
+         repository.setLength(position, localLength);
+         throw;
+      };
+      if (readChars == 0) {
+         repository.setLength(position, localLength);
+         repository.normalize(position);
+      }
+      else {
+         repository.setLength(position, localLength + readChars);
+         uTypeLength += readChars << CTypeShift;
+         position.plusAssign(readChars, repository);
+      };
+   } while (readChars == places);
+   end().setToEnd();
+   InsertionNotification notification(*this);
+   notification.setConcatenation().setSource(getStartPosition());
+   notification.setShift(repository.length() - start().getPosition());
+   repository.setMove(notification);
+   notification.update(getRepository());
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+void
+TSubString<TypeChar, TypePolicy, SubStringTraits>::read(std::basic_istream<TypeChar>& in, int maxChars) {
+   AssumeCondition(isUpperInfinite())
+   clear();
+   Repository& repository = getRepository();
+   Position position;
+   start().retrievePosition(position);
+   int availablePlace = repository.getPlace(position);
+   int readChars;
+   do {
+      repository.bookPlace(position, maxChars-availablePlace);
+      availablePlace = repository.getPlace(position);
+      if (availablePlace == 0)
+         return;
+      int localLength = repository.getLength(position);
+      repository.setLength(position, localLength + availablePlace);
+      TChunk<TypeChar> chunk;
+      try {
+         repository.retrieveChunk(position, chunk);
+         in.read(chunk.string, availablePlace < maxChars ? availablePlace : maxChars);
+         readChars = (int) in.gcount();
+      }
+      catch (...) {
+         repository.setLength(position, localLength);
+         throw;
+      };
+      if (readChars == 0) {
+         repository.setLength(position, localLength);
+         repository.normalize(position);
+      }
+      else {
+         repository.setLength(position, localLength + readChars);
+         uTypeLength += readChars << CTypeShift;
+         end().plusAssign(readChars);
+         position.plusAssign(readChars, repository);
+         maxChars -= readChars;
+      };
+   } while (maxChars > 0 && readChars == availablePlace);
+   InsertionNotification notification(*this);
+   notification.setConcatenation().setSource(getStartPosition());
+   notification.setShift(repository.length() - start().getPosition());
+   repository.setMove(notification);
+   notification.update(getRepository());
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+void
+TSubString<TypeChar, TypePolicy, SubStringTraits>::read(std::basic_istream<TypeChar>& in, int maxChars, TypeChar delim) {
+   AssumeCondition(isUpperInfinite())
+   clear();
+   Repository& repository = getRepository();
+   Position position;
+   start().retrievePosition(position);
+   int availablePlace = repository.getPlace(position);
+   int readChars;
+   do {
+      repository.bookPlace(position, maxChars-availablePlace);
+      availablePlace = repository.getPlace(position);
+      if (availablePlace == 0)
+         return;
+      int localLength = repository.getLength(position);
+      repository.setLength(position, localLength + availablePlace);
+      TChunk<TypeChar> chunk;
+      try {
+         repository.retrieveChunk(position, chunk);
+         in.getline(chunk.string, availablePlace < maxChars ? availablePlace : maxChars, delim);
+         readChars = (int) in.gcount();
+      }
+      catch (...) {
+         repository.setLength(position, localLength);
+         throw;
+      };
+      if (readChars == 0) {
+         repository.setLength(position, localLength);
+         repository.normalize(position);
+      }
+      else {
+         repository.setLength(position, localLength + readChars);
+         uTypeLength += readChars << CTypeShift;
+         end().plusAssign(readChars);
+         position.plusAssign(readChars, repository);
+         maxChars -= readChars;
+      };
+   } while (maxChars > 0 && readChars == availablePlace);
+   InsertionNotification notification(*this);
+   notification.setConcatenation().setSource(getStartPosition());
+   notification.setShift(repository.length() - start().getPosition());
+   repository.setMove(notification);
+   notification.update(getRepository());
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+void
+TSubString<TypeChar, TypePolicy, SubStringTraits>::read(FILE* file, int chars) {
+   AssumeCondition(isUpperInfinite())
+   clear();
+   Repository& repository = getRepository();
+   Position position;
+   start().retrievePosition(position);
+   int availablePlace = repository.getPlace(position);
+   int readChars;
+   do {
+      repository.bookPlace(position, chars-availablePlace);
+      availablePlace = repository.getPlace(position);
+      if (availablePlace == 0)
+         return;
+      int localLength = repository.getLength(position);
+      repository.setLength(position, localLength + availablePlace);
+      TChunk<TypeChar> chunk;
+      try {
+         repository.retrieveChunk(position, chunk);
+         if (fread(chunk.string, (availablePlace < chars ? availablePlace : chars)
+               *sizeof(TypeChar), 1, file) != 1)
+            throw STG::EReadError();
+         readChars = availablePlace < chars ? availablePlace : chars;
+      }
+      catch (...) {
+         repository.setLength(position, localLength);
+         throw;
+      };
+      if (readChars == 0) {
+         repository.setLength(position, localLength);
+         repository.normalize(position);
+      }
+      else {
+         repository.setLength(position, localLength + readChars);
+         uTypeLength += readChars << CTypeShift;
+         end().plusAssign(readChars);
+         position.plusAssign(readChars, repository);
+         chars -= readChars;
+      };
+   } while (chars > 0 && readChars == availablePlace);
+   InsertionNotification notification(*this);
+   notification.setConcatenation().setSource(getStartPosition());
+   notification.setShift(repository.length() - start().getPosition());
+   repository.setMove(notification);
+   notification.update(getRepository());
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+void
+TSubString<TypeChar, TypePolicy, SubStringTraits>::write(std::basic_ostream<TypeChar>& out) const {
+   Position write;
+   start().retrievePosition(write);
+   TChunk<TypeChar> chunk;
+   const Repository& repository = getRepository();
+   repository.retrieveChunk(write, chunk);
+   int len = length();
+   for (bool doesContinue = (len > 0); doesContinue; doesContinue
+         = ((len -= chunk.length) >= 0) && repository.setToNextChunk(write, chunk))
+      out.write(chunk.string, (len > (int) chunk.length) ? chunk.length : len);
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+void
+TSubString<TypeChar, TypePolicy, SubStringTraits>::write(std::basic_ostream<TypeChar>& out, int maxChars) const {
+   Position write;
+   start().retrievePosition(write);
+   TChunk<TypeChar> chunk;
+   const Repository& repository = getRepository();
+   repository.retrieveChunk(write, chunk);
+   int len = length();
+   if (maxChars < len)
+      len = maxChars;
+   for (bool doesContinue = (len > 0); doesContinue; doesContinue
+         = ((len -= chunk.length) >= 0) && repository.setToNextChunk(write, chunk))
+      out.write(chunk.string, (len > (int) chunk.length) ? chunk.length : len);
+}
+
+/* search methods */
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+int
+TSubString<TypeChar, TypePolicy, SubStringTraits>::scanPos(const TypeChar& search, const SearchParameters& params) const {
+   if (length() == 0)
+      return -1;
+   const Repository& repository = getRepository();
+   TChunk<TypeChar> chunk;
+   Position position;
+   start().retrievePosition(position);
+   repository.retrieveChunk(position, chunk);
+   int left = length();
+   if (params.isCaseSensitive() && !params.doesSupportContainZero() && !params.isBackward()) {
+      while ((int) chunk.length <= left) {
+         const TypeChar* subString = (params.isForward())
+            ? SubStringTraits::strchr(chunk.string, search)
+            : SubStringTraits::strrchr(chunk.string-chunk.length, search);
+         if (subString) 
+            return (length()-left) + (int) (subString - chunk.string);
+         left -= chunk.length;
+         if (left > 0)
+            repository.setToNextChunk(position, chunk, false);
+      };
+      if (left == 0)
+         return -1;
+   };
+
+   bool hasNextChunk = false;
+   if (params.isBackward()) {
+      position.plusAssign(left, repository);
+      repository.retrieveChunk(position, chunk, true);
+      if ((left == (int) chunk.length) && chunk.string && !chunk.string[1])
+         hasNextChunk = true;
+   };
+
+   if (!hasNextChunk) {
+      TypeChar achar = search;
+      if (params.isCaseInsensitive())
+         achar = SubStringTraits::tolower(achar);
+      bool backward = params.isBackward();
+      do {
+         while ((left > 0) && (chunk.length > 0)) {
+            if ((params.isCaseSensitive() ? *chunk.string
+                  : SubStringTraits::tolower(*chunk.string)) == achar)
+               return !backward ? (length() - left) : (left-1);
+            if (!backward)
+               ++chunk.string;
+            else
+               --chunk.string;
+            --chunk.length;
+            --left;
+         };
+      } while ((left > 0) && ((hasNextChunk = repository.setToNextChunk(position, chunk, params.isBackward())) != false)
+         && (!backward || params.doesSupportContainZero() || !params.isCaseSensitive()));
+   };
+
+   if ((left > 0) && hasNextChunk) { // params.isBackward() && !params.doesSupportContainZero() && params.isCaseSensitive()
+      while (left > 0) {
+         const TypeChar* subString = SubStringTraits::strrchr(chunk.string+1
+            - (((int) chunk.length <= left) ? chunk.length : left), search);
+         if (subString) 
+            return left-1 + (int) (subString-chunk.string);
+         left -= chunk.length;
+         if (left > 0)
+            repository.setToNextChunk(position, chunk, true);
+      };
+   };
+   return -1;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+int
+TSubString<TypeChar, TypePolicy, SubStringTraits>::scanPos(const CharSet& asearch, const SearchParameters& params) const {
+   if (length() == 0)
+      return -1;
+
+   CharSet csearch;
+   const CharSet* search = &asearch;
+   if (params.isCaseInsensitive()) {
+      csearch = asearch;
+      search = &csearch;
+      csearch.insensitive();
+   };
+
+   const Repository& repository = getRepository();
+   TChunk<TypeChar> chunk;
+   Position position;
+   start().retrievePosition(position);
+   repository.retrieveChunk(position, chunk);
+
+   if (params.isBackward()) {
+      position.plusAssign(length(), repository);
+      repository.retrieveChunk(position, chunk, true);
+   };
+
+   int left = length();
+   bool backward = params.isBackward();
+   do {
+      while ((left > 0) && (chunk.length > 0)) {
+         if (search->accept(*chunk.string))
+            return !backward ? (length() - left) : (left-1);
+         if (!backward)
+            ++chunk.string;
+         else
+            --chunk.string;
+         --chunk.length;
+         --left;
+      };
+   } while ((left >= 0) && repository.setToNextChunk(position, chunk, params.isBackward()));
+
+   return -1;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+int
+TSubString<TypeChar, TypePolicy, SubStringTraits>::scanPos(const TChunk<TypeChar>& pattern,
+      const SearchParameters& params) const {
+   const Repository& repository = getRepository();
+   if (pattern.length == 0)
+      return 0;
+   if (length() < (int) pattern.length)
+      return -1;
+
+   typename SubStringTraits::ScanResult scanResult;
+   scanResult.setVariant(pattern.string, pattern.length, params);
+
+   TChunk<TypeChar> chunk;
+   Position position;
+   start().retrievePosition(position);
+   repository.retrieveChunk(position, chunk);
+   int left = length();
+
+   int result = 0;
+   do {
+      SubStringTraits::scanPartial(
+         params.isForward() ? chunk.string : chunk.string - chunk.length + 1,
+         ((int) chunk.length < left) ? chunk.length : left, pattern.string, pattern.length,
+         params, scanResult);
+      if (scanResult.isValid())
+         return result + scanResult.result();
+      result += chunk.length;
+      left -= chunk.length;
+   } while (repository.setToNextChunk(position, chunk, params.isBackward()));
+   return -1;
+}
+
+/* search a sub-string in a list of strings */
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+bool
+TSubString<TypeChar, TypePolicy, SubStringTraits>::elementOf(const TypeChar* string...) const {
+   if (string) {
+      const TypeChar* nextString;
+
+      if (compare(string) == CREqual)
+         return true;
+      va_list ap;
+      va_start(ap, string);
+      do {
+         nextString = va_arg(ap, const TypeChar*);
+         if (nextString && (compare(nextString) == CREqual)) {
+            va_end(ap);
+            return true;
+         };
+      } while (nextString);
+      va_end(ap);
+   };
+   return false;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+bool
+TSubString<TypeChar, TypePolicy, SubStringTraits>::elementOf(const typename SubStringTraits::Strings& strings) const {
+   for (int stringIndex = 0; stringIndex < strings.getNbStrings(); ++stringIndex) {
+      if (compare(strings.getString(stringIndex)) == CREqual)
+         return true;
+   };
+   return false;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+bool
+TSubString<TypeChar, TypePolicy, SubStringTraits>::elementOfI(const TypeChar* string...) const {
+   if (string) {
+      const TypeChar* nextString;
+      if (compareI(string) == CREqual)
+         return true;
+      va_list ap;
+      va_start(ap, string);
+      do {
+         nextString = va_arg(ap, const TypeChar*);
+         if (nextString && (compareI(nextString) == CREqual)) {
+            va_end(ap);
+            return true;
+         };
+      } while (nextString);
+      va_end(ap);
+   };
+   return false;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+bool
+TSubString<TypeChar, TypePolicy, SubStringTraits>::elementOfI(const typename SubStringTraits::Strings& strings) const {
+   for (int stringIndex = 0; stringIndex < strings.getNbStrings(); ++stringIndex) {
+      if (compareI(strings.getString(stringIndex)) == CREqual)
+         return true;
+   };
+   return false;
+}
+
+/* Implantation des méthodes de copie */
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::copy(const thisType& asource, int startIndex, int len) {
+   if (startIndex < 0)
+      startIndex = 0;
+   else if (startIndex > asource.length())
+      startIndex = asource.length();
+   if (len > asource.length() - startIndex)
+      len = asource.length() - startIndex;
+   if (len == 0)
+      return suppress();
+
+   int oldLength = length();
+   Repository& repository = getRepository();
+   const Repository& sourceRepository = asource.getRepository();
+
+   Position sourceStartPos, startPos;
+   start().retrievePosition(startPos);
+   asource.start().retrievePosition(sourceStartPos);
+   if (startIndex > 0)
+      sourceStartPos.plusAssign(startIndex, sourceRepository);
+
+   const thisType* source = &asource;
+   PNT::PassPointer<thisType> sourceCopy;
+   bool needNotification = false;
+
+   if (&repository == &sourceRepository) {
+      ComparisonResult compareStart = startPos.compare(sourceStartPos, repository);
+      if (compareStart == CRGreater || compareStart == CREqual) {
+         Position sourceEndPos(sourceStartPos);
+         sourceEndPos.plusAssign(len, repository);
+         ComparisonResult compareEnd = startPos.compare(sourceEndPos, repository);
+         needNotification = (compareEnd == CRGreater || compareEnd == CREqual);
+      }
+      else {
+         Position endPos(startPos);
+         endPos.plusAssign(oldLength, repository);
+         ComparisonResult compareEnd = endPos.compare(sourceStartPos, repository);
+         needNotification = (compareEnd == CRLess || compareEnd == CREqual);
+      };
+      if (!needNotification) {
+         sourceCopy = asource.newString(startIndex, len);
+         sourceCopy->start().retrievePosition(sourceStartPos);
+         source = sourceCopy.key();
+      };
+   };
+
+   ReplaceNotification notification(*this);
+   notification.setSource(startPos);
+   notification.setShift(len - oldLength);
+   notification.setFirst(startPos);
+   if ((oldLength < len) && (oldLength > 0))
+      notification.source().plusAssign(oldLength, repository);
+   else if ((oldLength > len) && (len > 0))
+      notification.source().plusAssign(len, repository);
+
+   uTypeLength = (len << CTypeShift) | (uTypeLength & CTypeMask);
+   move(repository, notification, oldLength);
+   if ((len != oldLength) && (needNotification))
+      ((MoveNotification&) notification).update(sourceStartPos);
+   repository.copy(startPos, source->getRepository(), sourceStartPos, len);
+   sourceCopy.release();
+   notification.setFirst(startPos);
+   notification.update(repository);
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::copy(const TypeChar* source, int len) {
+   if (len == 0)
+      return suppress();
+
+   int oldLength = length();
+   Repository& repository = getRepository();
+
+   ReplaceNotification notification(*this);
+   Position startPos;
+   start().retrievePosition(startPos);
+   notification.setSource(startPos);
+   notification.setFirst(startPos);
+   if ((oldLength < len) && (oldLength > 0))
+      notification.source().plusAssign(oldLength, repository);
+   else if ((oldLength > len) && (len > 0))
+      notification.source().plusAssign(len, repository);
+   notification.setShift(len - oldLength);
+   uTypeLength = (len << CTypeShift) | (uTypeLength & CTypeMask);
+   move(repository, notification, oldLength);
+   repository.copy(startPos, source, len);
+   notification.update(repository);
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::copy(const TypeChar& source) {
+   int oldLength = length();
+   Repository& repository = getRepository();
+
+   ReplaceNotification notification(*this);
+   Position startPos;
+   start().retrievePosition(startPos);
+   notification.setSource(startPos);
+   notification.setFirst(startPos);
+   if (oldLength > 0)
+      notification.source().inc(repository);
+   notification.setShift(1 - oldLength);
+   uTypeLength = (1 << CTypeShift) | (uTypeLength & CTypeMask);
+   move(repository, notification, oldLength);
+   repository[startPos] = source;
+   notification.update(repository);
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::copy(const TypeChar& source, int number) {
+   if (number == 0)
+      return suppress();
+   int oldLength = length();
+   Repository& repository = getRepository();
+
+   ReplaceNotification notification(*this);
+   Position startPos;
+   start().retrievePosition(startPos);
+   notification.setSource(startPos);
+   notification.setFirst(startPos);
+   if ((oldLength < number) && (oldLength > 0))
+      notification.source().plusAssign(oldLength, repository);
+   else if ((oldLength > number) && (number > 0))
+      notification.source().plusAssign(number, repository);
+   notification.setShift(number - oldLength);
+   uTypeLength = (number << CTypeShift) | (uTypeLength & CTypeMask);
+   move(repository, notification, oldLength);
+   repository.set(startPos, source, number);
+   notification.update(repository);
+   return *this;
+}
+
+/* implementation of the append methods */
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::cat(const thisType& asource, int startIndex, int len) {
+   if (startIndex < 0)
+      startIndex = 0;
+   else if (startIndex > asource.length())
+      startIndex = asource.length();
+   if (len > asource.length() - startIndex)
+      len = asource.length() - startIndex;
+   if (len == 0)
+      return *this;
+
+   int oldLength = length();
+   Repository& repository = getRepository();
+   const Repository& sourceRepository = asource.getRepository();
+
+   Position sourceStartPos;
+   asource.start().retrievePosition(sourceStartPos);
+   if (startIndex > 0)
+      sourceStartPos.plusAssign(startIndex, sourceRepository);
+   Position endPos;
+   start().retrievePosition(endPos);
+   endPos.plusAssign(oldLength, repository);
+
+   const thisType* source = &asource;
+   PNT::PassPointer<thisType> sourceCopy;
+   bool needNotification = false;
+
+   if (&repository == &sourceRepository) {
+      Position sourceEndPos(sourceStartPos);
+      sourceEndPos.plusAssign(len, repository);
+      ComparisonResult compareStart = endPos.compare(sourceStartPos, repository);
+      ComparisonResult compareEnd = endPos.compare(sourceEndPos, repository);
+      needNotification = (compareStart == CREqual) || (compareEnd == CREqual)
+         || (compareStart == compareEnd);
+      if (!needNotification) {
+         sourceCopy = asource.newString(startIndex, len);
+         sourceCopy->start().retrievePosition(sourceStartPos);
+         source = sourceCopy.key();
+      };
+   };
+
+   InsertionNotification notification(*this);
+   notification.setSource(endPos);
+   notification.setShift(len);
+   uTypeLength += (len << CTypeShift);
+   move(repository, notification, oldLength);
+   if (needNotification)
+      ((MoveNotification&) notification).update(sourceStartPos);
+   repository.copy(endPos, source->getRepository(), sourceStartPos, len);
+   sourceCopy.release();
+   // if (isUpperInfinite())
+      notification.setConcatenation();
+   // else
+   //    notification.setInsertion();
+   notification.update(repository);
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::cat(const TypeChar* source, int len) {
+   if (len == 0)
+      return *this;
+
+   int oldLength = length();
+   Repository& repository = getRepository();
+   Position endPos;
+   start().retrievePosition(endPos);
+   endPos.plusAssign(oldLength, repository);
+
+   InsertionNotification notification(*this);
+   notification.setSource(getStartPosition());
+   if (oldLength > 0)
+      notification.source().plusAssign(oldLength, repository);
+   notification.setShift(len);
+   uTypeLength += (len << CTypeShift);
+   move(repository, notification, oldLength);
+
+   repository.copy(endPos, source, len);
+   // if (isUpperInfinite())
+      notification.setConcatenation();
+   // else
+   //    notification.setInsertion();
+   notification.update(repository);
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::cat(const TypeChar& source) {
+   int oldLength = length();
+   Repository& repository = getRepository();
+   Position endPos;
+   start().retrievePosition(endPos);
+   endPos.plusAssign(oldLength, repository);
+
+   InsertionNotification notification(*this);
+   notification.setSource(getStartPosition());
+   if (oldLength > 0)
+      notification.source().plusAssign(oldLength, repository);
+   notification.setShift(1);
+   uTypeLength += (1 << CTypeShift);
+   move(repository, notification, oldLength);
+
+   repository[endPos] = source;
+   // if (isUpperInfinite())
+      notification.setConcatenation();
+   // else
+   //   notification.setInsertion();
+   notification.update(repository);
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::cat(const TypeChar& source, int number) {
+   if (number <= 0)
+      return *this;
+
+   int oldLength = length();
+   Repository& repository = getRepository();
+   Position endPos;
+   start().retrievePosition(endPos);
+   endPos.plusAssign(oldLength, repository);
+
+   InsertionNotification notification(*this);
+   notification.setSource(getStartPosition());
+   if (oldLength > 0)
+      notification.source().plusAssign(oldLength, repository);
+   notification.setShift(number);
+   uTypeLength += (number << CTypeShift);
+   move(repository, notification, oldLength);
+
+   repository.set(endPos, source, number);
+   // if (isUpperInfinite())
+      notification.setConcatenation();
+   // else
+   //   notification.setInsertion();
+   notification.update(repository);
+   return *this;
+}
+
+/* implementation of the insertion methods */
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::insert(const thisType& asource, int startIndex, int len) {
+   if (startIndex < 0)
+      startIndex = 0;
+   else if (startIndex > asource.length())
+      startIndex = asource.length();
+   if (len > asource.length() - startIndex)
+      len = asource.length() - startIndex;
+   if (len == 0)
+      return *this;
+
+   Repository& repository = getRepository();
+   const Repository& sourceRepository = asource.getRepository();
+
+   Position sourceStartPos, startPos;
+   start().retrievePosition(startPos);
+   asource.start().retrievePosition(sourceStartPos);
+   if (startIndex > 0)
+      sourceStartPos.plusAssign(startIndex, sourceRepository);
+
+   const thisType* source = &asource;
+   PNT::PassPointer<thisType> sourceCopy;
+   bool needNotification = false;
+
+   if (&repository == &sourceRepository) {
+      Position sourceEndPos(sourceStartPos);
+      sourceEndPos.plusAssign(len, repository);
+      ComparisonResult compareStart = startPos.compare(sourceStartPos, repository);
+      ComparisonResult compareEnd = startPos.compare(sourceEndPos, repository);
+      needNotification = (compareStart == CREqual) || (compareEnd == CREqual)
+         || (compareStart == compareEnd);
+      if (!needNotification) {
+         sourceCopy = asource.newString(startIndex, len);
+         sourceCopy->start().retrievePosition(sourceStartPos);
+         source = sourceCopy.key();
+      };
+   };
+
+   InsertionNotification notification(*this);
+   notification.setSource(startPos);
+   notification.setShift(len);
+   int oldLength = length();
+   uTypeLength += (len << CTypeShift);
+   move(repository, notification, oldLength);
+   if (needNotification)
+      ((MoveNotification&) notification).update(sourceStartPos);
+
+   repository.copy(startPos, source->getRepository(), sourceStartPos, len);
+   sourceCopy.release();
+   notification.update(repository);
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::insert(const TypeChar* source, int len) {
+   if (len == 0)
+      return *this;
+
+   Repository& repository = getRepository();
+   InsertionNotification notification(*this);
+   Position startPos;
+   start().retrievePosition(startPos);
+   notification.setSource(startPos);
+   notification.setShift(len);
+   int oldLength = length();
+   uTypeLength += (len << CTypeShift);
+   move(repository, notification, oldLength);
+
+   repository.copy(startPos, source, len);
+   notification.update(repository);
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::insert(const TypeChar& achar) {
+   Repository& repository = getRepository();
+   InsertionNotification notification(*this);
+   Position startPos;
+   start().retrievePosition(startPos);
+   notification.setSource(startPos);
+   notification.setShift(1);
+   int oldLength = length();
+   uTypeLength += (1 << CTypeShift);
+   move(repository, notification, oldLength);
+
+   repository[startPos] = achar;
+   notification.update(repository);
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::insert(const TypeChar& achar, int number) {
+   if (number <= 0)
+      return *this;
+   Repository& repository = getRepository();
+   Position startPos;
+   start().retrievePosition(startPos);
+   InsertionNotification notification(*this);
+   notification.setSource(startPos);
+   notification.setShift(number);
+   int oldLength = length();
+   uTypeLength += (number << CTypeShift);
+   move(repository, notification, oldLength);
+
+   repository.set(startPos, achar, number);
+   // repository[startPos] = achar;
+   notification.update(repository);
+   return *this;
+}
+
+/* implementation of the replacement methods */
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::replace(const thisType& asource,
+      const thisType& adestination, const ExtendedReplaceParameters& params) {
+   int sourceLength = asource.length();
+   const thisType* source = &asource;
+   const thisType* destination = &adestination;
+   PNT::PassPointer<thisType> sourceAlloc, destinationAlloc;
+
+   if ((sourceLength > 0) && (length() > 0)) {
+      if (params.isReplaceAll() && (&source->getRepository() == &getRepository())) {
+          sourceAlloc = source->newString();
+          source = sourceAlloc.key();
+      };
+
+      if (params.isReplaceAll() && (&destination->getRepository() == &getRepository())) {
+          destinationAlloc = destination->newString();
+          destination = destinationAlloc.key();
+      };
+
+      SearchParameters searchParams;
+      searchParams.setBound().setComparisonMode(params);
+      PNT::PassPointer<thisType> subString = newSubString();
+      do {
+         subString = subString->scan(*source, searchParams);
+         if (subString.isValid())
+            subString->copy(*destination).setToEnd().setUpperBoundTo(*this);
+      } while (subString.isValid() && params.isReplaceAll());
+   };
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::replace(const TypeChar* source,
+      const TypeChar* destination, const ExtendedReplaceParameters& params) {
+   int len = SubStringTraits::strlen(source);
+   if ((len > 0) && (length() > 0)) {
+      PNT::PassPointer<thisType> subString = newSubString();
+      SearchParameters searchParams;
+      searchParams.setBound().setComparisonMode(params);
+      do {
+         subString = subString->scan(source, searchParams);
+         if (subString.isValid())
+            subString->copy(destination).setToEnd().setUpperBoundTo(*this);
+      } while (subString.isValid() && params.isReplaceAll());
+   };
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::replace(const TypeChar& source,
+      const TypeChar& destination, const ExtendedReplaceParameters& params) {
+   if (length() > 0) {
+      PNT::PassPointer<thisType> subString = newSubString();
+      SearchParameters searchParams;
+      searchParams.setUnbound().setComparisonMode(params);
+      do {
+         subString = subString->scan(source, searchParams);
+         if (subString.isValid())
+            subString->setChar(destination).advance(1);
+      } while (subString.isValid() && params.isReplaceAll());
+   };
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::replace(const CharSet& source,
+      const TypeChar& destination, const ExtendedReplaceParameters& params) {
+   if (length() > 0) {
+      PNT::PassPointer<thisType> subString = newSubString();
+      SearchParameters searchParams;
+      searchParams.setUnbound().setComparisonMode(params);
+      do {
+         subString = subString->scan(source, searchParams);
+         if (subString.isValid())
+            subString->setChar(destination).advance(1);
+      } while (subString.isValid() && params.isReplaceAll());
+   };
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::replaceAllChars(const TypeChar& source,
+      int startIndex, int len) {
+   if (startIndex < 0)
+      startIndex = 0;
+   else if (startIndex > length())
+      startIndex = length();
+   if (len > length() - startIndex)
+      len = length() - startIndex;
+   Repository& repository = getRepository();
+   Position position;
+   start().retrievePosition(position);
+   if (startIndex > 0)
+      position.plusAssign(startIndex, repository);
+   repository.set(position, source, len);
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::upperCase() {
+   int left = length();
+   Repository& repository = getRepository();
+   Position position;
+   start().retrievePosition(position);
+   TChunk<TypeChar> chunk;
+   repository.retrieveChunk(position, chunk);
+   
+   if (left > 0) {
+      int index = 0;
+      do {
+         while ((left > 0) && (index < (int) chunk.length)
+               && !SubStringTraits::islower(chunk.string[index])) {
+            --left;
+            ++index;
+         };
+         while ((left > 0) && (index < (int) chunk.length)
+               && SubStringTraits::islower(chunk.string[index])) {
+            --left;
+            chunk.string[index] = SubStringTraits::toupper(chunk.string[index]);
+            ++index;
+         };
+         if ((left > 0) && (index >= (int) chunk.length)) {
+            if (!repository.setToNextChunk(position, chunk))
+               left = 0;
+            index = 0;
+         };
+      } while (left > 0);
+   };
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::lowerCase() {
+   int left = length();
+   Repository& repository = getRepository();
+   Position position;
+   start().retrievePosition(position);
+   TChunk<TypeChar> chunk;
+   repository.retrieveChunk(position, chunk);
+   
+   if (left > 0) {
+      int index = 0;
+      do {
+         while ((left > 0) && (index < (int) chunk.length)
+               && !SubStringTraits::isupper(chunk.string[index])) {
+            --left;
+            ++index;
+         };
+         while ((left > 0) && (index < (int) chunk.length)
+               && SubStringTraits::isupper(chunk.string[index])) {
+            --left;
+            chunk.string[index] = SubStringTraits::tolower(chunk.string[index]);
+            ++index;
+         };
+         if ((left > 0) && (index >= (int) chunk.length)) {
+            if (!repository.setToNextChunk(position, chunk))
+               left = 0;
+            index = 0;
+         };
+      } while (left > 0);
+   };
+   return *this;
+}
+
+/* implementation of the suppression methods */
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::leftTrim() {
+   Repository& repository = getRepository();
+   Position position;
+   start().retrievePosition(position);
+   int shift = 0, len = length();
+   while ((shift < len) && SubStringTraits::isspace(repository[position])) {
+      position.inc(repository);
+      ++shift;
+   };
+   if (shift > 0) {
+      uTypeLength -= (shift << CTypeShift);
+      if (uTypeLength <= TBClosed)
+         end().inc();
+      start().increaseToPosition(position);
+   };
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::rightTrim() {
+   Repository& repository = getRepository();
+   Position position;
+   start().retrievePosition(position);
+   position.plusAssign(length()-1, repository);
+   int shift = 0, len = length();
+   while ((shift < len) && SubStringTraits::isspace(repository[position])) {
+      position.dec(repository);
+      ++shift;
+   };
+   if (shift > 0) {
+      uTypeLength -= (shift << CTypeShift);
+      if (isUpperInfinite()) {
+         position.inc(repository);
+         Repository& repository = getRepository();
+         SuppressionNotification suppression(*this);
+         suppression.setSource(position);
+         suppression.setShift(-shift);
+         if (!repository.move(suppression))
+            end().setToEnd();
+         suppression.update(getRepository());
+      }
+      else
+         end().minusAssign((uTypeLength <= TBClosed) ? shift-1 : shift);
+   };
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::removeSpaces() {
+   int oldLength = length();
+   int left = oldLength;
+   Repository& repository = getRepository();
+   Position position;
+   start().retrievePosition(position);
+   while ((left > 0) && !SubStringTraits::isspace(repository[position])) {
+      --left;
+      position.inc(repository);
+   };
+   while (left > 0) {
+      int leftPos = left;
+      while ((left > 0) && SubStringTraits::isspace(repository[position])) {
+         --left;
+         position.inc(repository);
+      };
+
+      SuppressionNotification notification(repository);
+      notification.setSource(getStartPosition());
+      notification.source().plusAssign(oldLength - leftPos, repository);
+      notification.setShift(-1);
+      uTypeLength -= 1 << CTypeShift;
+      move(repository, notification, oldLength);
+      ((MoveNotification&) notification).update(position);
+      inherited::notifyUpdate(notification);
+
+      while ((left > 0) && !SubStringTraits::isspace(repository[position])) {
+         --left;
+         position.inc(repository);
+      };
+   };
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::remove(const thisType& asource, const ExtendedReplaceParameters& params) {
+   int sourceLength = asource.length();
+   const thisType* source = &asource;
+   PNT::PassPointer<thisType> sourceAlloc;
+
+   if ((sourceLength > 0) && (length() > 0)) {
+      if (params.isReplaceAll() && (&source->getRepository() == &getRepository())) {
+          sourceAlloc = source->newString();
+          source = sourceAlloc.key();
+      };
+
+      PNT::PassPointer<thisType> subString = newSubString();
+      SearchParameters searchParams;
+      searchParams.setUnbound().setComparisonMode(params);
+      do {
+         subString = subString->scan(*source, searchParams);
+         if (subString.isValid())
+            subString->removeXChars(asource.length());
+      } while (subString.isValid() && params.isReplaceAll());
+   };
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::remove(const TypeChar* source, const ExtendedReplaceParameters& params) {
+   int len = SubStringTraits::strlen(source);
+   if ((len > 0) && (length() > 0)) {
+      PNT::PassPointer<thisType> subString = newSubString();
+      SearchParameters searchParams;
+      searchParams.setUnbound().setComparisonMode(params);
+      do {
+         subString = subString->scan(source, searchParams);
+         if (subString.isValid())
+            subString->removeXChars(len);
+      } while (subString.isValid() && params.isReplaceAll());
+   };
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::remove(const TypeChar& source, const ExtendedReplaceParameters& params) {
+   if (length() > 0) {
+      PNT::PassPointer<thisType> subString = newSubString();
+      SearchParameters searchParams;
+      searchParams.setUnbound().setComparisonMode(params);
+      do {
+         subString = subString->scan(source, searchParams);
+         if (subString.isValid())
+            subString->removeChar();
+      } while (subString.isValid() && params.isReplaceAll());
+   };
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::remove(const CharSet& source, const ExtendedReplaceParameters& params) {
+   if (length() > 0) {
+      PNT::PassPointer<thisType> subString = newSubString();
+      SearchParameters searchParams;
+      searchParams.setUnbound().setComparisonMode(params);
+      do {
+         subString = subString->scan(source, searchParams);
+         if (subString.isValid())
+            subString->removeChar();
+      } while (subString.isValid() && params.isReplaceAll());
+   };
+   return *this;
+}
+
+template <typename TypeChar, template <typename TypeC> class TypePolicy, class SubStringTraits>
+TSubString<TypeChar, TypePolicy, SubStringTraits>&
+TSubString<TypeChar, TypePolicy, SubStringTraits>::removeXChars(int start, int chars) {
+   if (start < 0)
+      start = 0;
+   if (start > length())
+      start = length();
+   if (chars > length() - start)
+      chars = length() - start;
+   if (chars > 0) {
+      Repository& repository = getRepository();
+      SuppressionNotification notification(repository);
+      notification.setSource(getStartPosition());
+      notification.source().plusAssign(start, repository);
+      notification.setShift(-chars);
+      int oldLength = length();
+      uTypeLength -= chars << CTypeShift;
+      move(repository, notification, oldLength);
+      inherited::notifyUpdate(notification);
+   };
+   return *this;
+}
+
+} // end of namespace STG
+
+#endif // STG_SubStringTemplate
+

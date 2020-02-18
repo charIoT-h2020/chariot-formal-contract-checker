@@ -1,0 +1,24 @@
+/////////////////////////////////
+//
+// Library   : Numerics
+// Unit      : Floating
+// File      : HostFloating.template
+// Author    : Franck Vedrine
+// Copyright : CEA LIST - 2005 - 2008, 2014, 2015
+//
+// Description :
+//   Implementation of a class of native floating points in connection
+//   with soft floating points.
+//
+
+#ifndef Numerics_HostFloatingTemplate
+#define Numerics_HostFloatingTemplate
+
+#include "Numerics/HostFloating.h"
+
+namespace Numerics {}
+
+#include "ForwardNumerics/BaseHostFloating.template"
+
+#endif // Numerics_HostFloatingTemplate
+

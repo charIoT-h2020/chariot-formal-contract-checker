@@ -1,0 +1,775 @@
+/**************************************************************************/
+/*                                                                        */
+/*  Copyright (C) 2013-2019                                               */
+/*    CEA (Commissariat a l'Energie Atomique et aux Energies              */
+/*         Alternatives)                                                  */
+/*                                                                        */
+/*  you can redistribute it and/or modify it under the terms of the GNU   */
+/*  Lesser General Public License as published by the Free Software       */
+/*  Foundation, version 2.1.                                              */
+/*                                                                        */
+/*  It is distributed in the hope that it will be useful,                 */
+/*  but WITHOUT ANY WARRANTY; without even the implied warranty of        */
+/*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         */
+/*  GNU Lesser General Public License for more details.                   */
+/*                                                                        */
+/*  See the GNU Lesser General Public License version 2.1                 */
+/*  for more details (enclosed in the file LICENSE).                      */
+/*                                                                        */
+/**************************************************************************/
+
+/////////////////////////////////
+//
+// Library   : TString
+// Unit      : dictionary
+// File      : TernaryTreeParent.template
+// Description :
+//   Implementation of a template class of TernaryTreeParent whose nodes
+//   have a back reference to their parent node.
+//
+
+#ifndef STG_TernaryTreeParentTemplate
+#define STG_TernaryTreeParentTemplate
+
+#include "TString/TernaryTreeParent.h"
+// #include "TString/String.hpp"
+
+namespace STG {}
+
+#include "Collection/Collection.template"
+#include "TString/TernaryTreeBase.template"
+
+namespace STG {
+
+namespace DTernaryTree {
+
+/***************************************************/
+/* Implementation of the class ParentFollowingCell */
+/***************************************************/
+
+template <class TypeSubString>
+void
+TParentFollowingCell<TypeSubString>::freeFollowing() {
+   thisType *lastFollowing = this;
+   while (lastFollowing->hasFollowing())
+      lastFollowing = (thisType*) &lastFollowing->following();
+
+   while (lastFollowing != this) {
+      AssumeCondition(!lastFollowing->left() && !lastFollowing->right())
+      lastFollowing->clear();
+      lastFollowing = lastFollowing->parent();
+   };
+}
+
+template <class TypeSubString>
+void
+TParentFollowingCell<TypeSubString>::splitSuffix(TypeSubString& subString) {
+   thisType* lastCell = nullptr;
+   ParentSuffixObject<TypeSubString>& suffix = inherited::suffix();
+   thisType* newSuffix = suffix.extractPrefix(subString, lastCell);
+   lightClear();
+   lastCell->absorbSuffix(&suffix);
+   setFollowing(newSuffix);
+}
+
+} // end of namespace DTernaryTree
+
+/**************************************************************/
+/* Implementation of the class TImplParentTernaryTree::Cursor */
+/**************************************************************/
+
+template <class TypeSubString>
+typename TImplParentTernaryTree<TypeSubString>::ExtendedComparisonResult
+TImplParentTernaryTree<TypeSubString>::Cursor::comparePlus(const Cursor& source) const {
+   ExtendedComparisonResult result;
+   if (pfcElement == source.pfcElement)
+      return result.setEqual();
+
+   int thisLength = 0, sourceLength = 0;
+   FollowingCellAccess *thisCursor = pfcElement, *sourceCursor = source.pfcElement;
+   for (; thisCursor != nullptr; thisCursor = thisCursor->parent())
+      thisLength++;
+   for (; sourceCursor != nullptr; sourceCursor = sourceCursor->parent())
+      sourceLength++;
+   if ((thisLength == 0) || (sourceLength == 0))
+      return (thisLength == sourceLength) ? result.setEqual() : result;
+
+   while (sourceLength > thisLength+1) {
+      sourceCursor = sourceCursor->parent();
+      --sourceLength;
+   };
+   while (thisLength > sourceLength+1) {
+      thisCursor = thisCursor->parent();
+      --thisLength;
+   };
+   FollowingCellAccess* parentCursor = nullptr;
+   bool isFinished = false;
+   if (sourceLength == thisLength+1) {
+      if (sourceCursor->parent() == thisCursor) {
+         parentCursor = thisCursor;
+         thisCursor = nullptr;
+         isFinished = true;
+      }
+      else {
+         sourceLength--;
+         sourceCursor = sourceCursor->parent();
+      };
+   }
+   else if (sourceLength == thisLength-1) {
+      if (thisCursor->parent() == sourceCursor) {
+         parentCursor = sourceCursor;
+         sourceCursor = nullptr;
+         isFinished = true;
+      }
+      else {
+         thisLength--;
+         thisCursor = thisCursor->parent();
+      };
+   };
+   if (!isFinished) {
+      while (sourceCursor->parent() != thisCursor->parent()) {
+         thisLength--;
+         sourceLength--;
+         sourceCursor = sourceCursor->parent();
+         thisCursor = thisCursor->parent();
+      };
+      parentCursor = sourceCursor->parent();
+   };
+
+   return parentCursor->compareSons(thisCursor, sourceCursor);
+}
+
+template <class TypeSubString>
+TypeSubString
+TImplParentTernaryTree<TypeSubString>::Cursor::stringAt() const {
+   AssumeCondition(pfcElement && pfcElement->isSuffix())
+   typename TypeSubString::String inverseResult;
+   FollowingCellAccess* cursor = pfcElement;
+   bool hasChar = cursor->hasChar();
+   if (hasChar) // end of word
+      inverseResult.cat(cursor->getChar());
+   FollowingCellAccess* previousCursor = pfcElement;
+   while ((cursor = cursor->parent()) != nullptr) {
+      if (cursor->sfollows() == previousCursor)
+         inverseResult.cat(cursor->getChar());
+      previousCursor = cursor;
+   };
+   typename TypeSubString::Char temp;
+   for (int low = 0, high = inverseResult.length()-1; low < high; ++low, --high) {
+      temp = inverseResult[low];
+      inverseResult.setChar(inverseResult[high], low);
+      inverseResult.setChar(temp, high);
+   };
+   if (hasChar && pfcElement->hasSuffix())
+      inverseResult.cat(pfcElement->suffix().getString());
+   return inverseResult;
+}
+
+template <class TypeSubString>
+TypeSubString
+TImplParentTernaryTree<TypeSubString>::Cursor::prefixAt() const {
+   typename TypeSubString::String inverseResult;
+   FollowingCellAccess* cursor = pfcElement;
+   if (cursor->hasChar())
+      inverseResult.cat(cursor->getChar());
+   FollowingCellAccess* previousCursor = pfcElement;
+   while ((cursor = cursor->parent()) != nullptr) {
+      if (cursor->sfollows() == previousCursor)
+         inverseResult.cat(cursor->getChar());
+      previousCursor = cursor;
+   };
+   typename TypeSubString::Char temp;
+   for (int low = 0, high = inverseResult.length()-1; low < high; ++low, --high) {
+      temp = inverseResult[low];
+      inverseResult.setChar(inverseResult[high], low);
+      inverseResult.setChar(temp, high);
+   };
+   return inverseResult;
+}
+
+template <class TypeSubString>
+bool
+TImplParentTernaryTree<TypeSubString>::Cursor::isJustAfter(const Cursor& source) const {
+   AssumeCondition(isFinalValid() && source.isFinalValid())
+   FollowingCellAccess *thisCell = pfcElement, *sourceCell = source.pfcElement;
+   if (thisCell->left()) {
+      FollowingCellAccess* son = thisCell->left();
+      while (son != nullptr) {
+         thisCell = son;
+         if ((son = thisCell->left()) == nullptr)
+            son = thisCell->sfollows();
+      };
+      return thisCell == sourceCell;
+   }
+   else if (sourceCell->right()) {
+      FollowingCellAccess* sourceSon = sourceCell->right();
+      while (sourceSon != nullptr) {
+         sourceCell = sourceSon;
+         if ((sourceSon = sourceCell->right()) == nullptr)
+            sourceSon = sourceCell->sfollows();
+      };
+      return sourceCell == thisCell;
+   };
+   if (thisCell == sourceCell)
+      return false;
+
+   FollowingCellAccess *thisParent = thisCell->parent(),
+                       *sourceParent = sourceCell->parent();
+   while (thisParent && (thisParent != source.pfcElement)
+      && (thisParent->left() ? (thisParent->left() == thisCell)
+         : (thisParent->sfollows() == thisCell))) {
+      thisCell = thisParent;
+      thisParent = thisCell->parent();
+   };
+   if (!thisParent)
+      return false;
+   if (thisParent == source.pfcElement)
+      return thisParent->right() == thisCell;
+
+   while (sourceParent && (sourceParent != pfcElement)
+      && (sourceParent->right() ? (sourceParent->right() == sourceCell)
+         : (sourceParent->sfollows() == sourceCell))) {
+      sourceCell = sourceParent;
+      sourceParent = sourceCell->parent();
+   };
+
+   if (!sourceParent)
+      return false;
+   if (sourceParent == pfcElement)
+      return sourceParent->left() == sourceCell;
+      
+   if (sourceParent != thisParent)
+      return false;
+   if (thisParent->sfollows() == thisCell)
+      return thisParent->left() == sourceCell;
+   if (thisParent->sfollows() == sourceCell)
+      return thisParent->right() == thisCell;
+   return false;
+}
+
+template <class TypeSubString>
+bool
+TImplParentTernaryTree<TypeSubString>::Cursor::isJustBefore(const Cursor& source) const {
+   AssumeCondition(isFinalValid() && source.isFinalValid())
+   FollowingCellAccess *thisCell = pfcElement, *sourceCell = source.pfcElement;
+   if (thisCell->right()) {
+      FollowingCellAccess* son = thisCell->right();
+      while (son != nullptr) {
+         thisCell = son;
+         if ((son = thisCell->right()) == nullptr)
+            son = thisCell->sfollows();
+      };
+      return thisCell == sourceCell;
+   }
+   else if (sourceCell->left()) {
+      FollowingCellAccess* sourceSon = sourceCell->left();
+      while (sourceSon != nullptr) {
+         sourceCell = sourceSon;
+         if ((sourceSon = sourceCell->left()) == nullptr)
+            sourceSon = sourceCell->sfollows();
+      };
+      return sourceCell == thisCell;
+   };
+   if (thisCell == sourceCell)
+      return false;
+
+   FollowingCellAccess *thisParent = thisCell->parent(),
+                       *sourceParent = sourceCell->parent();
+   while (thisParent && (thisParent != source.pfcElement)
+      && (thisParent->right() ? (thisParent->right() == thisCell)
+         : (thisParent->sfollows() == thisCell))) {
+      thisCell = thisParent;
+      thisParent = thisCell->parent();
+   };
+   if (!thisParent)
+      return false;
+   if (thisParent == source.pfcElement)
+      return thisParent->left() == thisCell;
+
+   while (sourceParent && (sourceParent != pfcElement)
+      && (sourceParent->left() ? (sourceParent->left() == sourceCell)
+         : (sourceParent->sfollows() == sourceCell))) {
+      sourceCell = sourceParent;
+      sourceParent = sourceCell->parent();
+   };
+
+   if (!sourceParent)
+      return false;
+   if (sourceParent == pfcElement)
+      return sourceParent->right() == sourceCell;
+      
+   if (sourceParent != thisParent)
+      return false;
+   if (thisParent->sfollows() == thisCell)
+      return thisParent->right() == sourceCell;
+   if (thisParent->sfollows() == sourceCell)
+      return thisParent->left() == thisCell;
+   return false;
+}
+
+template <class TypeSubString>
+bool
+TImplParentTernaryTree<TypeSubString>::Cursor::FollowingCellAccess::hasPrefix(TypeSubString& key) const {
+   int prefixLength = 0;
+   const FollowingCellAccess *thisCell = this, *thisParent = thisCell->parent();
+   while (thisParent) {
+      if (thisParent->sfollows() == thisCell)
+         ++prefixLength;
+      thisCell = thisParent;
+      thisParent = thisCell->parent();
+   };
+
+   int advance = prefixLength;
+   thisCell = this;
+   thisParent = thisCell->parent();
+   while (thisParent) {
+      if ((thisParent->sfollows() == thisCell)
+         && (key[--prefixLength] != thisParent->getChar()))
+            return false;
+      thisCell = thisParent;
+      thisParent = thisCell->parent();
+   };
+   key.advance(advance);
+   return true;
+}
+
+template <class TypeSubString>
+bool
+TImplParentTernaryTree<TypeSubString>::Cursor::isJustAfterKey(const TypeSubString& key) const {
+   AssumeCondition(isFinalValid())
+   FollowingCellAccess *thisCell = pfcElement, *sourceCell = nullptr;
+   TypeSubString suffix(key), sourceSuffix(key);
+   bool isThisFinished = false, isSourceFinished = false;
+
+   if (thisCell->left()) {
+      if (!thisCell->hasPrefix(suffix))
+         return false;
+      sourceSuffix = suffix;
+      sourceCell = thisCell->left();
+      if (thisCell->getChar() < suffix.getChar())
+         return false;
+      if (thisCell->getChar() > suffix.getChar())
+         isThisFinished = true;
+      else { // thisCell->getChar() == suffix.getChar()
+         suffix.advance();
+         thisCell = thisCell->sfollows();
+      };
+   }
+   else {
+      FollowingCellAccess *thisParent = thisCell->parent();
+      while (thisParent && (thisParent->left() ? (thisParent->left() == thisCell)
+            : (thisParent->sfollows() == thisCell))) {
+         thisCell = thisParent;
+         thisParent = thisCell->parent();
+      };
+      if (thisParent) {
+         if (!thisParent->hasPrefix(suffix))
+            return false;
+         sourceSuffix = suffix;
+         if (thisParent->sfollows() == thisCell) {
+            sourceCell = thisParent->left();
+            if (thisParent->getChar() < suffix.getChar())
+               return false;
+            if (thisParent->getChar() > suffix.getChar())
+               isThisFinished = true;
+            else
+               suffix.advance();
+         }
+         else {
+            sourceCell = thisParent->sfollows();
+            if (thisParent->getChar() > sourceSuffix.getChar())
+               return false;
+            if (thisParent->getChar() < sourceSuffix.getChar())
+               isSourceFinished = true;
+            else {
+               sourceSuffix.advance();
+               if (sourceCell == nullptr) {
+                  if (sourceSuffix.compare(thisParent->suffix().getString()) == CRLess)
+                     return false;
+                  isSourceFinished = true;
+               };
+            };
+         };
+      };
+   };
+
+   FollowingCellAccess* thisSon = thisCell;
+   while (!isThisFinished && (thisSon != nullptr)) {
+      thisCell = thisSon;
+      if (thisCell->getChar() < suffix.getChar())
+         return false;
+      if ((thisSon = thisCell->left()) == nullptr) {
+         if (thisCell->getChar() > suffix.getChar())
+            isThisFinished = true;
+         thisSon = thisCell->sfollows();
+      };
+   };
+   if (!isThisFinished) { // thisSon == nullptr
+      if (suffix.compare(thisCell->suffix().getString()) != CRLess)
+         return false;
+   };
+
+   FollowingCellAccess* sourceSon = sourceCell;
+   while (!isSourceFinished && (sourceSon != nullptr)) {
+      sourceCell = sourceSon;
+      if (sourceCell->getChar() > suffix.getChar())
+         return false;
+      if ((sourceSon = sourceCell->right()) == nullptr) {
+         if (sourceCell->getChar() < suffix.getChar())
+            isSourceFinished = true;
+         sourceSon = sourceCell->sfollows();
+      };
+   };
+   if (!isSourceFinished) { // sourceSon == nullptr
+      if (suffix.compare(sourceCell->suffix().getString()) == CRLess)
+         return false;
+   };
+
+   return true;
+}
+
+template <class TypeSubString>
+bool
+TImplParentTernaryTree<TypeSubString>::Cursor::isJustBeforeKey(const TypeSubString& key) const {
+   AssumeCondition(isFinalValid())
+   FollowingCellAccess *thisCell = pfcElement, *sourceCell = nullptr;
+   TypeSubString suffix(key), sourceSuffix(key);
+   bool isThisFinished = false, isSourceFinished = false;
+
+   if (thisCell->right()) {
+      if (!thisCell->hasPrefix(suffix))
+         return false;
+      sourceSuffix = suffix;
+      sourceCell = thisCell->right();
+      if (thisCell->getChar() > suffix.getChar())
+         return false;
+      if (thisCell->getChar() < suffix.getChar())
+         isThisFinished = true;
+      else { // thisCell->getChar() == suffix.getChar()
+         suffix.advance();
+         thisCell = thisCell->sfollows();
+      };
+   }
+   else {
+      FollowingCellAccess *thisParent = thisCell->parent();
+      while (thisParent && (thisParent->right() ? (thisParent->right() == thisCell)
+            : (thisParent->sfollows() == thisCell))) {
+         thisCell = thisParent;
+         thisParent = thisCell->parent();
+      };
+      if (thisParent) {
+         if (!thisParent->hasPrefix(suffix))
+            return false;
+         sourceSuffix = suffix;
+         if (thisParent->sfollows() == thisCell) {
+            sourceCell = thisParent->right();
+            if (thisParent->getChar() > suffix.getChar())
+               return false;
+            if (thisParent->getChar() < suffix.getChar())
+               isThisFinished = true;
+            else
+               suffix.advance();
+         }
+         else {
+            sourceCell = thisParent->sfollows();
+            if (thisParent->getChar() < sourceSuffix.getChar())
+               return false;
+            if (thisParent->getChar() > sourceSuffix.getChar())
+               isSourceFinished = true;
+            else {
+               sourceSuffix.advance();
+               if (sourceCell == nullptr) {
+                  if (sourceSuffix.compare(thisParent->suffix().getString()) == CRGreater)
+                     return false;
+                  isSourceFinished = true;
+               };
+            };
+         };
+      };
+   };
+
+   FollowingCellAccess* thisSon = thisCell;
+   while (!isThisFinished && (thisSon != nullptr)) {
+      thisCell = thisSon;
+      if (thisCell->getChar() > suffix.getChar())
+         return false;
+      if ((thisSon = thisCell->right()) == nullptr) {
+         if (thisCell->getChar() < suffix.getChar())
+            isThisFinished = true;
+         thisSon = thisCell->sfollows();
+      };
+   };
+   if (!isThisFinished) { // thisSon == nullptr
+      if (suffix.compare(thisCell->suffix().getString()) != CRGreater)
+         return false;
+   };
+
+   FollowingCellAccess* sourceSon = sourceCell;
+   while (!isSourceFinished && (sourceSon != nullptr)) {
+      sourceCell = sourceSon;
+      if (sourceCell->getChar() < suffix.getChar())
+         return false;
+      if ((sourceSon = sourceCell->left()) == nullptr) {
+         if (sourceCell->getChar() > suffix.getChar())
+            isSourceFinished = true;
+         sourceSon = sourceCell->sfollows();
+      };
+   };
+   if (!isSourceFinished) { // sourceSon == nullptr
+      if (suffix.compare(sourceCell->suffix().getString()) == CRGreater)
+         return false;
+   };
+
+   return true;
+}
+
+template <class TypeSubString>
+bool
+TImplParentTernaryTree<TypeSubString>::Cursor::isInnerLeft(const Cursor* source) const {
+   FollowingCell* sourceRef = source ? source->pfcElement : nullptr;
+   FollowingCellAccess *thisSon = pfcElement, *thisFather = nullptr;
+   while (thisSon && (thisSon != sourceRef)) {
+      thisFather = thisSon->parent();
+      if (thisFather) {
+         if (thisFather->sfollows() == thisSon) {
+            if (thisFather->left() != nullptr)
+               return false;
+         }
+         else if (thisFather->right() == thisSon)
+            return false;
+      };
+      thisSon = thisFather;
+   };
+   AssumeCondition(!sourceRef || (thisSon == sourceRef))
+   return true;
+}
+
+template <class TypeSubString>
+bool
+TImplParentTernaryTree<TypeSubString>::Cursor::isInnerRight(const Cursor* source) const {
+   FollowingCell* sourceRef = source ? source->pfcElement : nullptr;
+   FollowingCellAccess *thisSon = pfcElement, *thisFather = nullptr;
+   while (thisSon && (thisSon != sourceRef)) {
+      thisFather = thisSon->parent();
+      if (thisFather) {
+         if (thisFather->sfollows() == thisSon) {
+            if (thisFather->right() != nullptr)
+               return false;
+         }
+         else if (thisFather->left() == thisSon)
+            return false;
+      };
+      thisSon = thisFather;
+   };
+   AssumeCondition(!sourceRef || (thisSon == sourceRef))
+   return true;
+}
+
+/***************************************************************/
+/* Implementation of the template class TImplParentTernaryTree */
+/***************************************************************/
+
+// Implementation of the balance methods
+
+#define DefineTemplate template <class TypeSubString>
+#define DefineTypeBinaryParent
+#define DefineTypeBinaryTree TImplParentTernaryTree<TypeSubString>
+#define DefineTernary
+#include "Pointer/BinaryBalance.incc"
+#undef DefineTernary
+#undef DefineTypeBinaryTree
+#undef DefineTypeBinaryParent
+#undef DefineTemplate
+
+template <class TypeSubString>
+TImplParentTernaryTree<TypeSubString>&
+TImplParentTernaryTree<TypeSubString>::fullAssign(const thisType& source,
+      const VirtualCast* retrieveRegistrationFromCopy) {
+   if (this != &source) {
+      if (pfcRoot)
+         freeAll();
+      RouteCopyAction<thisType> copyAction(*this, source, true, retrieveRegistrationFromCopy);
+      foreachNodeDo(*this, copyAction);
+   };
+   return *this;
+}
+
+template <class TypeSubString>
+void
+TImplParentTernaryTree<TypeSubString>::freeAll() {
+   RouteFreeAction<thisType> freeAction(*this);
+   foreachNodeDo(*this, freeAction);
+}
+
+template <class TypeSubString>
+void
+TImplParentTernaryTree<TypeSubString>::removeAll() {
+   RouteRemoveAction<thisType> removeAction(*this);
+   foreachNodeDo(*this, removeAction);
+}
+
+template <class TypeSubString>
+bool
+TImplParentTernaryTree<TypeSubString>::isValid() const {
+   RouteValidityAction<thisType> validityAction;
+   return foreachNodeDo(*this, validityAction);
+}
+
+template <class TypeSubString>
+void
+TImplParentTernaryTree<TypeSubString>::addAsSon(TypeSubString& subString,
+      DTernaryTree::ParentSuffixObject<TypeSubString>* object, Cursor& cursor,
+      LocationResult locationResult) {
+   if (cursor.isValid()) {
+      FollowingCell* parentNode = cursor.getReference();
+      if (locationResult == LRExact)
+         return;
+      uCount++;
+      switch (locationResult) {
+         case LRUndefined: AssumeUncalled
+         case LRLess:
+            if (parentNode->setLeft(new FollowingCell(subString, object))) {
+               cursor.setToLeft();
+               balanceAfterInsertion(cursor);
+            }
+            else
+               cursor.setToLeft();
+            break;
+         case LRLessSuffix:
+            {  parentNode->splitSuffix(subString);
+               while (cursor.setToFollows());
+               if (cursor.getReference()->setLeft(new FollowingCell(subString, object))) {
+                  cursor.setToLeft();
+                  balanceAfterInsertion(cursor);
+               }
+               else
+                  cursor.setToLeft();
+            };
+            break;
+         case LRNewSuffix:
+            parentNode->setSuffix(subString, object);
+            break;
+         case LRGreaterSuffix:
+            {  parentNode->splitSuffix(subString);
+               while (cursor.setToFollows());
+               if (cursor.getReference()->setRight(new FollowingCell(subString, object))) {
+                  cursor.setToRight();
+                  balanceAfterInsertion(cursor);
+               }
+               else
+                  cursor.setToRight();
+            };
+            break;
+         case LRGreater:
+            if (parentNode->setRight(new FollowingCell(subString, object))) {
+               cursor.setToRight();
+               balanceAfterInsertion(cursor);
+            }
+            else
+               cursor.setToRight();
+            break;
+         default: AssumeUncalled
+      };
+   }
+   else {
+      AssumeCondition(pfcRoot == nullptr)
+      pfcRoot = new FollowingCell(subString, object);
+      cursor.setToRoot(pfcRoot);
+      uCount = 1;
+   };
+}
+
+template <class TypeSubString>
+DTernaryTree::BaseTernaryTree::CursorMove
+TImplParentTernaryTree<TypeSubString>::removeAt(Cursor& cursor, bool doesFree, SuppressionNotification* notification) {
+   AssumeCondition(cursor.isValid() && cursor.getReference()->isSuffix())
+   CursorMove result;
+   FollowingCell* removedNode = cursor.getReference();
+   if (doesFree)
+      removedNode->freeSuffix();
+   else
+      removedNode->clearSuffix();
+
+   for (FollowingCell* parentRemovedNode = removedNode->parent();
+         (parentRemovedNode != nullptr) && (parentRemovedNode->sfollows() == removedNode)
+            && removedNode->isSingleton();
+         parentRemovedNode = parentRemovedNode->parent()) {
+      if (notification)
+         notification->setFollowRemoved(removedNode);
+      cursor.setToParent();
+      parentRemovedNode->clear();
+      removedNode = parentRemovedNode;
+   };
+
+   if (removedNode->left() && removedNode->right()) { // direct removal
+      if (removedNode->isLeftBalanced()) {
+         result.setSwapBefore();
+         cursor.setToLeft();
+         while (cursor.setToRight());
+         FollowingCell* mountNode = cursor.getReference();
+         FollowingCell::swap(removedNode, mountNode, pfcRoot);
+      }
+      else { // We pick on the right
+         result.setSwapAfter();
+         cursor.setToRight();
+         while (cursor.setToLeft());
+         FollowingCell* mountNode = cursor.getReference();
+         FollowingCell::swap(removedNode, mountNode, pfcRoot);
+      };
+   };
+   if (notification)
+      notification->setStart(removedNode);
+
+   if (removedNode->parent()) {
+      cursor.setToReference(removedNode->parent());
+      uCount--;
+      FollowingCell& parentRemoved = *removedNode->parent();
+      if (parentRemoved.sfollows() == removedNode) {
+         typename FollowingCell::Balance balance = parentRemoved.disconnectFollowing();
+         result.setReplace(balance);
+         cursor.setToSon(parentRemoved.sfollows());
+      }
+      else {
+         typename FollowingCell::Balance balance;
+         if (parentRemoved.left() == removedNode) {
+            balance = FollowingCell::BLeft;
+            result.setAfter();
+         }
+         else { // removedNode->parent()->right() == removedNode
+            balance = FollowingCell::BRight;
+            result.setBefore();
+         };
+         parentRemoved.removeSon(balance);
+         balanceAfterSuppression(cursor, balance);
+      };
+   }
+   else {
+      if (removedNode->left()) {
+         pfcRoot = removedNode->left();
+         result.setReplace(FollowingCell::BLeft);
+         uCount--;
+         cursor.setToRoot(pfcRoot);
+      }
+      else if (removedNode->right()) {
+         pfcRoot = removedNode->right();
+         result.setReplace(FollowingCell::BRight);
+         uCount--;
+         cursor.setToRoot(pfcRoot);
+      }
+      else {
+         AssumeCondition(uCount == 1)
+         pfcRoot = nullptr;
+         uCount = 0;
+         result.invalidate();
+         cursor.invalidate();
+      };
+      removedNode->disconnect();
+   };
+   if (removedNode)
+      delete removedNode;
+   return result;
+}
+
+} // end of namespace STG
+
+#endif

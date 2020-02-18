@@ -1,0 +1,29 @@
+/////////////////////////////////
+//
+// Library   : ForwardNumerics
+// Unit      : Floating
+// File      : BaseTaylorFloating.template
+// Author    : Franck Vedrine
+// Copyright : CEA LIST - 2015, 2016
+//
+// Description :
+//   Implementation of a class of floating points with mathematic functions
+//   defined by Taylor approximations
+//
+
+#ifndef Numerics_BaseTaylorFloatingTemplate
+#define Numerics_BaseTaylorFloatingTemplate
+
+#include "ForwardNumerics/BaseTaylorFloating.h"
+
+namespace Numerics {}
+
+#include "ForwardNumerics/BaseInteger.template"
+
+namespace Numerics {
+
+#include "ForwardNumerics/BaseTaylorFloating.inctemplate"
+
+} // end of namespace Numerics
+
+#endif // Numerics_BaseFloatingTemplate
