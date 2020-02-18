@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # build domsec
-cd ../chariot-semantic-domains/build
+cd ../chariot-semantic-domains
 git pull --ff-only
 cd build
 make -j 4

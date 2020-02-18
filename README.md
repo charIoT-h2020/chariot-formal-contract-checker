@@ -87,7 +87,7 @@ The result `ok` is then printed on the standard output.
 
 It calls the command
 ```sh
-../src/check_contract.py -arch ../chariot-formal-decoder-armv7/src/armsec_decoder.so -dom ../chariot-semantic-domains/build/libapplications/libScalarInterface.so ./tests/modbus.nobug.bin ./tests/contracts.json
+../src/check_contract.py -arch ../../chariot-formal-decoder-armv7/src/armsec_decoder.so -dom ../../chariot-semantic-domains/build/libapplications/libScalarInterface.so ../tests/modbus.nobug.bin ../tests/contracts.json
 ```
 
 Note that `check_contract.py` looks for `libcontract_checker.so` in the
