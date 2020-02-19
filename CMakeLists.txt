@@ -13,6 +13,7 @@ include_directories(utils)
 include_directories(algorithms)
 set(SOURCES
    src/Expression.cpp
+   src/MemoryZone.cpp
    src/Contract.cpp
    src/MemoryState.cpp
    src/Processor.cpp

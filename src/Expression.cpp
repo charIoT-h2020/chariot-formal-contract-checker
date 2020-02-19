@@ -127,7 +127,8 @@ LWriteContent:
 LEnd:
    arguments.setCloseObject();
    arguments.reduceState(state);
-   return WRNeedWrite;
+   if (!arguments.writeEvent(result)) return result;
+   return WRNeedEvent;
 }
 
 /* Implementation of the class IndirectionNode */
@@ -326,7 +327,8 @@ LWriteSizeContent:
 LEnd:
    arguments.setCloseObject();
    arguments.reduceState(state);
-   return WRNeedWrite;
+   if (!arguments.writeEvent(result)) return result;
+   return WRNeedEvent;
 }
 
 /* Implementation of the class DomainNode::AbstractToken */
@@ -2395,7 +2397,8 @@ LWriteContent:
 LEnd:
    arguments.setCloseObject();
    state.reduce();
-   return WRNeedWrite;
+   if (!arguments.writeEvent(result)) return result;
+   return WRNeedEvent;
 }
 
 /* Implementation of the class OperationNode */
@@ -3146,7 +3149,8 @@ LWriteCodeContent:
 LEnd:
    arguments.setCloseObject();
    arguments.reduceState(state);
-   return WRNeedWrite;
+   if (!arguments.writeEvent(result)) return result;
+   return WRNeedEvent;
 }
 
 /* Implementation of the class Expression */
@@ -3197,6 +3201,9 @@ LIdentifyContent:
                      arguments, state.getResult((RuleResult*) nullptr)))
                return RRContinue;
          }
+         state.point() = DReadContent;
+         if (!arguments.setToNextToken(result)) return result;
+         // may skip two consecutive types
       }
       else
          if (result == RRNeedChars) return result;
@@ -3270,7 +3277,8 @@ LWriteContent:
 LEnd:
    arguments.setCloseObject();
    arguments.reduceState(state);
-   return WRNeedWrite;
+   if (!arguments.writeEvent(result)) return result;
+   return WRNeedEvent;
 }
 
 
