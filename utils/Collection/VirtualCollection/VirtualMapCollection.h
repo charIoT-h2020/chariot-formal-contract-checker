@@ -780,7 +780,7 @@ class TInterfaceMapCollection : public TVirtualMap<Element, TypeKeyTraits, Cast>
       }
    virtual int _queryCount(const ExtendedLocateParameters& parameters,
       const VirtualCollectionCursor* startCursor, const VirtualCollectionCursor* endCursor) const
-      {  return implementation.queryCount(parameters, implementation(startCursor),
+      {  return tcImplementation.queryCount(parameters, implementation(startCursor),
             implementation(endCursor));
       }
    int _queryCount(const ExtendedLocateParameters& parameters,
