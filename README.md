@@ -21,9 +21,8 @@ At 18/02/2020, the following connections are still under implementations
 - [ ] [`Required`] parsing formal contracts in json
     * [x] architecture - expressions, memory zones, memory states, contracts
     * [x] expression parsing
-    * [ ] [`Required`] memory zone manipulation
-    * [ ] [`Required`] memory zone parsing
-    * [ ] [`Required`] memory state parsing
+    * [x] memory zone manipulation
+    * [x] memory zone parsing
     * [ ] [`Required`] Directed Acyclic Graph of contracts - inheritance through dominance
     * [ ] [`Required`] contract parsing
     * [ ] [`Required`] contract graph parsing
