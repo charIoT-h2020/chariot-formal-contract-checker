@@ -291,19 +291,21 @@ class VirtualAddressConstraint
       public STG::IOObject, public STG::Lexer::Base {
   public:
    struct ReadRuleResult {
-      struct _DomainElementFunctions* elementFunctions;
-      struct _Processor* processor;
-      struct _ProcessorFunctions* processorFunctions;
+      struct _DomainElementFunctions* elementFunctions = nullptr;
+      struct _Processor* processor = nullptr;
+      struct _ProcessorFunctions* processorFunctions = nullptr;
 
+      ReadRuleResult() = default;
       ReadRuleResult(struct _DomainElementFunctions* aelementFunctions,
             struct _Processor* aprocessor, struct _ProcessorFunctions* aprocessorFunctions)
          :  elementFunctions(aelementFunctions), processor(aprocessor), processorFunctions(aprocessorFunctions) {}
    };
 
    struct WriteRuleResult {
-      struct _Processor* processor;
-      struct _ProcessorFunctions* processorFunctions;
+      struct _Processor* processor = nullptr;
+      struct _ProcessorFunctions* processorFunctions = nullptr;
 
+      WriteRuleResult() = default;
       WriteRuleResult(struct _Processor* aprocessor, struct _ProcessorFunctions* aprocessorFunctions)
          :  processor(aprocessor), processorFunctions(aprocessorFunctions) {}
    };
@@ -370,15 +372,19 @@ class MemoryStateConstraint : public COL::TCopyCollection<COL::TArray<VirtualAdd
    enum TypeConstraint { TCUndefined, TCRegister, TCIndirect };
    struct ReadRuleResult : public VirtualAddressConstraint::ReadRuleResult {
       TypeConstraint type = TCUndefined;
+      ReadRuleResult() = default;
       ReadRuleResult(struct _DomainElementFunctions* aelementFunctions,
             struct _Processor* aprocessor, struct _ProcessorFunctions* aprocessorFunctions)
          :  VirtualAddressConstraint::ReadRuleResult(aelementFunctions, aprocessor, aprocessorFunctions) {}
+      ReadRuleResult(const ReadRuleResult&) = default;
    };
 
    struct WriteRuleResult : public VirtualAddressConstraint::WriteRuleResult {
       PNT::PassPointer<COL::TArray<VirtualAddressConstraint>::Cursor> writeCursor;
+      WriteRuleResult() = default;
       WriteRuleResult(struct _Processor* aprocessor, struct _ProcessorFunctions* aprocessorFunctions)
          :  VirtualAddressConstraint::WriteRuleResult(aprocessor, aprocessorFunctions) {}
+      WriteRuleResult(const WriteRuleResult&) = default;
    };
 
   private:

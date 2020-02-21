@@ -23,7 +23,7 @@ VirtualAddressConstraint::readJSon(STG::JSon::CommonParser::State& state,
 
    enum Delimiters { DBegin, DAfterBegin, DConstraint, DZoneName, DEnd, DInherited };
 
-   #define DefineGoto(Target) case D##Target: goto L##Target;
+#define DefineGoto(Target) case D##Target: goto L##Target;
    switch (state.point()) {
       DefineGoto(Begin)
       DefineGoto(AfterBegin)
@@ -415,6 +415,4 @@ LEnd:
    if (!arguments.writeEvent(result)) return result;
    return WRNeedEvent;
 }
-
-
 

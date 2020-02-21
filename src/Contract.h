@@ -6,12 +6,13 @@
 #include "MemoryZone.h"
 #include "MemoryState.h"
 #include <vector>
+#include <map>
 
 enum ContractLocalization
    {  CLBeforeInstruction, CLAfterInstruction, CLBetweenInstruction };
 
 class ContractGraph;
-class Contract : public PNT::SharedElement, public STG::IOObject {
+class Contract : public PNT::SharedElement, public STG::IOObject, public STG::Lexer::Base {
   public:
    class ContractPointer : public PNT::TSharedPointer<Contract> {
      public:
@@ -33,31 +34,110 @@ class Contract : public PNT::SharedElement, public STG::IOObject {
       };
    };
 
-  private:
    class ListRegistration : public COL::List::Node {};
    class EdgeContract : public ContractPointer, public ListRegistration {
      public:
       virtual bool isEdge() const { return true; }
+      virtual bool isValid() const override { return ContractPointer::isValid(); }
    };
 
    typedef COL::TCopyCollection<COL::TList<EdgeContract,
            HandlerIntermediateCast<EdgeContract, ListRegistration, COL::List::Node> > >
       ListEdgeContract;
+
+   struct ReadRuleResult : public MemoryStateConstraint::ReadRuleResult {
+      typedef std::map<int, Contract*> IdMap;
+      typedef std::map<int, std::vector<PNT::TSharedPointer<Contract>*> > PendingIds;
+      IdMap* idMap;
+      PendingIds* pendingIds;
+
+      ReadRuleResult(IdMap& aidMap, PendingIds& apendingIds, struct _DomainElementFunctions* aelementFunctions,
+            struct _Processor* aprocessor, struct _ProcessorFunctions* aprocessorFunctions)
+         :  MemoryStateConstraint::ReadRuleResult(aelementFunctions, aprocessor, aprocessorFunctions),
+            idMap(&aidMap), pendingIds(&apendingIds) {}
+
+      bool setContractId(Contract& reference)
+         {  auto localize = idMap->lower_bound(reference.getId());
+            if (localize != idMap->end() && localize->first == reference.getId())
+               return false;
+            idMap->insert(localize, std::make_pair(reference.getId(), &reference));
+            auto found = pendingIds->find(reference.getId());
+            if (found != pendingIds->end()) {
+               for (PNT::TSharedPointer<Contract>* pendingId : found->second) {
+                  AssumeCondition(!pendingId->isValid())
+                  *pendingId = PNT::TSharedPointer<Contract>(&reference, PNT::Pointer::Init());
+               }
+               pendingIds->erase(found);
+            }
+            return true;
+         }
+      void lookForContractId(int id, PNT::TSharedPointer<Contract>& result)
+         {  auto found = idMap->find(id);
+            if (found != idMap->end())
+               result = PNT::TSharedPointer<Contract>(found->second, PNT::Pointer::Init());
+            else {
+               auto localize = pendingIds->lower_bound(id);
+               if (localize == pendingIds->end() || localize->first == id)
+                  localize = pendingIds->insert(localize, std::make_pair(id, std::vector<PNT::TSharedPointer<Contract>*>()));
+               localize->second.push_back(&result);
+            }
+         }
+   };
+
+   struct WriteRuleResult : public MemoryStateConstraint::WriteRuleResult {
+      PNT::PassPointer<ListEdgeContract::Cursor> edgeCursor;
+      WriteRuleResult(struct _Processor* aprocessor, struct _ProcessorFunctions* aprocessorFunctions)
+         :  MemoryStateConstraint::WriteRuleResult(aprocessor, aprocessorFunctions) {}
+   };
+
+  private:
    ListEdgeContract lecNexts;
    ListEdgeContract lecPreviouses;
-   ContractPointer ccDominator;
+   ContractPointer cpDominator;
+   int uId = 0;
    uint64_t uAddress = 0;
    // uint64_t uAdditionalAddress;
    ContractLocalization clLocalization;
    MemoryZoneModifier zmZoneModifier;
-   COL::TCopyCollection<COL::TArray<Expression> > aeProperties; // should be true
+   MemoryStateConstraint scMemoryConstraints; // should be true
    ContractGraph* pcgParent = nullptr;
+
+   static bool setLocalizationFromText(ContractLocalization& localization,
+         const STG::SubString& text)
+      {  bool result = true;
+         if (text == "before")
+            localization = CLBeforeInstruction;
+         else if (text == "after")
+            localization = CLAfterInstruction;
+         else if (text == "between")
+            localization = CLBetweenInstruction;
+         else
+            result = false;
+         return result;
+      }
+   static STG::SubString getTextFromLocalization(ContractLocalization localization)
+      {  switch (localization) {
+            case CLBeforeInstruction: return STG::SString("before");
+            case CLAfterInstruction: return STG::SString("after");
+            case CLBetweenInstruction: return STG::SString("between");
+            default:
+               break;
+         }
+         return STG::SString();
+      }
 
   public:
    Contract() = default;
    Contract(const Contract&) = default;
    DefineCopy(Contract)
    StaticInheritConversions(Contract, PNT::SharedElement)
+
+   virtual bool isValid() const override
+      {  return PNT::SharedElement::isValid() && (uId > 0) && (uAddress != 0); }
+
+   int getId() const { return uId; }
+   ReadResult readJSon(STG::JSon::CommonParser::State& state, STG::JSon::CommonParser::Arguments& arguments);
+   WriteResult writeJSon(STG::JSon::CommonWriter::State& state, STG::JSon::CommonWriter::Arguments& arguments) const;
 
    bool isInitial() const;
    bool isFinal() const;

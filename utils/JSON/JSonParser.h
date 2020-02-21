@@ -677,6 +677,7 @@ class CommonParser : public BasicParser {
             return RRContinue;
          }
       ReadResult setArgumentToInt() { return convertReaderToInt(); }
+      ReadResult setArgumentToLUInt() { return convertReaderToInt(); }
 
       const GenericLexer::ContentReader& getContentReader() const { return lcrReader; }
       SubString& getAdditionalContent() const { AssumeCondition(pssAdditionalContent) return *pssAdditionalContent; }

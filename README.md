@@ -10,7 +10,7 @@ Its implementation is in the directory `src`. At time being, it is a C++
 implementation, but a pure python implementation is expected for
 maintenance issues (see [src/contract\_checker\_future.py](contract_checker_future.py).
 
-At 18/02/2020, the following connections are still under implementations
+At 21/02/2020, the following connections are still under implementations
 
 - [x] implementation of domains `libScalarInterface.so`
     * [ ] customization coming from contracts should be provided
@@ -25,7 +25,7 @@ At 18/02/2020, the following connections are still under implementations
     * [x] memory zone parsing
     * [x] constraints on memory coming from contracts
     * [ ] [`Required`] Directed Acyclic Graph of contracts - inheritance through dominance
-    * [ ] [`Required`] contract parsing
+    * [x] contract parsing
     * [ ] [`Required`] contract graph parsing
 - [ ] [`Required`] Full connection between the components
 - [ ] [`Required`] Testing, Debugging

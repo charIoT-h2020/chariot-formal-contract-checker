@@ -214,9 +214,10 @@ class MemoryZoneModifier : public STG::IOObject, public STG::Lexer::Base {
   public:
    typedef COL::TCopyCollection<COL::TArray<MemoryZoneAction> > MemoryZoneActions;
    struct ReadRuleResult {
-      struct _DomainElementFunctions* functions;
+      struct _DomainElementFunctions* functions = nullptr;
       MemoryZoneAction::TypeAction type = MemoryZoneAction::TAUndefined;
 
+      ReadRuleResult() = default;
       ReadRuleResult(struct _DomainElementFunctions* afunctions) : functions(afunctions) {}
    };
 

@@ -6,7 +6,7 @@ MemoryZoneCreate::readJSon(STG::JSon::CommonParser::State& state,
       STG::JSon::CommonParser::Arguments& arguments) {
    typedef STG::JSon::CommonParser Parser;
    ReadResult result = RRContinue;
-   bool hasSkiped = false, doesRetry = false;
+   bool hasHit = false;
 
    enum Delimiters { DBegin, DAfterBegin, DAfterStart, DAfterLength, DName, DEnd };
 
@@ -36,7 +36,7 @@ LAfterBegin:
          if (!arguments.setToNextToken(result)) return result;
       };
       AssumeCondition(!arguments.isCloseArray())
-      hasSkiped = false; doesRetry = false;
+      hasHit = false;
       if (arguments.isAddKey()
             && ((result = arguments.setArgumentKey()), arguments.key() == "start")) {
          if (result == RRNeedChars) return result;
@@ -51,11 +51,10 @@ LAfterBegin:
 LAfterStart:
          state.point() = DAfterBegin;
          if (!arguments.setToNextToken(result)) return result;
+         hasHit = true;
       }
-      else {
+      else
          if (result == RRNeedChars) return result;
-         hasSkiped = true;
-      }
 
       if (arguments.isAddKey()
             && ((result = arguments.setArgumentKey()), arguments.key() == "length")) {
@@ -71,8 +70,7 @@ LAfterStart:
 LAfterLength:
          state.point() = DAfterBegin;
          if (!arguments.setToNextToken(result)) return result;
-         if (hasSkiped)
-            doesRetry = true;
+         hasHit = true;
       }
       else
          if (result == RRNeedChars) return result;
@@ -87,12 +85,14 @@ LName:
             if (arguments.setArgumentTextValue() == RRNeedChars) return RRNeedChars;
             ssName = arguments.valueAsText();
          }
-         doesRetry = false;
+         state.point() = DAfterBegin;
+         if (!arguments.setToNextToken(result)) return result;
+         hasHit = true;
       }
       else
          if (result == RRNeedChars) return result;
       state.point() = DAfterBegin;
-      if (!doesRetry)
+      if (!hasHit)
          if (!arguments.setToNextToken(result)) return result;
    }
    state.point() = DEnd;
@@ -279,7 +279,7 @@ MemoryZoneSplit::readJSon(STG::JSon::CommonParser::State& state,
       STG::JSon::CommonParser::Arguments& arguments) {
    typedef STG::JSon::CommonParser Parser;
    ReadResult result = RRContinue;
-   bool hasSkiped = false, doesRetry = false;
+   bool hasHit = false;
 
    enum Delimiters { DBegin, DAfterBegin, DAfterStart, DOldName, DNewName, DEnd };
 
@@ -309,7 +309,7 @@ LAfterBegin:
          if (!arguments.setToNextToken(result)) return result;
       };
       AssumeCondition(!arguments.isCloseArray())
-      hasSkiped = false; doesRetry = false;
+      hasHit = false;
       if (arguments.isAddKey()
             && ((result = arguments.setArgumentKey()), arguments.key() == "start")) {
          if (result == RRNeedChars) return result;
@@ -324,11 +324,10 @@ LAfterBegin:
 LAfterStart:
          state.point() = DAfterBegin;
          if (!arguments.setToNextToken(result)) return result;
+         hasHit = true;
       }
-      else {
+      else
          if (result == RRNeedChars) return result;
-         hasSkiped = true;
-      }
 
       if (arguments.isAddKey()
             && ((result = arguments.setArgumentKey()), arguments.key() == "old_name")) {
@@ -342,8 +341,7 @@ LOldName:
          }
          state.point() = DAfterBegin;
          if (!arguments.setToNextToken(result)) return result;
-         if (hasSkiped)
-            doesRetry = true;
+         hasHit = true;
       }
       else
          if (result == RRNeedChars) return result;
@@ -359,12 +357,13 @@ LNewName:
             ssNewName = arguments.valueAsText();
          }
          state.point() = DAfterBegin;
-         doesRetry = false;
+         if (!arguments.setToNextToken(result)) return result;
+         hasHit = true;
       }
       else
          if (result == RRNeedChars) return result;
 
-      if (!doesRetry)
+      if (!hasHit)
          if (!arguments.setToNextToken(result)) return result;
    }
    state.point() = DEnd;
