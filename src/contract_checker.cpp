@@ -48,7 +48,7 @@ processor_get_targets(struct _Processor* aprocessor, uint64_t address,
    MemoryInterpretParameters parameters;
    // [TODO] remove it
    processor.initializeMemory(memoryState, parameters);
-   memoryState.setFromContract(startContract);
+   startContract.applyTo(memoryState);
    return processor.retrieveNextTargets(address, memoryState, *target_addresses, parameters);
 }
 
@@ -64,11 +64,11 @@ bool processor_check_block(struct _Processor* aprocessor, uint64_t address,
    MemoryInterpretParameters parameters;
    // [TODO] remove it
    processor.initializeMemory(memoryState, parameters);
-   memoryState.setFromContract(firstContract);
+   firstContract.applyTo(memoryState);
    processor.interpret(address, memoryState, target, warnings, parameters);
    MemoryState lastMemoryState(processor.getDomainFunctions());
    processor.initializeMemory(lastMemoryState, parameters);
-   lastMemoryState.setFromContract(lastContract);
+   lastContract.applyTo(lastMemoryState);
    ContractCoverage& coverage = *reinterpret_cast<ContractCoverage*>(acoverage);
    coverage.add(firstContract, lastContract);
    return lastMemoryState.contain(memoryState, parameters);

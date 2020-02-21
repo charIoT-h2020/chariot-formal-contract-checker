@@ -23,7 +23,7 @@ At 18/02/2020, the following connections are still under implementations
     * [x] expression parsing
     * [x] memory zone manipulation
     * [x] memory zone parsing
-    * [ ] [`Required`] constraints on memory coming from contracts
+    * [x] constraints on memory coming from contracts
     * [ ] [`Required`] Directed Acyclic Graph of contracts - inheritance through dominance
     * [ ] [`Required`] contract parsing
     * [ ] [`Required`] contract graph parsing

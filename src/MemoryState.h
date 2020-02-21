@@ -3,13 +3,167 @@
 #include "dll.h"
 #include "decsec_callback.h"
 #include "DomainValue.h"
-#include "Contract.h"
+#include "MemoryZone.h"
 
 class MemoryInterpretParameters {
 
 };
 
+// to state hypotheses on BaseLocation
+
+class BaseLocation : public PNT::SharedCollection::Element {
+  public:
+   enum Type { TUndefined, TRegister, TMemory, TLocal };
+
+  private:
+   typedef PNT::SharedCollection::Element inherited;
+
+  protected:
+   virtual ComparisonResult _compare(const EnhancedObject& asource) const override
+      {  ComparisonResult result = inherited::_compare(asource);
+         if (result == CREqual) {
+            const auto& source = static_cast<const BaseLocation&>(asource);
+            result = fcompare(getType(), source.getType());
+         }
+         return result;
+      }
+
+  public:
+   BaseLocation() = default;
+   BaseLocation(const BaseLocation&) = default;
+   DefineCopy(BaseLocation)
+
+   virtual Type getType() const { return TUndefined; }
+
+   class Key {
+     public:
+      typedef BaseLocation TypeOfKey;
+      typedef const TypeOfKey& KeyType;
+      typedef const TypeOfKey& ControlKeyType;
+      static const TypeOfKey& key(const BaseLocation& element) { return element; }
+   };
+};
+
+class BaseLocations : public COL::TCopyCollection<COL::SortedArray<BaseLocation, BaseLocation::Key> > {
+  public:
+   BaseLocations() = default;
+   BaseLocations(const BaseLocations&) = default;
+   DefineCopy(BaseLocations)
+
+
+};
+
+// implicit hypotheses
+
+class Predicate
+   :  public PNT::TSharedCollection<BaseLocation, HandlerCast<BaseLocation, PNT::SharedCollection::Element> >,
+      public STG::IOObject, public STG::Lexer::Base {
+  private:
+   typedef PNT::TSharedCollection<BaseLocation, HandlerCast<BaseLocation, PNT::SharedCollection::Element> > inherited;
+   Expression ePredicate;
+
+  public:
+   Predicate() = default;
+   Predicate(const Predicate&) = default;
+   DefineCopy(Predicate)
+   StaticInheritConversions(Predicate, inherited)
+};
+
+class LetVariable : public BaseLocation, public STG::IOObject, public STG::Lexer::Base {
+  private:
+   typedef BaseLocation inherited;
+   Expression eDefinition;
+   STG::SubString ssName = STG::SString();
+
+  protected:
+   virtual ComparisonResult _compare(const EnhancedObject& asource) const override
+      {  ComparisonResult result = inherited::_compare(asource);
+         if (result == CREqual) {
+            const auto& source = static_cast<const LetVariable&>(castFromCopyHandler(asource));
+            result = ssName.compare(source.ssName);
+         }
+         return result;
+      }
+
+  public:
+   LetVariable(const STG::SubString& name) : ssName(name) {}
+   LetVariable(const LetVariable&) = default;
+   DefineCopy(LetVariable)
+   StaticInheritConversions(LetVariable, BaseLocation)
+
+   virtual Type getType() const { return TLocal; }
+   class Key {
+     public:
+      typedef STG::SubString TypeOfKey;	// TypeOfKey inherits from EnhancedObject
+      typedef const TypeOfKey& KeyType;
+      typedef const TypeOfKey& ControlKeyType;
+      static const TypeOfKey& key(const LetVariable& element) { return element.ssName; }
+   };
+   friend class Key;
+};
+
+class RegisterLocation : public BaseLocation {
+  private:
+   typedef BaseLocation inherited;
+   int uRegisterIndex;
+
+  protected:
+   virtual ComparisonResult _compare(const EnhancedObject& asource) const override
+      {  ComparisonResult result = inherited::_compare(asource);
+         if (result == CREqual) {
+            const auto& source = static_cast<const RegisterLocation&>(asource);
+            result = fcompare(uRegisterIndex, source.uRegisterIndex);
+         }
+         return result;
+      }
+
+  public:
+   RegisterLocation(int registerIndex) : uRegisterIndex(registerIndex) {}
+   RegisterLocation(const RegisterLocation&) = default;
+   DefineCopy(RegisterLocation)
+
+   virtual Type getType() const override { return TRegister; }
+};
+
+class MemoryLocation : public BaseLocation {
+  private:
+   typedef BaseLocation inherited;
+   Expression eLocation;
+
+  protected:
+   virtual ComparisonResult _compare(const EnhancedObject& asource) const override
+      {  ComparisonResult result = inherited::_compare(asource);
+         if (result == CREqual) {
+            const auto& source = static_cast<const MemoryLocation&>(asource);
+            result = eLocation.compare(source.eLocation);
+         }
+         return result;
+      }
+
+  public:
+   MemoryLocation(const Expression& location) : eLocation(location) {}
+   MemoryLocation(const MemoryLocation&) = default;
+   DefineCopy(MemoryLocation)
+
+   virtual Type getType() const override { return TMemory; }
+};
+
+class ImplicitHypotheses : public PNT::SharedElement {
+  private:
+   COL::TCopyCollection<COL::TArray<Predicate> > apConstraints;
+   COL::TCopyCollection<COL::SortedArray<LetVariable, LetVariable::Key> > alDefinitions;
+
+  public:
+   ImplicitHypotheses() = default;
+   ImplicitHypotheses(const ImplicitHypotheses&) = default;
+
+
+};
+
+// memory states
+
 class Processor;
+class VirtualAddressConstraint;
 class MemoryState : public STG::IOObject {
   private:
    class RegisterValue : public COL::GenericAVL::Node {
@@ -41,6 +195,8 @@ class MemoryState : public STG::IOObject {
    typedef COL::TCopyCollection<COL::TSortedAVL<RegisterValue, RegisterValue::Key> > RegisterContent;
    RegisterContent rcRegisters;
    struct _DomainElementFunctions* domainFunctions;
+   MemoryZones mzMemoryZones;
+   PNT::TSharedPointer<ImplicitHypotheses> sphImplicitHypotheses;
 
   public:
    static MemoryModelFunctions functions;
@@ -122,11 +278,141 @@ class MemoryState : public STG::IOObject {
       :  domainFunctions(adomainFunctions) {}
    MemoryState(const MemoryState&) = default;
 
-   void setFromContract(const Contract& contract);
+   void intersectWith(const VirtualAddressConstraint& contract);
    MemoryModelFunctions* getFunctions() const { return &functions; }
    void write(std::ostream& out) const { out << "end of memory description\n"; }
    const struct _DomainElementFunctions* getDomainFunctions() const { return domainFunctions; }
    // [TODO] to implement
    bool contain(const MemoryState& source, const MemoryInterpretParameters& parameters) { return true; } 
+};
+
+class VirtualAddressConstraint
+   :  public PNT::TSharedCollection<BaseLocation, HandlerCast<BaseLocation, PNT::SharedCollection::Element> >,
+      public STG::IOObject, public STG::Lexer::Base {
+  public:
+   struct ReadRuleResult {
+      struct _DomainElementFunctions* elementFunctions;
+      struct _Processor* processor;
+      struct _ProcessorFunctions* processorFunctions;
+
+      ReadRuleResult(struct _DomainElementFunctions* aelementFunctions,
+            struct _Processor* aprocessor, struct _ProcessorFunctions* aprocessorFunctions)
+         :  elementFunctions(aelementFunctions), processor(aprocessor), processorFunctions(aprocessorFunctions) {}
+   };
+
+   struct WriteRuleResult {
+      struct _Processor* processor;
+      struct _ProcessorFunctions* processorFunctions;
+
+      WriteRuleResult(struct _Processor* aprocessor, struct _ProcessorFunctions* aprocessorFunctions)
+         :  processor(aprocessor), processorFunctions(aprocessorFunctions) {}
+   };
+
+  private:
+   typedef PNT::TSharedCollection<BaseLocation, HandlerCast<BaseLocation, PNT::SharedCollection::Element> > inherited;
+   Expression eConstraint; 
+   STG::SubString ssZoneName = STG::SString();
+
+  protected:
+   virtual bool readFromKey(const STG::SubString& key, STG::JSon::CommonParser::State& state,
+         STG::JSon::CommonParser::Arguments& arguments, ReadResult& result) { return false; }
+   virtual bool writeToKey(STG::JSon::CommonWriter::State& state,
+         STG::JSon::CommonWriter::Arguments& arguments, WriteResult& result) const { return false; }
+
+  public:
+   VirtualAddressConstraint() = default;
+   VirtualAddressConstraint(const VirtualAddressConstraint&) = default;
+   DefineCopy(VirtualAddressConstraint)
+   StaticInheritConversions(VirtualAddressConstraint, inherited)
+
+   virtual bool isRegister() const { return false; }
+   virtual bool isIndirect() const { return false; }
+   ReadResult readJSon(STG::JSon::CommonParser::State& state, STG::JSon::CommonParser::Arguments& arguments);
+   WriteResult writeJSon(STG::JSon::CommonWriter::State& state, STG::JSon::CommonWriter::Arguments& arguments) const;
+};
+
+class RegisterConstraint : public VirtualAddressConstraint {
+  private:
+   int uRegisterIndex = -1;
+
+  protected:
+   virtual bool readFromKey(const STG::SubString& key, STG::JSon::CommonParser::State& state,
+         STG::JSon::CommonParser::Arguments& arguments, ReadResult& result) override;
+   virtual bool writeToKey(STG::JSon::CommonWriter::State& state,
+         STG::JSon::CommonWriter::Arguments& arguments, WriteResult& result) const override;
+
+  public:
+   RegisterConstraint() = default;
+   RegisterConstraint(const RegisterConstraint&) = default;
+
+   virtual bool isRegister() const override { return true; }
+};
+
+class IndirectAddressConstraint : public VirtualAddressConstraint {
+  private:
+   Expression eAddress;
+
+  protected:
+   virtual bool readFromKey(const STG::SubString& key, STG::JSon::CommonParser::State& state,
+         STG::JSon::CommonParser::Arguments& arguments, ReadResult& result) override;
+   virtual bool writeToKey(STG::JSon::CommonWriter::State& state,
+         STG::JSon::CommonWriter::Arguments& arguments, WriteResult& result) const override;
+
+  public:
+   IndirectAddressConstraint() = default;
+   IndirectAddressConstraint(const IndirectAddressConstraint&) = default;
+
+   virtual bool isIndirect() const override { return true; }
+};
+
+class MemoryStateConstraint : public COL::TCopyCollection<COL::TArray<VirtualAddressConstraint> >, public STG::IOObject, public STG::Lexer::Base {
+  public:
+   enum TypeConstraint { TCUndefined, TCRegister, TCIndirect };
+   struct ReadRuleResult : public VirtualAddressConstraint::ReadRuleResult {
+      TypeConstraint type = TCUndefined;
+      ReadRuleResult(struct _DomainElementFunctions* aelementFunctions,
+            struct _Processor* aprocessor, struct _ProcessorFunctions* aprocessorFunctions)
+         :  VirtualAddressConstraint::ReadRuleResult(aelementFunctions, aprocessor, aprocessorFunctions) {}
+   };
+
+   struct WriteRuleResult : public VirtualAddressConstraint::WriteRuleResult {
+      PNT::PassPointer<COL::TArray<VirtualAddressConstraint>::Cursor> writeCursor;
+      WriteRuleResult(struct _Processor* aprocessor, struct _ProcessorFunctions* aprocessorFunctions)
+         :  VirtualAddressConstraint::WriteRuleResult(aprocessor, aprocessorFunctions) {}
+   };
+
+  private:
+   static void setTypeConstraintFromText(TypeConstraint& type, const STG::SubString& text)
+      {  if (text == "register")
+            type = TCRegister;
+         else if (text == "indirect")
+            type = TCIndirect;
+      }
+   static PNT::PassPointer<VirtualAddressConstraint> newAddressConstraint(TypeConstraint type)
+      {  PNT::PassPointer<VirtualAddressConstraint> result;
+         switch (type) {
+            case TCRegister:
+               result.absorbElement(new RegisterConstraint());
+            case TCIndirect:
+               result.absorbElement(new IndirectAddressConstraint());
+            default:
+               break;
+         }
+         return result;
+      }
+   static STG::SubString getTextFromConstraint(const VirtualAddressConstraint& constraint)
+      {  if (constraint.isRegister())
+            return STG::SString("register");
+         else if (constraint.isIndirect())
+            return STG::SString("indirect");
+         return STG::SString();
+      }
+
+  public:
+   MemoryStateConstraint() = default;
+   MemoryStateConstraint(const MemoryStateConstraint&) = default;
+
+   ReadResult readJSon(STG::JSon::CommonParser::State& state, STG::JSon::CommonParser::Arguments& arguments);
+   WriteResult writeJSon(STG::JSon::CommonWriter::State& state, STG::JSon::CommonWriter::Arguments& arguments) const;
 };
 

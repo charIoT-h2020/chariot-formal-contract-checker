@@ -31,6 +31,20 @@ class DomainValue : public STG::IOObject {
          else
             out << "...";
       }
+   virtual ComparisonResult _compare(const EnhancedObject& asource) const override
+      {  ComparisonResult result = STG::IOObject::_compare(asource);
+         if (result == CREqual) {
+            const auto& source = static_cast<const DomainValue&>(asource);
+            if (!pfFunctions)
+               return !source.pfFunctions ? CREqual : CRLess;
+            if (!source.pfFunctions)
+               return CRGreater;
+            int res = (*pfFunctions->compare)(deValue, source.deValue);
+            AssumeCondition(-1 <= res && res <= 2)
+            result = (ComparisonResult) res;
+         }
+         return result;
+      }
 
   public:
    DomainElement& svalue() { return deValue; }

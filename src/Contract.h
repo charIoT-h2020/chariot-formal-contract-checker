@@ -4,6 +4,7 @@
 #include "TString/String.hpp"
 #include "dll.h"
 #include "MemoryZone.h"
+#include "MemoryState.h"
 #include <vector>
 
 enum ContractLocalization
@@ -60,6 +61,7 @@ class Contract : public PNT::SharedElement, public STG::IOObject {
 
    bool isInitial() const;
    bool isFinal() const;
+   void applyTo(MemoryState& memoryState);
 
    const uint64_t& getAddress() const { return uAddress; }
 };

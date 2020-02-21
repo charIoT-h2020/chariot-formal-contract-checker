@@ -387,6 +387,7 @@ struct _DomainElementFunctions {
       DomainEvaluationEnvironment* env);
   bool (*contain)(DomainElement element, DomainElement source,
       DomainEvaluationEnvironment* env);
+  int (*compare)(DomainElement element, DomainElement source);
   DomainElement (*create_disjunction_and_absorb)(DomainElement* element);
   void (*disjunction_absorb)(DomainElement* disjunction, DomainElement* element);
   void (*specialize)(DomainElement* element);

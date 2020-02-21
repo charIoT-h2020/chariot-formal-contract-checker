@@ -67,6 +67,8 @@ typedef struct _ProcessorFunctions {
    void (*initialize_memory)(struct _Processor* processor, MemoryModel* memory,
          MemoryModelFunctions* memory_functions, InterpretParameters* parameters);
    void (*free_processor)(struct _Processor* processor);
+   int (*get_register_index)(struct _Processor* processor, const char* name);
+   const char* (*get_register_name)(struct _Processor* processor, int register_index);
 
    bool (*processor_next_targets)(struct _Processor* processor, char* instruction_buffer,
          size_t buffer_size, uint64_t address, TargetAddresses* target_addresses,

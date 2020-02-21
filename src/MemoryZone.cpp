@@ -741,3 +741,5 @@ LEnd:
    return WRNeedEvent;
 }
 
+template class COL::TSortedArray<MemoryZone, MemoryZone::Key, HandlerCopyCast<MemoryZone> >;
+

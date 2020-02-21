@@ -1,6 +1,6 @@
 #pragma once
 
-#include "MemoryState.h"
+#include "Contract.h"
 #include "dll.h"
 #include <vector>
 #include "decsec_callback.h"

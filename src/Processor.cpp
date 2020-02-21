@@ -7,6 +7,8 @@ Processor::setFromFile(const char* filename) {
    dlProcessorLibrary.loadSymbol("set_domain_functions", &architectureFunctions.set_domain_functions);
    dlProcessorLibrary.loadSymbol("initialize_memory", &architectureFunctions.initialize_memory);
    dlProcessorLibrary.loadSymbol("free_processor", &architectureFunctions.free_processor);
+   dlProcessorLibrary.loadSymbol("processor_get_register_index", &architectureFunctions.get_register_index);
+   dlProcessorLibrary.loadSymbol("processor_get_register_name", &architectureFunctions.get_register_name);
    dlProcessorLibrary.loadSymbol("processor_next_targets", &architectureFunctions.processor_next_targets);
    dlProcessorLibrary.loadSymbol("processor_interpret", &architectureFunctions.processor_interpret);
 }
@@ -102,6 +104,7 @@ Processor::setDomainFunctionsFromFile(const char* domainFilename) {
    dlDomainLibrary.loadSymbol("domain_merge", &domainFunctions.merge);
    dlDomainLibrary.loadSymbol("domain_intersect", &domainFunctions.intersect);
    dlDomainLibrary.loadSymbol("domain_contain", &domainFunctions.contain);
+   dlDomainLibrary.loadSymbol("domain_compare", &domainFunctions.compare);
    dlDomainLibrary.loadSymbol("domain_create_disjunction_and_absorb", &domainFunctions.create_disjunction_and_absorb);
    dlDomainLibrary.loadSymbol("domain_disjunction_absorb", &domainFunctions.disjunction_absorb);
    dlDomainLibrary.loadSymbol("domain_specialize", &domainFunctions.specialize);

@@ -13,6 +13,15 @@ class VirtualExpressionNode : public PNT::MngElement, public STG::IOObject, publ
    enum TypeExpression { TERegisterAccess, TEIndirection, TEDomain, TEOperation };
 
   protected:
+   virtual ComparisonResult _compare(const EnhancedObject& asource) const override
+      {  ComparisonResult result = PNT::MngElement::_compare(asource);
+         if (result == CREqual) {
+            const auto& source = static_cast<const VirtualExpressionNode&>(castFromCopyHandler(asource));
+            result = fcompare(getType(), source.getType());
+         }
+         return result;
+      }
+
    VirtualExpressionNode() = default;
    VirtualExpressionNode(const VirtualExpressionNode&) = default;
    static STG::SubString ssJSonContent;
@@ -26,6 +35,7 @@ class VirtualExpressionNode : public PNT::MngElement, public STG::IOObject, publ
   public:
    DefineCopy(VirtualExpressionNode)
    StaticInheritConversions(VirtualExpressionNode, PNT::MngElement)
+   DCompare(VirtualExpressionNode)
 
    virtual DomainType getType() const { return DTUndefined; }
    virtual TypeExpression getTypeExpression() const { AssumeUncalled return TERegisterAccess; }
@@ -36,6 +46,16 @@ class VirtualExpressionNode : public PNT::MngElement, public STG::IOObject, publ
 class RegisterAccessNode : public VirtualExpressionNode {
   private:
    STG::SubString ssRegisterName = STG::SString();
+
+  protected:
+   virtual ComparisonResult _compare(const EnhancedObject& asource) const override
+      {  ComparisonResult result = VirtualExpressionNode::_compare(asource);
+         if (result == CREqual) {
+            const auto& source = static_cast<const RegisterAccessNode&>(castFromCopyHandler(asource));
+            result = ssRegisterName.compare(source.ssRegisterName);
+         }
+         return result;
+      }
 
   public:
    RegisterAccessNode() = default;
@@ -52,6 +72,23 @@ class IndirectionNode : public VirtualExpressionNode {
   private:
    PNT::TMngPointer<VirtualExpressionNode> mpAddress;
    int uSizeInBytes = 0;
+
+  protected:
+   virtual ComparisonResult _compare(const EnhancedObject& asource) const override
+      {  ComparisonResult result = VirtualExpressionNode::_compare(asource);
+         if (result == CREqual) {
+            const auto& source = static_cast<const IndirectionNode&>(castFromCopyHandler(asource));
+            if (mpAddress.key() == source.mpAddress.key())
+               result = fcompare(uSizeInBytes, source.uSizeInBytes);
+            else if (!mpAddress.isValid())
+               result = CRLess;
+            else if (!source.mpAddress.isValid())
+               result = CRGreater;
+            else
+               result = mpAddress->compare(*source.mpAddress);
+         }
+         return result;
+      }
 
   public:
    IndirectionNode() = default;
@@ -104,6 +141,16 @@ class DomainNode : public VirtualExpressionNode {
          bool& hasReadToken);
    template <typename T>
    ReadResult readToken(typename Parser<T>::State& state, typename Parser<T>::Arguments& arguments);
+
+  protected:
+   virtual ComparisonResult _compare(const EnhancedObject& asource) const override
+      {  ComparisonResult result = VirtualExpressionNode::_compare(asource);
+         if (result == CREqual) {
+            const auto& source = static_cast<const DomainNode&>(castFromCopyHandler(asource));
+            result = deValue.compare(source.deValue);
+         }
+         return result;
+      }
 
   public:
    DomainNode(struct _DomainElementFunctions* functions) : deValue(functions) {}
@@ -161,6 +208,29 @@ class OperationNode : public VirtualExpressionNode {
    bool setCodeFromText(const STG::SubString& text, STG::JSon::CommonParser::Arguments& arguments);
    STG::SubString getTextOperationFromCode(unsigned code, bool isSymbolic) const;
 
+  protected:
+   virtual ComparisonResult _compare(const EnhancedObject& asource) const override
+      {  ComparisonResult result = VirtualExpressionNode::_compare(asource);
+         if (result == CREqual) {
+            const auto& source = static_cast<const OperationNode&>(castFromCopyHandler(asource));
+            result = fcompare(dtType, source.dtType);
+            if (result != CREqual)
+               return result;
+            result = fcompare(mpSecond.isValid() ? 2 : 1, source.mpSecond.isValid() ? 2 : 1);
+            if (result != CREqual)
+               return result;
+            result = fcompare(uOperationCode, source.uOperationCode);
+            if (result != CREqual)
+               return result;
+            result = mpFirst->compare(*source.mpFirst);
+            if (result != CREqual)
+               return result;
+            if (mpSecond.isValid())
+               result = mpSecond->compare(*source.mpSecond);
+         }
+         return result;
+      }
+
   public:
    OperationNode() = default;
    OperationNode(DomainMultiBitBinaryOperation operation,
@@ -176,9 +246,11 @@ class OperationNode : public VirtualExpressionNode {
 };
 
 class Expression : public STG::IOObject, public STG::Lexer::Base {
+  public:
+   typedef struct _DomainElementFunctions* RuleResult;
+
   private:
    PNT::TMngPointer<VirtualExpressionNode> mpContent;
-   typedef struct _DomainElementFunctions* RuleResult;
 
   public:
    // recursive destruction in ~Expression

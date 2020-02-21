@@ -47,6 +47,7 @@ class MemoryZone : public STG::IOObject {
          uStartAddressInCode(startAddressInCode), eStartAddress(std::move(start)),
          eLength(std::move(length)), ssName(name) {}
    MemoryZone(const MemoryZone& source) = default;
+   DefineCopy(MemoryZone)
 
    virtual bool isValid() const override { return uZoneId > 0; }
    const int& getId() const { return uZoneId; }
