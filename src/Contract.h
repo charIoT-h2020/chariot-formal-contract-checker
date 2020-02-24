@@ -37,7 +37,7 @@ class Contract : public PNT::SharedElement, public STG::IOObject, public STG::Le
    class ListRegistration : public COL::List::Node {};
    class EdgeContract : public ContractPointer, public ListRegistration {
      public:
-      virtual bool isEdge() const { return true; }
+      virtual bool isEdge() const override { return true; }
       virtual bool isValid() const override { return ContractPointer::isValid(); }
    };
 
@@ -48,13 +48,18 @@ class Contract : public PNT::SharedElement, public STG::IOObject, public STG::Le
    struct ReadRuleResult : public MemoryStateConstraint::ReadRuleResult {
       typedef std::map<int, Contract*> IdMap;
       typedef std::map<int, std::vector<PNT::TSharedPointer<Contract>*> > PendingIds;
-      IdMap* idMap;
-      PendingIds* pendingIds;
+      IdMap* idMap = nullptr;
+      PendingIds* pendingIds = nullptr;
 
+      ReadRuleResult() = default;
       ReadRuleResult(IdMap& aidMap, PendingIds& apendingIds, struct _DomainElementFunctions* aelementFunctions,
             struct _Processor* aprocessor, struct _ProcessorFunctions* aprocessorFunctions)
          :  MemoryStateConstraint::ReadRuleResult(aelementFunctions, aprocessor, aprocessorFunctions),
             idMap(&aidMap), pendingIds(&apendingIds) {}
+      ReadRuleResult(IdMap& aidMap, PendingIds& apendingIds, const MemoryStateConstraint::ReadRuleResult& functions)
+         :  MemoryStateConstraint::ReadRuleResult(functions),
+            idMap(&aidMap), pendingIds(&apendingIds) {}
+      ReadRuleResult& operator=(const ReadRuleResult&) = default;
 
       bool setContractId(Contract& reference)
          {  auto localize = idMap->lower_bound(reference.getId());
@@ -86,8 +91,11 @@ class Contract : public PNT::SharedElement, public STG::IOObject, public STG::Le
 
    struct WriteRuleResult : public MemoryStateConstraint::WriteRuleResult {
       PNT::PassPointer<ListEdgeContract::Cursor> edgeCursor;
+      WriteRuleResult() = default;
       WriteRuleResult(struct _Processor* aprocessor, struct _ProcessorFunctions* aprocessorFunctions)
          :  MemoryStateConstraint::WriteRuleResult(aprocessor, aprocessorFunctions) {}
+      void setFrom(const MemoryStateConstraint::WriteRuleResult& source)
+         {  MemoryStateConstraint::WriteRuleResult::operator=(source); }
    };
 
   private:
@@ -125,6 +133,8 @@ class Contract : public PNT::SharedElement, public STG::IOObject, public STG::Le
          }
          return STG::SString();
       }
+   void applyOneTo(MemoryState& memoryState, struct _Processor* processor,
+         struct _ProcessorFunctions* processorFunctions);
 
   public:
    Contract() = default;
@@ -143,7 +153,6 @@ class Contract : public PNT::SharedElement, public STG::IOObject, public STG::Le
    bool isFinal() const;
    void applyTo(MemoryState& memoryState, struct _Processor* processor,
          struct _ProcessorFunctions* processorFunctions);
-
    const uint64_t& getAddress() const { return uAddress; }
 };
 
@@ -157,21 +166,69 @@ class Warning : public STG::IOObject {
 
 typedef COL::TCopyCollection<COL::TArray<Warning> > Warnings;
 
-class ContractGraph : public COL::TCopyCollection<COL::TSortedArray<Contract::ContractPointer, Contract::ContractPointer::Key> >, public STG::IOObject {
+class ContractGraph : public COL::TCopyCollection<COL::TSortedArray<Contract::ContractPointer, Contract::ContractPointer::Key> >, public STG::IOObject, public STG::Lexer::Base {
   public:
    typedef Contract::ContractPointer ContractPointer;
    typedef COL::TCopyCollection<COL::TSortedArray<ContractPointer, ContractPointer::Key> > inherited;
 
   private:
    ContractPointer cpInitial, cpFinal;
+   
+   struct ReadRuleResult : public MemoryStateConstraint::ReadRuleResult {
+      typedef std::map<int, Contract*> IdMap;
+      typedef std::map<int, std::vector<PNT::TSharedPointer<Contract>*> > PendingIds;
+      IdMap idMap;
+      PendingIds pendingIds;
+
+      ReadRuleResult() = default;
+      ReadRuleResult(struct _DomainElementFunctions* aelementFunctions,
+            struct _Processor* aprocessor, struct _ProcessorFunctions* aprocessorFunctions)
+         :  MemoryStateConstraint::ReadRuleResult(aelementFunctions, aprocessor, aprocessorFunctions) {}
+      ReadRuleResult(const ReadRuleResult&) = default;
+      ReadRuleResult& operator=(const ReadRuleResult&) = default;
+   };
+   struct WriteRuleResult : public MemoryStateConstraint::WriteRuleResult {
+      ContractGraph::PPCursor cursor;
+      WriteRuleResult() = default;
+      WriteRuleResult(const MemoryStateConstraint::WriteRuleResult& source)
+         :  MemoryStateConstraint::WriteRuleResult(source) {}
+      WriteRuleResult(struct _Processor* aprocessor, struct _ProcessorFunctions* aprocessorFunctions)
+         :  MemoryStateConstraint::WriteRuleResult(aprocessor, aprocessorFunctions) {}
+      WriteRuleResult(const WriteRuleResult&) = default;
+      WriteRuleResult& operator=(const WriteRuleResult&) = default;
+   };
 
   public:
    ContractGraph() {}
-   // [TODO] to implement
-   void loadFromFile(const char* filename, struct _Processor* processor,
-         struct _ProcessorFunctions* processoFunctions) {}
+   virtual ~ContractGraph() override
+      {  inherited::foreachDo([](const ContractPointer& pointer)
+            {  if (pointer.isValid())
+                  delete &*pointer;
+               return true;
+            });
+      }
+   bool loadFromFile(const char* filename, struct _DomainElementFunctions* domainFunctions,
+         struct _Processor* processor, struct _ProcessorFunctions* processorFunctions)
+      {  STG::DIOObject::IFStream inputFile(filename);
+         if (!inputFile.good())
+            return false;
+         STG::JSon::CommonParser parser(*this, (ReadRuleResult*) nullptr, STG::JSon::CommonParser::Parse());
+         parser.state().getSResult((ReadRuleResult*) nullptr) = ReadRuleResult(domainFunctions, processor, processorFunctions);
+         parser.setPartialToken();
+         parser.parse(inputFile);
+         return true;
+      }
+   bool saveFromFile(const char* filename)
+      {  STG::DIOObject::OFStream outputFile(filename);
+         STG::JSon::CommonWriter writer(*this, (WriteRuleResult*) nullptr, STG::JSon::CommonWriter::Write());
+         writer.write(outputFile);
+         return true;
+      }
    const ContractPointer& getInitial() const { return cpInitial; }
    const ContractPointer& getFinal() const { return cpFinal; }
+
+   ReadResult readJSon(STG::JSon::CommonParser::State& state, STG::JSon::CommonParser::Arguments& arguments);
+   WriteResult writeJSon(STG::JSon::CommonWriter::State& state, STG::JSon::CommonWriter::Arguments& arguments) const;
 };
 
 inline bool

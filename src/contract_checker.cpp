@@ -17,21 +17,21 @@
 
 extern "C" {
 
-struct _Processor*
+struct _PProcessor*
 create_processor(const char* architectureLibrary, const char* domainLibrary)
 {  std::unique_ptr<Processor> result(new Processor());
    result->setFromFile(architectureLibrary);
    result->setDomainFunctionsFromFile(domainLibrary);
-   return reinterpret_cast<struct _Processor*>(result.release());
+   return reinterpret_cast<struct _PProcessor*>(result.release());
 }
 
 void
-free_processor(struct _Processor* processor)
+free_processor(struct _PProcessor* processor)
 {  delete reinterpret_cast<Processor*>(processor);
 }
 
 bool
-processor_load_code(struct _Processor* aprocessor, const char* filename)
+processor_load_code(struct _PProcessor* aprocessor, const char* filename)
 {  Processor* processor = reinterpret_cast<Processor*>(aprocessor);
    processor->binaryFile().open(filename, std::ifstream::binary);
    if (!processor->binaryFile().good())
@@ -40,7 +40,7 @@ processor_load_code(struct _Processor* aprocessor, const char* filename)
 }
 
 bool
-processor_get_targets(struct _Processor* aprocessor, uint64_t address,
+processor_get_targets(struct _PProcessor* aprocessor, uint64_t address,
       struct _ContractContent* contract, TargetAddresses* target_addresses)
 {  Processor& processor = *reinterpret_cast<Processor*>(aprocessor);
    Contract& startContract = *reinterpret_cast<Contract*>(contract);
@@ -48,11 +48,11 @@ processor_get_targets(struct _Processor* aprocessor, uint64_t address,
    MemoryInterpretParameters parameters;
    // [TODO] remove it
    processor.initializeMemory(memoryState, parameters);
-   startContract.applyTo(memoryState);
+   startContract.applyTo(memoryState, processor.getContent(), &processor.getArchitectureFunctions());
    return processor.retrieveNextTargets(address, memoryState, *target_addresses, parameters);
 }
 
-bool processor_check_block(struct _Processor* aprocessor, uint64_t address,
+bool processor_check_block(struct _PProcessor* aprocessor, uint64_t address,
       uint64_t target, struct _ContractContent* afirstContract,
       struct _ContractContent* alastContract, struct _ContractCoverageContent* acoverage,
       struct _WarningsContent* awarnings)
@@ -64,20 +64,22 @@ bool processor_check_block(struct _Processor* aprocessor, uint64_t address,
    MemoryInterpretParameters parameters;
    // [TODO] remove it
    processor.initializeMemory(memoryState, parameters);
-   firstContract.applyTo(memoryState);
+   firstContract.applyTo(memoryState, processor.getContent(), &processor.getArchitectureFunctions());
    processor.interpret(address, memoryState, target, warnings, parameters);
    MemoryState lastMemoryState(processor.getDomainFunctions());
    processor.initializeMemory(lastMemoryState, parameters);
-   lastContract.applyTo(lastMemoryState);
+   lastContract.applyTo(lastMemoryState, processor.getContent(), &processor.getArchitectureFunctions());
    ContractCoverage& coverage = *reinterpret_cast<ContractCoverage*>(acoverage);
    coverage.add(firstContract, lastContract);
    return lastMemoryState.contain(memoryState, parameters);
 }
 
 struct _ContractGraphContent* load_contracts(const char* inputFilename,
-      struct _Processor* processor)
-{  std::unique_ptr<ContractGraph> result(new ContractGraph());
-   result->loadFromFile(inputFilename, processor);
+      struct _PProcessor* aprocessor)
+{  Processor& processor = *reinterpret_cast<Processor*>(aprocessor);
+   std::unique_ptr<ContractGraph> result(new ContractGraph());
+   result->loadFromFile(inputFilename, processor.getDomainFunctions(),
+         processor.getContent(), &processor.getArchitectureFunctions());
    return reinterpret_cast<struct _ContractGraphContent*>(result.release());
 }
 

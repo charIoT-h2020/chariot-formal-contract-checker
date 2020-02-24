@@ -18,15 +18,15 @@ At 21/02/2020, the following connections are still under implementations
     * [x] memory state inference
     * [ ] [`Required`] correct computation of targets should be provided
     * [ ] JIT/optimization to be provided to avoid flag computations
-- [ ] [`Required`] parsing formal contracts in json
+- [x] parsing formal contracts in json
     * [x] architecture - expressions, memory zones, memory states, contracts
     * [x] expression parsing
     * [x] memory zone manipulation
     * [x] memory zone parsing
     * [x] constraints on memory coming from contracts
-    * [ ] [`Required`] Directed Acyclic Graph of contracts - inheritance through dominance
+    * [x] Directed Acyclic Graph of contracts - inheritance through dominance
     * [x] contract parsing
-    * [ ] [`Required`] contract graph parsing
+    * [x] contract graph parsing
 - [ ] [`Required`] Full connection between the components
 - [ ] [`Required`] Testing, Debugging
 - [ ] [`Required`] Convincing demo

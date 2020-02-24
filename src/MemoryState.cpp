@@ -352,7 +352,7 @@ MemoryStateConstraint::writeJSon(STG::JSon::CommonWriter::State& state, STG::JSo
       };
    Cursor* cursor = nullptr;
 
-   #define DefineGoto(Target) case D##Target: goto L##Target;
+#define DefineGoto(Target) case D##Target: goto L##Target;
    switch (state.point()) {
       DefineGoto(Begin)
       DefineGoto(AfterBegin)
@@ -363,7 +363,7 @@ MemoryStateConstraint::writeJSon(STG::JSon::CommonWriter::State& state, STG::JSo
       DefineGoto(EndContent)
       DefineGoto(End)
    };
-   #undef DefineGoto
+#undef DefineGoto
 
 LBegin:
    arguments.setOpenArray();

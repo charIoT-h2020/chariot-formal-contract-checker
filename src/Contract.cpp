@@ -444,9 +444,155 @@ LEnd:
 template class COL::TSortedArray<Contract::ContractPointer, Contract::ContractPointer::Key>;
 
 void
-Contract::applyTo(MemoryState& memoryState, struct _Processor* processor,
+Contract::applyOneTo(MemoryState& memoryState, struct _Processor* processor,
       struct _ProcessorFunctions* processorFunctions) {
    zmZoneModifier.apply(memoryState.memoryZones(), uAddress);
    scMemoryConstraints.apply(memoryState, uAddress, processor, processorFunctions);
+}
+
+void
+Contract::applyTo(MemoryState& memoryState, struct _Processor* processor,
+      struct _ProcessorFunctions* processorFunctions) {
+   std::vector<Contract*> hierarchy;
+   Contract* current = this;
+   while (current->cpDominator.isValid()) {
+      current = &*current->cpDominator;
+      hierarchy.push_back(current);
+   }
+   for (auto iter = hierarchy.rbegin(); iter != hierarchy.rend(); ++iter)
+      (*iter)->applyOneTo(memoryState, processor, processorFunctions);
+   applyOneTo(memoryState, processor, processorFunctions);
+}
+
+STG::Lexer::Base::ReadResult
+ContractGraph::readJSon(STG::JSon::CommonParser::State& state, STG::JSon::CommonParser::Arguments& arguments) {
+   typedef STG::JSon::CommonParser Parser;
+   ReadResult result = RRContinue;
+
+   enum Delimiters { DBegin, DContracts, DContractsContent, DContract, DEnd };
+
+   #define DefineGoto(Target) case D##Target: goto L##Target;
+   switch (state.point()) {
+      DefineGoto(Begin)
+      DefineGoto(Contracts)
+      DefineGoto(ContractsContent)
+      DefineGoto(Contract)
+      DefineGoto(End)
+   };
+   #undef DefineGoto
+
+LBegin:
+   if (!arguments.isOpenObject()) {
+      if (!arguments.addErrorMessage(STG::SString("expected '{'")))
+         return result;
+   }
+   ++state.point();
+   if (!arguments.setToNextToken(result)) return result;
+
+LContracts:
+   while (!arguments.isCloseObject()) {
+      while (arguments.isOpen()) {
+         if (!Parser::skipNodeInLoop(state, arguments, result) || result == RRNeedChars) return result;
+         if (!arguments.setToNextToken(result)) return result;
+      };
+      if (arguments.isCloseArray())
+         {  AssumeUncalled }
+      if (arguments.isOpenArray()) {
+         ++state.point();
+         if (!arguments.setToNextToken(result)) return result;
+
+LContractsContent:
+         while (!arguments.isCloseArray()) {
+            while (arguments.isOpenArray()) {
+               if (!Parser::skipNodeInLoop(state, arguments, result) || result == RRNeedChars) return result;
+               if (!arguments.setToNextToken(result)) return result;
+            };
+            if (arguments.isCloseObject())
+               {  AssumeUncalled }
+
+            if (arguments.isOpenObject()) {
+               ++state.point();
+               {  auto& ruleResult = state.getSResult((ReadRuleResult*) nullptr);
+                  insertNewAtEnd(new ContractPointer(new Contract(), PNT::Pointer::Init()));
+                  arguments.shiftState(state, *getSLast(), &Contract::readJSon,
+                        (Contract::ReadRuleResult*) nullptr);
+                  state.setResult(Contract::ReadRuleResult(ruleResult.idMap, ruleResult.pendingIds, ruleResult));
+               }
+               if (!arguments.setToNextToken(result)) return result;
+               if (!arguments.parseTokens(state, result)) return result;
+LContract:
+               state.point() = DContractsContent;
+            };
+            if (!arguments.setToNextToken(result)) return result;
+         }
+         state.point() = DContracts;
+      }
+      if (!arguments.setToNextToken(result)) return result;
+   }
+   state.point() = DEnd;
+LEnd:
+   arguments.reduceState(state);
+   return RRHasToken;
+}
+
+STG::Lexer::Base::WriteResult
+ContractGraph::writeJSon(STG::JSon::CommonWriter::State& state, STG::JSon::CommonWriter::Arguments& arguments) const {
+   WriteResult result = WRNeedEvent;
+   enum Delimiters
+      {  DBegin, DWriteContracts, DWriteContract, DAfterWriteContract, DAfterWriteContracts,
+         DEnd
+      };
+   Cursor* cursor = nullptr;
+
+#define DefineGoto(Target) case D##Target: goto L##Target;
+   switch (state.point()) {
+      DefineGoto(Begin)
+      DefineGoto(WriteContracts)
+      DefineGoto(WriteContract)
+      DefineGoto(AfterWriteContract)
+      DefineGoto(AfterWriteContracts)
+      DefineGoto(End)
+   };
+#undef DefineGoto
+
+LBegin:
+   arguments.setOpenObject();
+   ++state.point();
+   if (!arguments.writeEvent(result)) return result;
+
+LWriteContracts:
+   arguments.setOpenArray();
+   state.getSResult((WriteRuleResult*) nullptr).cursor.absorbElement(new Cursor(*this));
+   ++state.point();
+   if (!arguments.writeEvent(result)) return result;
+
+LWriteContract:
+   cursor = &*state.getSResult((WriteRuleResult*) nullptr).cursor;
+   while (cursor->setToNext()) {
+      ++state.point();
+      {  const auto& ruleResult = state.getSResult((WriteRuleResult*) nullptr);
+         arguments.shiftState(state, *cursor->elementSAt(), &Contract::writeJSon,
+               (Contract::WriteRuleResult*) nullptr);
+         state.getSResult((Contract::WriteRuleResult*) nullptr).setFrom(ruleResult);
+      }
+      if (!arguments.writeEvent(result)) return result;
+      if (!arguments.writeTokens(state, result)) return result;
+
+LAfterWriteContract:
+      state.point() = DWriteContract;
+      if (!cursor)
+         cursor = &*state.getSResult((WriteRuleResult*) nullptr).cursor;
+   }
+
+LAfterWriteContracts:
+   arguments.setCloseArray();
+   ++state.point();
+   if (!arguments.writeEvent(result)) return result;
+
+LEnd:
+   arguments.setCloseObject();
+   arguments.reduceState(state);
+   if (!arguments.writeEvent(result)) return result;
+   return WRNeedEvent;
 }
 

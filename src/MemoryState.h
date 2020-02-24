@@ -91,7 +91,7 @@ class LetVariable : public BaseLocation, public STG::IOObject, public STG::Lexer
    DefineCopy(LetVariable)
    StaticInheritConversions(LetVariable, BaseLocation)
 
-   virtual Type getType() const { return TLocal; }
+   virtual Type getType() const override { return TLocal; }
    class Key {
      public:
       typedef STG::SubString TypeOfKey;	// TypeOfKey inherits from EnhancedObject
@@ -367,7 +367,7 @@ class MemoryState : public STG::IOObject {
 
    DomainValue evaluate(const VirtualExpressionNode& aexpression, struct _Processor* processor,
          struct _ProcessorFunctions* processorFunctions)
-      {  switch (aexpression.getType()) {
+      {  switch (aexpression.getTypeExpression()) {
             case VirtualExpressionNode::TERegisterAccess:
                {  const auto& expression = static_cast<const RegisterAccessNode&>(aexpression);
                   int registerIndex = (*processorFunctions->get_register_index)
@@ -545,6 +545,7 @@ class MemoryStateConstraint : public COL::TCopyCollection<COL::TArray<VirtualAdd
             struct _Processor* aprocessor, struct _ProcessorFunctions* aprocessorFunctions)
          :  VirtualAddressConstraint::ReadRuleResult(aelementFunctions, aprocessor, aprocessorFunctions) {}
       ReadRuleResult(const ReadRuleResult&) = default;
+      ReadRuleResult& operator=(const ReadRuleResult&) = default;
    };
 
    struct WriteRuleResult : public VirtualAddressConstraint::WriteRuleResult {
@@ -553,6 +554,7 @@ class MemoryStateConstraint : public COL::TCopyCollection<COL::TArray<VirtualAdd
       WriteRuleResult(struct _Processor* aprocessor, struct _ProcessorFunctions* aprocessorFunctions)
          :  VirtualAddressConstraint::WriteRuleResult(aprocessor, aprocessorFunctions) {}
       WriteRuleResult(const WriteRuleResult&) = default;
+      WriteRuleResult& operator=(const WriteRuleResult&) = default;
    };
 
   private:
