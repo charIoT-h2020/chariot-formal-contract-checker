@@ -42,6 +42,8 @@ class Processor {
       }
    ~Processor() { if (pvContent) { (*architectureFunctions.free_processor)(pvContent); pvContent = nullptr; } }
 
+   struct _Processor* getContent() const { return pvContent; }
+   struct _ProcessorFunctions& getArchitectureFunctions() { return architectureFunctions; }
    void setFromFile(const char* filename);
    void setDomainFunctionsFromFile(const char* domainFilename);
    std::ifstream& binaryFile() { return fBinaryFile; }

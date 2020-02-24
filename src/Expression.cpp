@@ -2595,7 +2595,8 @@ OperationNode::readJSon(STG::JSon::CommonParser::State& state,
 
    enum Delimiters
       {  DBegin, DAfterBegin, DReadType, DReadFirst, DReadFirstContent, DIdentifyFirstContent,
-         DReadSecond, DReadSecondContent, DIdentifySecondContent, DReadCode, DEnd
+         DReadSecond, DReadSecondContent, DIdentifySecondContent, DReadCode, DReadSize,
+         DReadStart, DReadSigned, DEnd
       };
 
    #define DefineGoto(Target) case D##Target: goto L##Target;
@@ -2610,6 +2611,9 @@ OperationNode::readJSon(STG::JSon::CommonParser::State& state,
       DefineGoto(ReadSecondContent)
       DefineGoto(IdentifySecondContent)
       DefineGoto(ReadCode)
+      DefineGoto(ReadSize)
+      DefineGoto(ReadStart)
+      DefineGoto(ReadSigned)
       DefineGoto(End)
    };
    #undef DefineGoto
@@ -2780,11 +2784,58 @@ LReadCode:
       }
       else
          if (result == RRNeedChars) return result;
+      if (arguments.isAddKey()
+            && ((result = arguments.setArgumentKey()), arguments.key() == "size")) {
+         if (result == RRNeedChars) return result;
+         state.point() = DReadSize;
+         if (!arguments.setToNextToken(result)) return result;
+LReadSize:
+         if (arguments.isSetValue()
+               && arguments.setArgumentToInt() == RRNeedChars) return RRNeedChars;
+         if (arguments.isSetInt())
+            uSizeInBits = arguments.valueAsInt();
+         state.point() = DAfterBegin;
+      }
+      else
+         if (result == RRNeedChars) return result;
+      if (arguments.isAddKey()
+            && ((result = arguments.setArgumentKey()),
+               (arguments.key() == "start" || arguments.key() == "shift"))) {
+         if (result == RRNeedChars) return result;
+         state.point() = DReadStart;
+         if (!arguments.setToNextToken(result)) return result;
+LReadStart:
+         if (arguments.isSetValue()
+               && arguments.setArgumentToInt() == RRNeedChars) return RRNeedChars;
+         if (arguments.isSetInt())
+            uStart = arguments.valueAsInt();
+         state.point() = DAfterBegin;
+      }
+      else
+         if (result == RRNeedChars) return result;
+      if (arguments.isAddKey()
+            && ((result = arguments.setArgumentKey()), arguments.key() == "signed")) {
+         if (result == RRNeedChars) return result;
+         state.point() = DReadSigned;
+         if (!arguments.setToNextToken(result)) return result;
+LReadSigned:
+         if (arguments.isSetValue()
+               && arguments.setArgumentToBool() == RRNeedChars) return RRNeedChars;
+         if (arguments.isSetBool())
+            fSigned = arguments.valueAsBool();
+         state.point() = DAfterBegin;
+      }
+      else
+         if (result == RRNeedChars) return result;
       state.point() = DAfterBegin;
       if (!arguments.setToNextToken(result)) return result;
    }
    state.point() = DEnd;
 LEnd:
+   if (!isValid()) {
+      if (!arguments.addErrorMessage(STG::SString("inconsistent operation")))
+         return RRContinue;
+   }
    arguments.reduceState(state);
    return RRHasToken;
 }
@@ -3000,6 +3051,90 @@ OperationNode::getTextOperationFromCode(unsigned code, bool isSymbolic) const {
    return STG::SString();
 }
 
+bool
+OperationNode::hasSizeExtension(int code) const {
+   bool isExtended = code & ~(~0U << FExtended);
+   if (!isExtended)
+      return false;
+   code >>= FExtended;
+
+   switch (code) {
+      case TECastBit:
+         return false;
+      case TECastInteger:
+      case TECastFloating:
+      case TECastFloatingPtr:
+      case TECallExtendZero:
+      case TECallExtendSign:
+      case TECallReduce:
+      case TECallBitSet:
+         return true;
+      case TECallShiftBit:
+      case TEMerge:
+      case TEIntersect:
+         return false;
+      default:
+         break;
+   }
+   return false;
+}
+
+bool
+OperationNode::hasStartExtension(int code) const {
+   bool isExtended = code & ~(~0U << FExtended);
+   if (!isExtended)
+      return false;
+   code >>= FExtended;
+
+   switch (code) {
+      case TECastBit:
+      case TECastInteger:
+      case TECastFloating:
+      case TECastFloatingPtr:
+      case TECallExtendZero:
+      case TECallExtendSign:
+         return false;
+      case TECallReduce:
+      case TECallBitSet:
+      case TECallShiftBit:
+         return true;
+      case TEMerge:
+      case TEIntersect:
+         return false;
+      default:
+         break;
+   }
+   return false;
+}
+
+bool
+OperationNode::hasSignedExtension(int code) const {
+   bool isExtended = code & ~(~0U << FExtended);
+   if (!isExtended)
+      return false;
+   code >>= FExtended;
+
+   switch (code) {
+      case TECastBit:
+         return false;
+      case TECastInteger:
+      case TECastFloating:
+      case TECastFloatingPtr:
+         return dtType == DTInteger;
+      case TECallExtendZero:
+      case TECallExtendSign:
+      case TECallReduce:
+      case TECallBitSet:
+      case TECallShiftBit:
+      case TEMerge:
+      case TEIntersect:
+         return false;
+      default:
+         break;
+   }
+   return false;
+}
+
 OperationNode::WriteResult
 OperationNode::writeJSon(STG::JSon::CommonWriter::State& state,
       STG::JSon::CommonWriter::Arguments& arguments) const {
@@ -3008,10 +3143,11 @@ OperationNode::writeJSon(STG::JSon::CommonWriter::State& state,
       {  DBegin, DAfterBegin, DWriteType,
          DWriteFirst, DWriteFirstKey, DWriteFirstType, DIdentifyFirstType, DWriteFirstContent, DCloseFirst,
          DWriteSecond, DWriteSecondKey, DWriteSecondType, DIdentifySecondType, DWriteSecondContent, DCloseSecond,
-         DWriteCode, DWriteCodeContent, DEnd
+         DWriteCode, DWriteCodeContent, DWriteSize, DWriteSizeContent, DWriteStart,
+         DWriteStartContent, DWriteSigned, DWriteSignedContent, DEnd
       };
 
-   #define DefineGoto(Target) case D##Target: goto L##Target;
+#define DefineGoto(Target) case D##Target: goto L##Target;
    switch (state.point()) {
       DefineGoto(Begin)
       DefineGoto(AfterBegin)
@@ -3030,9 +3166,15 @@ OperationNode::writeJSon(STG::JSon::CommonWriter::State& state,
       DefineGoto(CloseSecond)
       DefineGoto(WriteCode)
       DefineGoto(WriteCodeContent)
+      DefineGoto(WriteSize)
+      DefineGoto(WriteSizeContent)
+      DefineGoto(WriteStart)
+      DefineGoto(WriteStartContent)
+      DefineGoto(WriteSigned)
+      DefineGoto(WriteSignedContent)
       DefineGoto(End)
    };
-   #undef DefineGoto
+#undef DefineGoto
 
 LBegin:
    arguments.setOpenObject();
@@ -3097,7 +3239,7 @@ LCloseFirst:
 
 LWriteSecondKey:
    if (mpSecond.isValid()) {
-      arguments.setAddKey(STG::SString("first"));
+      arguments.setAddKey(STG::SString("second"));
       ++state.point();
       if (!arguments.writeEvent(result)) return result;
 
@@ -3142,6 +3284,48 @@ LWriteCodeContent:
       arguments.setStringValue(getTextOperationFromCode(uOperationCode, fSymbolic));
       ++state.point();
       if (!arguments.writeEvent(result)) return result;
+
+LWriteSize:
+      if (hasSizeExtension(uOperationCode)) {
+         arguments.setAddKey(STG::SString("size"));
+         ++state.point();
+         if (!arguments.writeEvent(result)) return result;
+
+LWriteSizeContent:
+         arguments.setIntValue(uSizeInBits);
+         ++state.point();
+         if (!arguments.writeEvent(result)) return result;
+      }
+      else
+         state.point() += 2;
+
+LWriteStart:
+      if (hasStartExtension(uOperationCode)) {
+         arguments.setAddKey(STG::SString("start"));
+         ++state.point();
+         if (!arguments.writeEvent(result)) return result;
+
+LWriteStartContent:
+         arguments.setIntValue(uStart);
+         ++state.point();
+         if (!arguments.writeEvent(result)) return result;
+      }
+      else
+         state.point() += 2;
+
+LWriteSigned:
+      if (hasSignedExtension(uOperationCode)) {
+         arguments.setAddKey(STG::SString("signed"));
+         ++state.point();
+         if (!arguments.writeEvent(result)) return result;
+
+LWriteSignedContent:
+         arguments.setBoolValue(fSigned);
+         ++state.point();
+         if (!arguments.writeEvent(result)) return result;
+      }
+      else
+         state.point() += 2;
    }
    else
       state.point() = DEnd;
@@ -3151,6 +3335,223 @@ LEnd:
    arguments.reduceState(state);
    if (!arguments.writeEvent(result)) return result;
    return WRNeedEvent;
+}
+
+bool
+OperationNode::isValid() const {
+   if (!VirtualExpressionNode::isValid())
+      return false;
+   if (dtType == DTUndefined)
+      return false;
+   int code = uOperationCode;
+   int arity = mpSecond.isValid() ? 2 : 1;
+   bool isExtended = code & ~(~0U << FExtended);
+   code >>= FExtended;
+
+   if (!isExtended) {
+      if (fSigned || uStart || uSizeInBits)
+         return false;
+      return (arity == 1) == !mpSecond.isValid();
+   }
+   else { // isExtended
+      if (!(code >= TECastBit && code <= TEIntersect))
+         return false;
+      switch (code) {
+         case TECastBit:
+            if (fSigned || uStart || uSizeInBits || mpSecond.isValid())
+               return false;
+            if (dtType == DTFloating)
+               return false;
+            break;
+         case TECastInteger:
+            if ((fSigned && dtType != DTInteger) || uStart || uSizeInBits == 0 || mpSecond.isValid())
+               return false;
+            break;
+         case TECastFloating:
+            if ((dtType == DTBit) || (fSigned && dtType != DTInteger) || uStart
+                  || uSizeInBits != 32 || uSizeInBits != 64 || mpSecond.isValid())
+               return false;
+            break;
+         case TECastFloatingPtr:
+            if ((dtType != DTInteger) || uStart || uSizeInBits != 32 || uSizeInBits != 64
+                  || mpSecond.isValid())
+               return false;
+            break;
+         case TECallExtendZero:
+         case TECallExtendSign:
+            if ((dtType != DTInteger) || uStart || uSizeInBits == 0 || mpSecond.isValid())
+               return false;
+            break;
+         case TECallReduce:
+            if ((dtType != DTInteger) || uSizeInBits <= 0 || mpSecond.isValid())
+               return false;
+            break;
+         case TECallBitSet:
+            if ((dtType != DTInteger) || uSizeInBits <= 0 || !mpSecond.isValid())
+               return false;
+            break;
+         case TECallShiftBit:
+            if ((dtType != DTInteger) || uSizeInBits != 0 || mpSecond.isValid())
+               return false;
+            break;
+         case TEMerge:
+         case TEIntersect:
+            if (!mpSecond.isValid() || mpSecond->getType() != dtType)
+               return false;
+            break;
+         default:
+            return false;
+      }
+   }
+   return true;
+}
+
+void
+OperationNode::applyOperation(DomainValue& first, const DomainValue& second) const {
+   int code = uOperationCode;
+   int arity = mpSecond.isValid() ? 2 : 1;
+   bool isExtended = code & ~(~0U << FExtended);
+   code >>= FExtended;
+   DomainEvaluationEnvironment env{};
+   env.defaultDomainType = DISFormal;
+
+   if (!isExtended) {
+      if (dtType == DTBit) {
+         if (arity == 1) {
+            AssumeCondition(code >= DBUOPrev && code <= DBUONegate)
+            first.applyAssign((DomainBitUnaryOperation) code, env);
+         }
+         else {
+            bool isCompare = (code & (1U << 3));
+            if (!isCompare) {
+               AssumeCondition(code >= DBBOPlus && code <= DBBOExclusiveOr)
+               first.applyAssign((DomainBitBinaryOperation) code, second, env);
+            }
+            else {
+               code &= ~(1U << 3);
+               AssumeCondition(code >= DBCOCompareLess && code <= DBCOCompareGreater)
+               first = first.applyCompare((DomainBitCompareOperation) code, second, env);
+            }
+         }
+      }
+      else if (dtType == DTInteger) {
+         if (arity == 1) {
+            AssumeCondition(code >= DMBUOPrevSigned && code <= DMBUOBitScanReverse)
+            first.applyAssign((DomainMultiBitUnaryOperation) code, env);
+         }
+         else {
+            bool isCompare = (code & (1U << 5));
+            if (!isCompare) {
+               AssumeCondition(code >= DMBBOConcat && code <= DMBBORightRotate)
+               first.applyAssign((DomainMultiBitBinaryOperation) code, second, env);
+            }
+            else {
+               code &= ~(1U << 5);
+               AssumeCondition(code >= DMBCOCompareLessSigned && code <= DMBCOCompareGreaterSigned)
+               first = first.applyCompare((DomainMultiBitCompareOperation) code, second, env);
+            }
+         }
+      }
+      else if (dtType == DTFloating) {
+         if (arity == 1) {
+            AssumeCondition(code >= DBUOPrev && code <= DBUONegate)
+            first.applyAssign((DomainMultiFloatUnaryOperation) code, env);
+         }
+         else {
+            bool isCompare = (code & (1U << 4));
+            if (!isCompare) {
+               AssumeCondition(code >= DMFBOPlus && code <= DMFBOModf)
+               first.applyAssign((DomainMultiFloatBinaryOperation) code, second, env);
+            }
+            else {
+               code &= ~(1U << 4);
+               AssumeCondition(code >= DMFCOCompareLess && code <= DMFCOCompareGreater)
+               first = first.applyCompare((DomainMultiFloatCompareOperation) code, second, env);
+            }
+         }
+      }
+      else
+         {  AssumeUncalled }
+   }
+   else { // isExtended
+      AssumeCondition(code >= TECastBit && code <= TEIntersect)
+      switch (code) {
+         case TECastBit:
+            if (dtType == DTInteger)
+               first = first.applyIntegerToBit(env);
+            else if (dtType == DTFloating)
+               first = DomainValue(DomainElement{}, &first.functionTable());
+            break;
+         case TECastInteger:
+            if (dtType == DTBit)
+               first = first.applyBitToInteger(uSizeInBits, env);
+            else if (dtType == DTInteger)
+               first = first.applyIntegerToInteger(uSizeInBits, fSigned, env);
+            else if (dtType == DTFloating)
+               first = first.applyFloatingToInteger(uSizeInBits, env);
+            else
+               first = DomainValue(DomainElement{}, &first.functionTable());
+            break;
+         case TECastFloating:
+            if (dtType == DTBit)
+               first = DomainValue(DomainElement{}, &first.functionTable());
+            else if (dtType == DTInteger)
+               first = first.applyIntegerToFloating(uSizeInBits, fSigned, env);
+            else if (dtType == DTFloating)
+               first.applyFloatingToFloating(uSizeInBits, env);
+            else
+               first = DomainValue(DomainElement{}, &first.functionTable());
+            break;
+         case TECastFloatingPtr:
+            if (dtType == DTInteger)
+               first = first.applyIntegerToFloatingPtr(uSizeInBits, fSigned, env);
+            else
+               first = DomainValue(DomainElement{}, &first.functionTable());
+            break;
+         case TECallExtendZero:
+            if (dtType == DTInteger)
+               first.applyAssign(
+                     DomainMultiBitExtendOperation{DMBEOExtendWithZero, uSizeInBits}, env);
+            else
+               first = DomainValue(DomainElement{}, &first.functionTable());
+            break;
+         case TECallExtendSign:
+            if (dtType == DTInteger)
+               first.applyAssign(
+                     DomainMultiBitExtendOperation{DMBEOExtendWithSign, uSizeInBits}, env);
+            else
+               first = DomainValue(DomainElement{}, &first.functionTable());
+            break;
+         case TECallReduce:
+            if (dtType == DTInteger)
+               first.applyAssign(
+                     DomainMultiBitReduceOperation{uStart, uStart+uSizeInBits-1}, env);
+            else
+               first = DomainValue(DomainElement{}, &first.functionTable());
+            break;
+         case TECallBitSet:
+            if (dtType == DTInteger)
+               first.applyAssign(
+                     DomainMultiBitSetOperation{uStart, uStart+uSizeInBits-1}, second, env);
+            else
+               first = DomainValue(DomainElement{}, &first.functionTable());
+            break;
+         case TECallShiftBit:
+            if (dtType == DTInteger)
+               first = first.applyIntegerToShiftBit(uStart, env);
+            else
+               first = DomainValue(DomainElement{}, &first.functionTable());
+            break;
+         case TEMerge:
+            first.mergeWith(second, env);
+            break;
+         case TEIntersect:
+            first.intersectWith(second, env);
+            break;
+         default:
+            first = DomainValue(DomainElement{}, &first.functionTable());
+      }
+   }
 }
 
 /* Implementation of the class Expression */

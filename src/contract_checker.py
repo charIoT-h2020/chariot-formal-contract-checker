@@ -1,6 +1,6 @@
 import ctypes
 
-class _Processor(ctypes.Structure): pass
+class _PProcessor(ctypes.Structure): pass
 class _ContractContent(ctypes.Structure): pass
 class _ContractCoverageContent(ctypes.Structure): pass
 class _WarningsContent(ctypes.Structure): pass
@@ -31,20 +31,20 @@ class Processor(object):
     def __init__(self, memsec_library: str, arch_library: str, dom_library: str):
         self.funs = ctypes.cdll.LoadLibrary(memsec_library)
         self.funs.create_processor.argtypes = [ ctypes.c_char_p, ctypes.c_char_p ]
-        self.funs.create_processor.restype = ctypes.POINTER(_Processor)
-        self.funs.free_processor.argtypes = [ ctypes.POINTER(_Processor) ]
-        self.funs.processor_load_code.argtypes = [ ctypes.POINTER(_Processor), ctypes.c_char_p ]
+        self.funs.create_processor.restype = ctypes.POINTER(_PProcessor)
+        self.funs.free_processor.argtypes = [ ctypes.POINTER(_PProcessor) ]
+        self.funs.processor_load_code.argtypes = [ ctypes.POINTER(_PProcessor), ctypes.c_char_p ]
         self.funs.processor_load_code.restype = ctypes.c_bool
-        self.funs.processor_get_targets.argtypes = [ ctypes.POINTER(_Processor),
+        self.funs.processor_get_targets.argtypes = [ ctypes.POINTER(_PProcessor),
             ctypes.c_uint64, ctypes.POINTER(_ContractContent),
             ctypes.POINTER(_TargetAddresses) ]
         self.funs.processor_get_targets.restype = ctypes.c_bool
-        self.funs.processor_check_block.argtypes = [ ctypes.POINTER(_Processor),
+        self.funs.processor_check_block.argtypes = [ ctypes.POINTER(_PProcessor),
             ctypes.c_uint64, ctypes.c_uint64, ctypes.POINTER(_ContractContent),
             ctypes.POINTER(_ContractContent), ctypes.POINTER(_ContractCoverageContent),
             ctypes.POINTER(_WarningsContent) ]
         self.funs.processor_check_block.restype = ctypes.c_bool
-        self.funs.load_contracts.argtypes = [ ctypes.c_char_p, ctypes.POINTER(_Processor) ]
+        self.funs.load_contracts.argtypes = [ ctypes.c_char_p, ctypes.POINTER(_PProcessor) ]
         self.funs.load_contracts.restype = ctypes.POINTER(_ContractGraphContent)
         self.funs.free_contracts.argtypes = [ ctypes.POINTER(_ContractGraphContent) ]
         self.funs.contract_cursor_new.argtypes = [ ctypes.POINTER(_ContractGraphContent) ]

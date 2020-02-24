@@ -54,17 +54,16 @@ extern "C" {
 
 #include "target_address_decoder.h"
 
-struct _Processor;
-struct _Processor* create_processor(const char* architectureLibrary,
-      const char* domainLibrary);
-void free_processor(struct _Processor*);
-bool processor_load_code(struct _Processor* processor, const char* filename);
-bool processor_get_targets(struct _Processor* processor, uint64_t address,
+struct _PProcessor;
+struct _PProcessor* create_processor(const char* architectureLibrary, const char* domainLibrary);
+void free_processor(struct _PProcessor*);
+bool processor_load_code(struct _PProcessor* processor, const char* filename);
+bool processor_get_targets(struct _PProcessor* processor, uint64_t address,
       struct _ContractContent* contract, TargetAddresses* target_addresses);
 struct _ContractContent;
 struct _ContractCoverageContent;
 struct _WarningsContent;
-bool processor_check_block(struct _Processor* processor, uint64_t address,
+bool processor_check_block(struct _PProcessor* processor, uint64_t address,
       uint64_t target, struct _ContractContent* firstContract,
       struct _ContractContent* lastContract, struct _ContractCoverageContent* coverage,
       struct _WarningsContent* warnings);
@@ -72,7 +71,7 @@ bool processor_check_block(struct _Processor* processor, uint64_t address,
 struct _ContractGraphContent;
 
 struct _ContractGraphContent* load_contracts(const char* inputFilename,
-      struct _Processor* processor);
+      struct _PProcessor* processor);
 enum ContractConditionLocalization { CCLPreCondition, CCLPostCondition };
 void free_contracts(struct _ContractGraphContent* contracts);
 

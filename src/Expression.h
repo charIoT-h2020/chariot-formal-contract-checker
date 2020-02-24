@@ -37,6 +37,7 @@ class VirtualExpressionNode : public PNT::MngElement, public STG::IOObject, publ
    StaticInheritConversions(VirtualExpressionNode, PNT::MngElement)
    DCompare(VirtualExpressionNode)
 
+   virtual bool isValid() const override { return PNT::MngElement::isValid(); }
    virtual DomainType getType() const { return DTUndefined; }
    virtual TypeExpression getTypeExpression() const { AssumeUncalled return TERegisterAccess; }
    virtual ReadResult readJSon(STG::JSon::CommonParser::State& state, STG::JSon::CommonParser::Arguments& arguments) { AssumeUncalled return RRContinue; }
@@ -62,6 +63,7 @@ class RegisterAccessNode : public VirtualExpressionNode {
    RegisterAccessNode(const RegisterAccessNode&) = default;
    DefineCopy(RegisterAccessNode)
 
+   const STG::SubString& getName() const { return ssRegisterName; }
    virtual DomainType getType() const override { return DTInteger; }
    virtual TypeExpression getTypeExpression() const override { return TERegisterAccess; }
    virtual ReadResult readJSon(STG::JSon::CommonParser::State& state, STG::JSon::CommonParser::Arguments& arguments) override;
@@ -94,6 +96,9 @@ class IndirectionNode : public VirtualExpressionNode {
    IndirectionNode() = default;
    IndirectionNode(const IndirectionNode&) = default;
    DefineCopy(IndirectionNode)
+
+   const VirtualExpressionNode& getAddress() const { return *mpAddress; }
+   int getSizeInBytes() const { return uSizeInBytes; }
 
    virtual DomainType getType() const override { return DTInteger; }
    virtual TypeExpression getTypeExpression() const override { return TEIndirection; }
@@ -167,6 +172,7 @@ class DomainNode : public VirtualExpressionNode {
    virtual TypeExpression getTypeExpression() const override { return TEDomain; }
    ZeroResult queryZeroResult() const { return deValue.queryZeroResult(); }
    int getSizeInBits() const { return deValue.getSizeInBits(); }
+   const DomainValue& getValue() const { return deValue; }
 
    virtual ReadResult readJSon(STG::JSon::CommonParser::State& state, STG::JSon::CommonParser::Arguments& arguments) override;
    virtual WriteResult writeJSon(STG::JSon::CommonWriter::State& state, STG::JSon::CommonWriter::Arguments& arguments) const override;
@@ -179,6 +185,9 @@ class OperationNode : public VirtualExpressionNode {
    bool fSymbolic = false;
    PNT::TMngPointer<VirtualExpressionNode> mpFirst;
    PNT::TMngPointer<VirtualExpressionNode> mpSecond;
+   int uSizeInBits = 0;
+   int uStart = 0;
+   bool fSigned = false;
 
    enum TypeOperation
       {  TUndefined, TPlus, TPlusSigned, TPlusUnsigned, TPlusUnsignedWithSigned,
@@ -207,6 +216,9 @@ class OperationNode : public VirtualExpressionNode {
 
    bool setCodeFromText(const STG::SubString& text, STG::JSon::CommonParser::Arguments& arguments);
    STG::SubString getTextOperationFromCode(unsigned code, bool isSymbolic) const;
+   bool hasSizeExtension(int code) const;
+   bool hasStartExtension(int code) const;
+   bool hasSignedExtension(int code) const;
 
   protected:
    virtual ComparisonResult _compare(const EnhancedObject& asource) const override
@@ -239,6 +251,11 @@ class OperationNode : public VirtualExpressionNode {
    OperationNode(const OperationNode&) = default;
    DefineCopy(OperationNode)
 
+   virtual bool isValid() const override;
+   const VirtualExpressionNode& getFirst() const { return *mpFirst; }
+   const VirtualExpressionNode& getSecond() const { return *mpSecond; }
+   bool isBinary() const { return mpSecond.isValid(); }
+   void applyOperation(DomainValue& first, const DomainValue& second) const;
    virtual DomainType getType() const override { return dtType; }
    virtual TypeExpression getTypeExpression() const override { return TEOperation; }
    virtual ReadResult readJSon(STG::JSon::CommonParser::State& state, STG::JSon::CommonParser::Arguments& arguments) override;
@@ -266,6 +283,7 @@ class Expression : public STG::IOObject, public STG::Lexer::Base {
          return *this;
       }
    void clear() { mpContent.release(); }
+   const VirtualExpressionNode& getContent() const { return *mpContent; }
    ReadResult readJSon(STG::JSon::CommonParser::State& state, STG::JSon::CommonParser::Arguments& arguments);
    WriteResult writeJSon(STG::JSon::CommonWriter::State& state, STG::JSon::CommonWriter::Arguments& arguments) const;
 };

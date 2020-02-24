@@ -443,10 +443,10 @@ LEnd:
 
 template class COL::TSortedArray<Contract::ContractPointer, Contract::ContractPointer::Key>;
 
-// [TODO] to implement
 void
-Contract::applyTo(MemoryState& memoryState)
-{
+Contract::applyTo(MemoryState& memoryState, struct _Processor* processor,
+      struct _ProcessorFunctions* processorFunctions) {
+   zmZoneModifier.apply(memoryState.memoryZones(), uAddress);
+   scMemoryConstraints.apply(memoryState, uAddress, processor, processorFunctions);
 }
-
 

@@ -97,6 +97,109 @@ class DomainValue : public STG::IOObject {
    DefineCopy(DomainValue)
    DDefineAssign(DomainValue)
 
+   void applyAssign(DomainBitUnaryOperation operation, DomainEvaluationEnvironment& env)
+      {  bool result = (*pfFunctions->bit_unary_apply_assign)(&deValue, operation, &env);
+         AssumeCondition(result)
+      }
+   void applyAssign(DomainBitBinaryOperation operation, const DomainValue& source,
+         DomainEvaluationEnvironment& env)
+      {  bool result = (*pfFunctions->bit_binary_apply_assign)(&deValue, operation, source.deValue, &env);
+         AssumeCondition(result)
+      }
+   DomainValue applyCompare(DomainBitCompareOperation operation, const DomainValue& source,
+         DomainEvaluationEnvironment& env) const
+      {  return DomainValue((*pfFunctions->bit_binary_compare_domain)
+            (deValue, operation, source.deValue, &env), pfFunctions);
+      }
+   DomainValue applyBitToInteger(int sizeInBits, DomainEvaluationEnvironment& env) const
+      {  return DomainValue((*pfFunctions->bit_create_cast_multibit)
+            (deValue, sizeInBits, &env), pfFunctions);
+      }
+
+   void applyAssign(DomainMultiBitUnaryOperation operation, DomainEvaluationEnvironment& env)
+      {  bool result = (*pfFunctions->multibit_unary_apply_assign)(&deValue, operation, &env);
+         AssumeCondition(result)
+      }
+   void applyAssign(DomainMultiBitExtendOperation operation, DomainEvaluationEnvironment& env)
+      {  bool result = (*pfFunctions->multibit_extend_apply_assign)(&deValue, operation, &env);
+         AssumeCondition(result)
+      }
+   void applyAssign(DomainMultiBitReduceOperation operation, DomainEvaluationEnvironment& env)
+      {  bool result = (*pfFunctions->multibit_reduce_apply_assign)(&deValue, operation, &env);
+         AssumeCondition(result)
+      }
+   void applyAssign(DomainMultiBitBinaryOperation operation, const DomainValue& source,
+         DomainEvaluationEnvironment& env)
+      {  bool result = (*pfFunctions->multibit_binary_apply_assign)(&deValue, operation, source.deValue, &env);
+         AssumeCondition(result)
+      }
+   void applyAssign(DomainMultiBitSetOperation operation, const DomainValue& source,
+         DomainEvaluationEnvironment& env)
+      {  bool result = (*pfFunctions->multibit_bitset_apply_assign)(&deValue, operation, source.deValue, &env);
+         AssumeCondition(result)
+      }
+   DomainValue applyCompare(DomainMultiBitCompareOperation operation, const DomainValue& source,
+         DomainEvaluationEnvironment& env) const
+      {  return DomainValue((*pfFunctions->multibit_binary_compare_domain)
+            (deValue, operation, source.deValue, &env), pfFunctions);
+      }
+   DomainValue applyIntegerToBit(DomainEvaluationEnvironment& env) const
+      {  return DomainValue((*pfFunctions->multibit_create_cast_bit)
+            (deValue, &env), pfFunctions);
+      }
+   DomainValue applyIntegerToShiftBit(int shift, DomainEvaluationEnvironment& env) const
+      {  return DomainValue((*pfFunctions->multibit_create_cast_shift_bit)
+            (deValue, shift, &env), pfFunctions);
+      }
+   DomainValue applyIntegerToInteger(int sizeInBits, bool isSigned,
+         DomainEvaluationEnvironment& env) const
+      {  return DomainValue((*pfFunctions->multibit_create_cast_multibit)
+            (deValue, sizeInBits, isSigned, &env), pfFunctions);
+      }
+   DomainValue applyIntegerToFloating(int sizeInBits, bool isSigned,
+         DomainEvaluationEnvironment& env) const
+      {  return DomainValue((*pfFunctions->multibit_create_cast_multifloat)
+            (deValue, sizeInBits, isSigned, &env), pfFunctions);
+      }
+   DomainValue applyIntegerToFloatingPtr(int sizeInBits, bool isSigned,
+         DomainEvaluationEnvironment& env) const
+      {  return DomainValue((*pfFunctions->multibit_create_cast_multifloat_ptr)
+            (deValue, sizeInBits, isSigned, &env), pfFunctions);
+      }
+
+   void applyAssign(DomainMultiFloatUnaryOperation operation, DomainEvaluationEnvironment& env)
+      {  bool result = (*pfFunctions->multifloat_unary_apply_assign)(&deValue, operation, &env);
+         AssumeCondition(result)
+      }
+   void applyAssign(DomainMultiFloatBinaryOperation operation, const DomainValue& source,
+         DomainEvaluationEnvironment& env)
+      {  bool result = (*pfFunctions->multifloat_binary_apply_assign)(&deValue, operation, source.deValue, &env);
+         AssumeCondition(result)
+      }
+   DomainValue applyCompare(DomainMultiFloatCompareOperation operation, const DomainValue& source,
+         DomainEvaluationEnvironment& env) const
+      {  return DomainValue((*pfFunctions->multifloat_binary_compare_domain)
+            (deValue, operation, source.deValue, &env), pfFunctions);
+      }
+   DomainValue applyFloatingToInteger(int sizeInBits, DomainEvaluationEnvironment& env) const
+      {  return DomainValue((*pfFunctions->multifloat_create_cast_multibit)
+            (deValue, sizeInBits, &env), pfFunctions);
+      }
+   void applyFloatingToFloating(int sizeInBits, DomainEvaluationEnvironment& env)
+      {  bool result = (*pfFunctions->multifloat_cast_multifloat_assign)
+               (&deValue, sizeInBits, &env);
+         AssumeCondition(result)
+      }
+
+   void mergeWith(const DomainValue& source, DomainEvaluationEnvironment& env)
+      {  bool result = (*pfFunctions->merge)(&deValue, source.deValue, &env);
+         AssumeCondition(result)
+      }
+   void intersectWith(const DomainValue& source, DomainEvaluationEnvironment& env)
+      {  bool result = (*pfFunctions->intersect)(&deValue, source.deValue, &env);
+         AssumeCondition(result)
+      }
+
    void clear()
       {  if (deValue.content)
          {  AssumeCondition(pfFunctions)

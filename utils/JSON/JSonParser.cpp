@@ -886,6 +886,128 @@ BasicParser::parseDocument(GenericLexer::Token token, unsigned line, unsigned co
 /* Implementation of the class CommonParser */
 /********************************************/
 
+void
+CommonParser::Arguments::convertIntValue(Event newEvent) {
+   if (eEvent == newEvent)
+      return;
+   switch (eEvent) {
+      case ESetBool:
+         if (newEvent == ESetInt)
+            uValue.valAsInt = uValue.valAsBool;
+         else if (newEvent == ESetUInt)
+            uValue.valAsUnsigned = uValue.valAsBool;
+         else if (newEvent == ESetLInt)
+            uValue.valAsLong = uValue.valAsBool;
+         else if (newEvent == ESetLUInt)
+            uValue.valAsUnsignedLong = uValue.valAsBool;
+         break;
+      case ESetInt:
+         if (newEvent == ESetBool)
+            uValue.valAsBool = uValue.valAsInt;
+         else if (newEvent == ESetUInt)
+            uValue.valAsUnsigned = uValue.valAsInt;
+         else if (newEvent == ESetLInt)
+            uValue.valAsLong = uValue.valAsInt;
+         else if (newEvent == ESetLUInt)
+            uValue.valAsUnsignedLong = uValue.valAsInt;
+         break;
+      case ESetUInt:
+         if (newEvent == ESetBool)
+            uValue.valAsBool = uValue.valAsUnsigned;
+         else if (newEvent == ESetInt)
+            uValue.valAsInt = uValue.valAsUnsigned;
+         else if (newEvent == ESetLInt)
+            uValue.valAsLong = uValue.valAsUnsigned;
+         else if (newEvent == ESetLUInt)
+            uValue.valAsUnsignedLong = uValue.valAsUnsigned;
+         break;
+      case ESetLInt:
+         if (newEvent == ESetBool)
+            uValue.valAsBool = uValue.valAsLong;
+         else if (newEvent == ESetInt)
+            uValue.valAsInt = uValue.valAsLong;
+         else if (newEvent == ESetUInt)
+            uValue.valAsUnsigned = uValue.valAsLong;
+         else if (newEvent == ESetLUInt)
+            uValue.valAsUnsignedLong = uValue.valAsLong;
+         break;
+      case ESetLUInt:
+         if (newEvent == ESetBool)
+            uValue.valAsBool = uValue.valAsUnsignedLong;
+         if (newEvent == ESetInt)
+            uValue.valAsInt = uValue.valAsUnsignedLong;
+         else if (newEvent == ESetUInt)
+            uValue.valAsUnsigned = uValue.valAsUnsignedLong;
+         else if (newEvent == ESetLInt)
+            uValue.valAsLong = uValue.valAsUnsignedLong;
+         break;
+      default:
+         break;
+
+   };
+   eEvent = newEvent;
+   fOldToken = true;
+}
+
+STG::Lexer::Base::ReadResult
+CommonParser::Arguments::convertReaderToInt(Event newEvent) {
+   AssumeCondition((newEvent >= ESetInt && newEvent <= ESetNull) || newEvent == ESetBool);
+   if (newEvent == eEvent)
+      return RRContinue;
+   if ((eEvent >= ESetInt && eEvent <= ESetNull) || eEvent == ESetBool) {
+      convertIntValue(newEvent);
+      return RRContinue;
+   }
+   if (eEvent != ESetNumeric) {
+      addErrorMessage(STG::SString("int value expected"));
+      setIntValue(0);
+      convertIntValue(newEvent);
+      return RRContinue;
+   }
+   GenericLexer::NumberToken res;
+   auto result = lcrReader.readNumericContentToken(*pssAdditionalContent, res, *puLine, *puColumn, fDoesForce);
+   if (result == RRNeedChars)
+      return result;
+   fContinuedToken = false;
+   if (res.isFloat()) {
+      addErrorMessage(STG::SString("int value expected (not float)"));
+      setIntValue((int) res.getContent().queryFloat());
+      convertIntValue(newEvent);
+   }
+   else {
+      if (res.getContent().compareI("false") == CREqual)
+         setBoolValue(false);
+      else if (res.getContent().compareI("true") == CREqual)
+         setBoolValue(true);
+      else {
+         if (res.getContent().compareI("0x", 2) == CREqual) {
+            SubString val(res.getContent());
+            val.advance(2);
+            if (newEvent == ESetLUInt)
+               setLUIntValue(res.getContent().queryHexaULInteger());
+            else if (newEvent == ESetLInt)
+               setLIntValue(res.getContent().queryHexaLInteger());
+            else if (newEvent == ESetLInt)
+               setUIntValue(res.getContent().queryHexaLInteger());
+            else
+               setIntValue(res.getContent().queryHexaInteger());
+         }
+         else {
+            if (newEvent == ESetLUInt)
+               setLUIntValue(res.getContent().queryULInteger());
+            else if (newEvent == ESetLInt)
+               setLIntValue(res.getContent().queryLInteger());
+            else if (newEvent == ESetLInt)
+               setUIntValue(res.getContent().queryLInteger());
+            else
+               setIntValue(res.getContent().queryInteger());
+         };
+      };
+      convertIntValue(newEvent);
+   }
+   return result;
+}
+
 CommonParser::ReadResult
 CommonParser::parseChunkUntil(SubString& subString, const LessCondition& condition,
       unsigned& line, unsigned& column, bool doesForce) {

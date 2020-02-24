@@ -141,7 +141,8 @@ class Contract : public PNT::SharedElement, public STG::IOObject, public STG::Le
 
    bool isInitial() const;
    bool isFinal() const;
-   void applyTo(MemoryState& memoryState);
+   void applyTo(MemoryState& memoryState, struct _Processor* processor,
+         struct _ProcessorFunctions* processorFunctions);
 
    const uint64_t& getAddress() const { return uAddress; }
 };
@@ -167,7 +168,8 @@ class ContractGraph : public COL::TCopyCollection<COL::TSortedArray<Contract::Co
   public:
    ContractGraph() {}
    // [TODO] to implement
-   void loadFromFile(const char* filename, struct _Processor* processor) {}
+   void loadFromFile(const char* filename, struct _Processor* processor,
+         struct _ProcessorFunctions* processoFunctions) {}
    const ContractPointer& getInitial() const { return cpInitial; }
    const ContractPointer& getFinal() const { return cpFinal; }
 };

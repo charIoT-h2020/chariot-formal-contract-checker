@@ -676,43 +676,13 @@ class CommonParser : public BasicParser {
             }
             return RRContinue;
          }
-      ReadResult setArgumentToInt() { return convertReaderToInt(); }
-      ReadResult setArgumentToLUInt() { return convertReaderToInt(); }
+      ReadResult setArgumentToInt() { return convertReaderToInt(ESetInt); }
+      ReadResult setArgumentToLUInt() { return convertReaderToInt(ESetLUInt); }
+      ReadResult setArgumentToBool() { return convertReaderToInt(ESetBool); }
 
       const GenericLexer::ContentReader& getContentReader() const { return lcrReader; }
       SubString& getAdditionalContent() const { AssumeCondition(pssAdditionalContent) return *pssAdditionalContent; }
-      ReadResult convertReaderToInt()
-         {  if ((eEvent >= ESetInt && eEvent <= ESetNull) || eEvent == ESetBool) {
-               if (eEvent == ESetUInt)
-                  setIntValue(valueAsUInt());
-               else if (eEvent == ESetLInt)
-                  setIntValue(valueAsLInt());
-               else if (eEvent == ESetLUInt)
-                  setIntValue(valueAsLUInt());
-               else if (eEvent == ESetNull)
-                  setIntValue(0);
-               else if (eEvent == ESetBool)
-                  setIntValue(valueAsBool());
-               return RRContinue;
-            }
-            if (eEvent != ESetNumeric) {
-               addErrorMessage(STG::SString("int value expected"));
-               setIntValue(0);
-               return RRContinue;
-            }
-            GenericLexer::NumberToken res;
-            auto result = lcrReader.readNumericContentToken(*pssAdditionalContent, res, *puLine, *puColumn, fDoesForce);
-            if (result == RRNeedChars)
-               return result;
-            fContinuedToken = false;
-            if (res.isFloat()) {
-               addErrorMessage(STG::SString("int value expected (not float)"));
-               setIntValue((int) res.getContent().queryFloat());
-            }
-            else
-               setIntValue(res.getContent().queryInteger());
-            return result;
-         }
+      ReadResult convertReaderToInt(Event newEvent);
       ReadResult convertReaderToString(bool isValue=true)
          {  if (!lcrReader.isValid())
                return RRContinue;
@@ -806,6 +776,7 @@ class CommonParser : public BasicParser {
          {  setOpenEvent(ESetNumeric, reader, additionalContent); }
       void continueNumericValue(const GenericLexer::ContentReader& reader, SubString& additionalContent)
          {  continueEvent(ESetNumeric, reader, additionalContent); }
+      void convertIntValue(Event newEvent);
       void setIntValue(int value) { eEvent = ESetInt; uValue.valAsInt = value; fOldToken = true; }
       void setUIntValue(unsigned value) { eEvent = ESetUInt; uValue.valAsUnsigned = value; fOldToken = true; }
       void setLIntValue(int64_t value) {  eEvent = ESetLInt; uValue.valAsLong = value; fOldToken = true; }

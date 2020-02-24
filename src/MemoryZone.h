@@ -15,7 +15,7 @@ class MemoryZonePool : public PNT::SharedElement {
 
 };
 
-class MemoryZone : public STG::IOObject {
+class MemoryZone : public PNT::SharedElement, public STG::IOObject {
   private:
    class MemoryZonePoolPointer : public PNT::TSharedPointer<MemoryZonePool> {
      private:
@@ -48,6 +48,7 @@ class MemoryZone : public STG::IOObject {
          eLength(std::move(length)), ssName(name) {}
    MemoryZone(const MemoryZone& source) = default;
    DefineCopy(MemoryZone)
+   StaticInheritConversions(MemoryZone, PNT::SharedElement)
 
    virtual bool isValid() const override { return uZoneId > 0; }
    const int& getId() const { return uZoneId; }

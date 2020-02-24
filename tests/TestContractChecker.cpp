@@ -3,7 +3,6 @@
 #include <cstring>
 #include <cassert>
 #include <vector>
-#include "contract_checker.h"
 
 class ProcessArgument {
   private:
@@ -122,24 +121,24 @@ ProcessArgument::process(char** argument, int& currentArgument) {
    return true;
 }
 
-class ContractCoverage;
-class Warnings;
+class AContractCoverage;
+class AWarnings;
 
-class ContractReference {
+class AContractReference {
   private:
    struct _ContractContent* pvContent;
 
   public:
-   ContractReference() : pvContent(nullptr) {}
-   ContractReference(struct _ContractContent* content) : pvContent(content) {}
+   AContractReference() : pvContent(nullptr) {}
+   AContractReference(struct _ContractContent* content) : pvContent(content) {}
 
    struct _ContractContent* getContent() const { return pvContent; }
    bool isValid() const { return pvContent; }
 };
 
-class Processor {
+class AProcessor {
   private:
-   struct _Processor* pvContent;
+   struct _PProcessor* pvContent;
 
    static uint64_t* reallocAddresses(uint64_t* old_addresses, int old_size,
          int* new_size, void* address_container)
@@ -155,14 +154,14 @@ class Processor {
       }
 
   public:
-   Processor(const char* architectureLibrary, const char* domainLibrary)
+   AProcessor(const char* architectureLibrary, const char* domainLibrary)
       :  pvContent(create_processor(architectureLibrary, domainLibrary)) {}
-   ~Processor() { if (pvContent) { free_processor(pvContent); pvContent = nullptr; } }
+   ~AProcessor() { if (pvContent) { free_processor(pvContent); pvContent = nullptr; } }
 
-   struct _Processor* getContent() const { return pvContent; }
+   struct _PProcessor* getContent() const { return pvContent; }
    bool loadCode(const char* filename)
       {  return processor_load_code(pvContent, filename); }
-   std::vector<uint64_t> getTargets(uint64_t address, const ContractReference& contract) const
+   std::vector<uint64_t> getTargets(uint64_t address, const AContractReference& contract) const
       {  std::vector<uint64_t> result;
          result.push_back(0);
          result.push_back(0);
@@ -179,17 +178,17 @@ class Processor {
       }
 
    bool checkBlock(uint64_t address, uint64_t target, struct _ContractContent* firstContract,
-         struct _ContractContent* lastContract, const ContractCoverage* coverage, Warnings& warnings);
+         struct _ContractContent* lastContract, const AContractCoverage* coverage, AWarnings& warnings);
 };
 
-class Contracts {
+class AContracts {
   private:
    struct _ContractGraphContent* pvContent = nullptr;
 
   public:
-   Contracts() = default;
-   ~Contracts() { if (pvContent) { free_contracts(pvContent); pvContent = nullptr; } }
-   bool loadFromFile(const char* filename, const Processor& processor)
+   AContracts() = default;
+   ~AContracts() { if (pvContent) { free_contracts(pvContent); pvContent = nullptr; } }
+   bool loadFromFile(const char* filename, const AProcessor& processor)
       {  assert(!pvContent);
          pvContent = load_contracts(filename, processor.getContent());
          return pvContent;
@@ -201,7 +200,7 @@ class Contracts {
       struct _ContractCursorContent* pvContent;
 
      public:
-      Cursor(Contracts& reference) : pvContent(contract_cursor_new(reference.pvContent)) {}
+      Cursor(AContracts& reference) : pvContent(contract_cursor_new(reference.pvContent)) {}
       Cursor(const Cursor& source) : pvContent(contract_cursor_clone(source.pvContent)) {}
       ~Cursor() { if (pvContent) { contract_cursor_free(pvContent); pvContent = nullptr; } }
 
@@ -213,18 +212,18 @@ class Contracts {
       bool setAfterAddress(uint64_t address)
          {  return contract_cursor_set_address(pvContent, address, CCLPostCondition); }
       uint64_t getAddress() const { return contract_cursor_get_address(pvContent); }
-      ContractReference getContract() const
-         {  return ContractReference(contract_cursor_get_contract(pvContent)); }
+      AContractReference getContract() const
+         {  return AContractReference(contract_cursor_get_contract(pvContent)); }
    };
 };
 
-class Contract {
+class AContract {
   private:
    struct _ContractContent* pvContent = nullptr;
 
   public:
-   Contract() = default;
-   ~Contract() { if (pvContent) { free_contract(pvContent); pvContent = nullptr; } }
+   AContract() = default;
+   ~AContract() { if (pvContent) { free_contract(pvContent); pvContent = nullptr; } }
    bool loadFromFile(const char* filename)
       {  assert(!pvContent);
          pvContent = create_contract(filename);
@@ -234,34 +233,34 @@ class Contract {
    struct _ContractContent* getContent() const { return pvContent; }
 };
 
-class ContractCoverage {
+class AContractCoverage {
   private:
    struct _ContractCoverageContent* pvContent;
 
   public:
-   ContractCoverage(const Contracts& reference)
+   AContractCoverage(const AContracts& reference)
       :  pvContent(create_empty_coverage(reference.getContent())) {}
-   ~ContractCoverage() { if (pvContent) { free_coverage(pvContent); pvContent = nullptr; } }
+   ~AContractCoverage() { if (pvContent) { free_coverage(pvContent); pvContent = nullptr; } }
 
    bool isComplete(struct _ContractContent* firstContract, struct _ContractContent* lastContract) const
       {  return is_coverage_complete(pvContent, firstContract, lastContract); }
    struct _ContractCoverageContent* getContent() const { return pvContent; }
 };
 
-class Warnings {
+class AWarnings {
   private:
    struct _WarningsContent* pvContent;
 
   public:
-   Warnings() : pvContent(create_warnings()) {}
-   ~Warnings() { if (pvContent) { free_warnings(pvContent); pvContent = nullptr; } }
+   AWarnings() : pvContent(create_warnings()) {}
+   ~AWarnings() { if (pvContent) { free_warnings(pvContent); pvContent = nullptr; } }
 
    struct _WarningsContent* getContent() const { return pvContent; }
 };
 
 inline bool
-Processor::checkBlock(uint64_t address, uint64_t target, struct _ContractContent* firstContract,
-      struct _ContractContent* lastContract, const ContractCoverage* coverage, Warnings& warnings)
+AProcessor::checkBlock(uint64_t address, uint64_t target, struct _ContractContent* firstContract,
+      struct _ContractContent* lastContract, const AContractCoverage* coverage, AWarnings& warnings)
 {  return processor_check_block(pvContent, address, target, firstContract, lastContract,
       coverage ? coverage->getContent() : nullptr, warnings.getContent());
 }
@@ -278,22 +277,22 @@ int main(int argc, char** argv) {
       return 0;
    };
 
-   Processor processor(processArgument.hasArch() ? processArgument.getArch() : "armsec_decoder.so",
+   AProcessor processor(processArgument.hasArch() ? processArgument.getArch() : "armsec_decoder.so",
          processArgument.hasDomain() ? processArgument.getDomain() : "libScalarInterface.so");
 
-   Contracts contracts;
+   AContracts contracts;
    if (!contracts.loadFromFile(processArgument.getMemoryFile(), processor)) {
       std::cout << "unable to load contracts from file " << processArgument.getMemoryFile() << std::endl;
       return 0;
    }
-   Contracts::Cursor cursor(contracts);
-   ContractCoverage coverage(contracts);
+   AContracts::Cursor cursor(contracts);
+   AContractCoverage coverage(contracts);
    if (!processor.loadCode(processArgument.getInputFile())) {
       std::cout << "unable to load code from file " << processArgument.getInputFile() << std::endl;
       return 0;
    }
 
-   ContractReference firstContract, lastContract;
+   AContractReference firstContract, lastContract;
 
    while (cursor.setToNext()) {
       auto address = cursor.getAddress();
@@ -305,10 +304,10 @@ int main(int argc, char** argv) {
       }
       auto targets = processor.getTargets(address, cursor.getContract());
       for (const auto& target : targets) {
-         Contracts::Cursor lastCursor(cursor);
+         AContracts::Cursor lastCursor(cursor);
          lastCursor.setAfterAddress(target);
          assert(lastCursor.getAddress() == target);
-         Warnings warnings;
+         AWarnings warnings;
          if (!processor.checkBlock(address, target, cursor.getContract().getContent(),
                   lastCursor.getContract().getContent(), &coverage, warnings)) {
             // for (const auto& warning : warnings)
@@ -332,7 +331,7 @@ int main(int argc, char** argv) {
    std::cout << std::endl;
 
    if (processArgument.hasProperty()) {
-      Contract contract;
+      AContract contract;
       if (!contract.loadFromFile(processArgument.getProperty())) {
          std::cout << "unable to load the property from file " << processArgument.getProperty() << std::endl;
          return 0;
@@ -342,7 +341,7 @@ int main(int argc, char** argv) {
       else
          std::cout << "incomplete contract verification";
       cursor.setBeforeAddress(contract.getAddress());
-      Warnings warnings;
+      AWarnings warnings;
       if (!processor.checkBlock(cursor.getAddress(), contract.getAddress(),
                cursor.getContract().getContent(), contract.getContent(), nullptr, warnings)) {
          // for (const auto& warning : warnings)

@@ -166,21 +166,58 @@ class Processor;
 class VirtualAddressConstraint;
 class MemoryState : public STG::IOObject {
   private:
+   class DomainValueZone : public DomainValue {
+     private:
+      PNT::TSharedPointer<MemoryZone> spmzZone;
+
+     protected:
+      virtual ComparisonResult _compare(const EnhancedObject& asource) const
+         {  ComparisonResult result = CREqual;
+            const DomainValueZone& source = static_cast<const DomainValueZone&>(castFromCopyHandler(asource));
+            if (spmzZone.key() == source.spmzZone.key())
+               result = DomainValue::_compare(source);
+            else if (!spmzZone.key())
+               result = CRLess;
+            else if (!source.spmzZone.key())
+               result = CREqual;
+            else
+               result = fcompare(spmzZone->getId(), source.spmzZone->getId());
+            return result;
+         }
+
+     public:
+      DomainValueZone(DomainValue&& value, const PNT::TSharedPointer<MemoryZone>& zone)
+         :  DomainValue(value), spmzZone(zone) {}
+      DomainValueZone(DomainValueZone&& source) = default;
+      DomainValueZone(const DomainValueZone& source) = default;
+      DomainValueZone& operator=(DomainValueZone&& source) = default;
+      DomainValueZone& operator=(const DomainValueZone& source) = default;
+
+      const PNT::TSharedPointer<MemoryZone>& getZone() const { return spmzZone; }
+      void setFrom(DomainValue&& value, const PNT::TSharedPointer<MemoryZone>& zone)
+         {  DomainValue::operator=(std::move(value)); spmzZone = zone; }
+   };
    class RegisterValue : public COL::GenericAVL::Node {
      private:
       typedef COL::GenericAVL::Node inherited;
       int uRegister;
-      DomainValue dvValue;
+      DomainValueZone dvzValue;
 
      public:
-      RegisterValue(int aregister, DomainValue&& value)
-         :  uRegister(aregister), dvValue(std::move(value)) {}
+      RegisterValue(int aregister, DomainValue&& value,
+            const PNT::TSharedPointer<MemoryZone>& zone)
+         :  uRegister(aregister), dvzValue(std::move(value), zone) {}
+      RegisterValue(int aregister, DomainValueZone&& value)
+         :  uRegister(aregister), dvzValue(std::move(value)) {}
       RegisterValue(const RegisterValue& source) = default;
       DefineCopy(RegisterValue)
 
       const int& getRegister() const { return uRegister; }
-      void setValue(DomainValue&& value) { dvValue = std::move(value); }
-      const DomainValue& getValue() const { return dvValue; }
+      void setValue(DomainValue&& value, const PNT::TSharedPointer<MemoryZone>& zone)
+         {  dvzValue.setFrom(std::move(value), zone); }
+      void setValue(DomainValueZone&& value)
+         {  dvzValue = std::move(value); }
+      const DomainValue& getValue() const { return dvzValue; }
       class Key {
         public:
          Key(const COL::VirtualCollection&) {}
@@ -190,10 +227,42 @@ class MemoryState : public STG::IOObject {
          static ComparisonResult compare(KeyType fst, KeyType snd) { return fcompare(fst, snd); }
       };
    };
+   class MemoryValue : public COL::GenericAVL::Node {
+     private:
+      typedef COL::GenericAVL::Node inherited;
+      DomainValueZone dvzAddress;
+      DomainValueZone dvzValue;
+
+     public:
+      MemoryValue(DomainValue&& address, const PNT::TSharedPointer<MemoryZone>& zoneAddress,
+            DomainValue&& value, const PNT::TSharedPointer<MemoryZone>& zoneValue)
+         :  dvzAddress(std::move(address), zoneAddress), dvzValue(std::move(value), zoneValue) {}
+      MemoryValue(DomainValueZone&& address, DomainValueZone&& value)
+         :  dvzAddress(std::move(address)), dvzValue(std::move(value)) {}
+      MemoryValue(const MemoryValue& source) = default;
+      DefineCopy(MemoryValue)
+
+      const DomainValueZone& getAddress() const { return dvzAddress; }
+      void setValue(DomainValue&& value, const PNT::TSharedPointer<MemoryZone>& zone)
+         {  dvzValue.setFrom(std::move(value), zone); }
+      void setValue(DomainValueZone&& value)
+         {  dvzValue = std::move(value); }
+      const DomainValueZone& getValue() const { return dvzValue; }
+      class Key {
+        public:
+         Key(const COL::VirtualCollection&) {}
+         typedef const DomainValue& KeyType;
+         typedef DomainValue ControlKeyType;
+         static KeyType key(const MemoryValue& element) { return element.getAddress(); }
+         static ComparisonResult compare(KeyType fst, KeyType snd) { return fst.compare(snd); }
+      };
+   };
 
    int uRegisterNumber = 0;
    typedef COL::TCopyCollection<COL::TSortedAVL<RegisterValue, RegisterValue::Key> > RegisterContent;
+   typedef COL::TCopyCollection<COL::TSortedAVL<MemoryValue, MemoryValue::Key> > MemoryContent;
    RegisterContent rcRegisters;
+   MemoryContent mcMemory;
    struct _DomainElementFunctions* domainFunctions;
    MemoryZones mzMemoryZones;
    PNT::TSharedPointer<ImplicitHypotheses> sphImplicitHypotheses;
@@ -207,13 +276,14 @@ class MemoryState : public STG::IOObject {
       {  MemoryState* memory = reinterpret_cast<MemoryState*>(amemory);
          memory->uRegisterNumber = numbers;
       }
+   // [TODO] augment DomainElement with a zone
    static void set_register_value(MemoryModel* amemory, int registerIndex,
          DomainElement* avalue, InterpretParameters* parameters,
          unsigned* error /* set of MemoryEvaluationErrorFlags */)
       {  MemoryState* memory = reinterpret_cast<MemoryState*>(amemory);
-         DomainValue value(std::move(*avalue), memory->domainFunctions);
          RegisterContent::Cursor cursor(memory->rcRegisters);
          auto locationResult = memory->rcRegisters.locateKey(registerIndex, cursor);
+         DomainValueZone value(DomainValue(std::move(*avalue), memory->domainFunctions), PNT::TSharedPointer<MemoryZone>());
          if (locationResult)
             cursor.elementSAt().setValue(std::move(value));
          else
@@ -241,7 +311,12 @@ class MemoryState : public STG::IOObject {
          unsigned* error, DomainElementFunctions** elementFunctions)
       {  MemoryState* memory = reinterpret_cast<MemoryState*>(amemory);
          DomainValue address((*memory->domainFunctions->clone)(indirect_address), memory->domainFunctions);
-         DomainValue result((*memory->domainFunctions->multibit_create_top)(size, true /* isSymbolic */), memory->domainFunctions);
+         MemoryContent::Cursor cursor(memory->mcMemory);
+         DomainValue result(memory->domainFunctions);
+         if (memory->mcMemory.locateKey(address, cursor, COL::VirtualCollection::RPExact))
+            result = cursor.elementAt().getValue();
+         else
+            result = DomainValue((*memory->domainFunctions->multibit_create_top)(size, true /* isSymbolic */), memory->domainFunctions);
          if (elementFunctions)
             *elementFunctions = memory->domainFunctions;
          return result.extractElement();
@@ -251,7 +326,12 @@ class MemoryState : public STG::IOObject {
          unsigned* error, DomainElementFunctions** elementFunctions)
       {  MemoryState* memory = reinterpret_cast<MemoryState*>(amemory);
          DomainValue address((*memory->domainFunctions->clone)(indirect_address), memory->domainFunctions);
-         DomainValue result((*memory->domainFunctions->multibit_create_top)(size, true /* isSymbolic */), memory->domainFunctions);
+         MemoryContent::Cursor cursor(memory->mcMemory);
+         DomainValue result(memory->domainFunctions);
+         if (memory->mcMemory.locateKey(address, cursor, COL::VirtualCollection::RPExact))
+            result = cursor.elementAt().getValue();
+         else
+            result = DomainValue((*memory->domainFunctions->multibit_create_top)(size, true /* isSymbolic */), memory->domainFunctions);
          if (elementFunctions)
             *elementFunctions = memory->domainFunctions;
          return result.extractElement();
@@ -269,8 +349,15 @@ class MemoryState : public STG::IOObject {
    static void store_value(MemoryModel* amemory, DomainElement indirect_address,
          DomainElement avalue, InterpretParameters* parameters, unsigned* error)
       {  MemoryState* memory = reinterpret_cast<MemoryState*>(amemory);
-         DomainValue value((*memory->domainFunctions->clone)(avalue), memory->domainFunctions);
-         DomainValue address((*memory->domainFunctions->clone)(indirect_address), memory->domainFunctions);
+         DomainValueZone value(DomainValue((*memory->domainFunctions->clone)(avalue), memory->domainFunctions), PNT::TSharedPointer<MemoryZone>());
+         DomainValueZone address(DomainValue((*memory->domainFunctions->clone)(indirect_address), memory->domainFunctions), PNT::TSharedPointer<MemoryZone>());
+         MemoryContent::Cursor cursor(memory->mcMemory);
+         auto localize = memory->mcMemory.locateKey(address, cursor);
+         if (localize)
+            cursor.elementSAt().setValue(std::move(value));
+         else
+            memory->mcMemory.add(new MemoryValue(std::move(address), std::move(value)),
+                  localize.queryInsertionParameters().setFreeOnError(), &cursor);
       }
 
   public:
@@ -278,12 +365,73 @@ class MemoryState : public STG::IOObject {
       :  domainFunctions(adomainFunctions) {}
    MemoryState(const MemoryState&) = default;
 
-   void intersectWith(const VirtualAddressConstraint& contract);
+   DomainValue evaluate(const VirtualExpressionNode& aexpression, struct _Processor* processor,
+         struct _ProcessorFunctions* processorFunctions)
+      {  switch (aexpression.getType()) {
+            case VirtualExpressionNode::TERegisterAccess:
+               {  const auto& expression = static_cast<const RegisterAccessNode&>(aexpression);
+                  int registerIndex = (*processorFunctions->get_register_index)
+                     (processor, expression.getName().getChunk().string);
+                  RegisterContent::Cursor cursor(rcRegisters);
+                  if (rcRegisters.locateKey(registerIndex, cursor, COL::VirtualCollection::RPExact))
+                     return cursor.elementAt().getValue();
+                  return DomainValue(domainFunctions);
+               }
+            case VirtualExpressionNode::TEIndirection:
+               {  const auto& expression = static_cast<const IndirectionNode&>(aexpression);
+                  // [TODO] do it symbolically
+                  DomainValue address = evaluate(expression.getAddress(), processor, processorFunctions);
+                  MemoryContent::Cursor cursor(mcMemory);
+                  if (mcMemory.locateKey(address, cursor, COL::VirtualCollection::RPExact))
+                     return cursor.elementAt().getValue();
+                  return DomainValue(domainFunctions);
+               }
+            case VirtualExpressionNode::TEDomain:
+               {  const auto& expression = static_cast<const DomainNode&>(aexpression);
+                  return expression.getValue();
+               }
+            case VirtualExpressionNode::TEOperation:
+               {  const auto& expression = static_cast<const OperationNode&>(aexpression);
+                  DomainValue first = evaluate(expression.getFirst(), processor, processorFunctions);
+                  DomainValue second = DomainValue(domainFunctions);
+                  if (expression.isBinary())
+                     second = evaluate(expression.getSecond(), processor, processorFunctions);
+                  expression.applyOperation(first, second);
+                  return first;
+               }
+            default:
+               break;
+         };
+         return DomainValue(DomainElement{}, domainFunctions);
+      }
+   MemoryZones& memoryZones() { return mzMemoryZones; }
+   // void intersectWith(const VirtualAddressConstraint& contract);
    MemoryModelFunctions* getFunctions() const { return &functions; }
    void write(std::ostream& out) const { out << "end of memory description\n"; }
    const struct _DomainElementFunctions* getDomainFunctions() const { return domainFunctions; }
    // [TODO] to implement
    bool contain(const MemoryState& source, const MemoryInterpretParameters& parameters) { return true; } 
+   void intersectRegister(int registerIndex, DomainValue&& avalue)
+      {  RegisterContent::Cursor cursor(rcRegisters);
+         auto locationResult = rcRegisters.locateKey(registerIndex, cursor);
+         DomainValueZone value(std::move(avalue), PNT::TSharedPointer<MemoryZone>());
+         if (locationResult)
+            cursor.elementSAt().setValue(std::move(value));
+         else
+            rcRegisters.add(new RegisterValue(registerIndex, std::move(value)),
+                  locationResult.queryInsertionParameters().setFreeOnError(), &cursor);
+      }
+   void intersectMemory(DomainValue&& aaddress, DomainValue&& avalue)
+      {  DomainValueZone value(std::move(avalue), PNT::TSharedPointer<MemoryZone>());
+         DomainValueZone address(std::move(aaddress), PNT::TSharedPointer<MemoryZone>());
+         MemoryContent::Cursor cursor(mcMemory);
+         auto localize = mcMemory.locateKey(address, cursor);
+         if (localize)
+            cursor.elementSAt().setValue(std::move(value));
+         else
+            mcMemory.add(new MemoryValue(std::move(address), std::move(value)),
+                  localize.queryInsertionParameters().setFreeOnError(), &cursor);
+      }
 };
 
 class VirtualAddressConstraint
@@ -321,12 +469,19 @@ class VirtualAddressConstraint
    virtual bool writeToKey(STG::JSon::CommonWriter::State& state,
          STG::JSon::CommonWriter::Arguments& arguments, WriteResult& result) const { return false; }
 
+   const Expression& getConstraint() const { return eConstraint; }
+   DomainValue evaluateInMemory(MemoryState& memoryState, const Expression& expression,
+         struct _Processor* processor, struct _ProcessorFunctions* processorFunctions)
+      {  return memoryState.evaluate(expression.getContent(), processor, processorFunctions); }
+
   public:
    VirtualAddressConstraint() = default;
    VirtualAddressConstraint(const VirtualAddressConstraint&) = default;
    DefineCopy(VirtualAddressConstraint)
    StaticInheritConversions(VirtualAddressConstraint, inherited)
 
+   virtual bool apply(MemoryState& memoryState, uint64_t startAddress,
+         struct _Processor* processor, struct _ProcessorFunctions* processorFunctions) { return true; }
    virtual bool isRegister() const { return false; }
    virtual bool isIndirect() const { return false; }
    ReadResult readJSon(STG::JSon::CommonParser::State& state, STG::JSon::CommonParser::Arguments& arguments);
@@ -347,6 +502,12 @@ class RegisterConstraint : public VirtualAddressConstraint {
    RegisterConstraint() = default;
    RegisterConstraint(const RegisterConstraint&) = default;
 
+   virtual bool apply(MemoryState& memoryState, uint64_t startAddress,
+         struct _Processor* processor, struct _ProcessorFunctions* processorFunctions) override
+      {  memoryState.intersectRegister(uRegisterIndex,
+            evaluateInMemory(memoryState, getConstraint(), processor, processorFunctions));
+         return true;
+      }
    virtual bool isRegister() const override { return true; }
 };
 
@@ -364,6 +525,13 @@ class IndirectAddressConstraint : public VirtualAddressConstraint {
    IndirectAddressConstraint() = default;
    IndirectAddressConstraint(const IndirectAddressConstraint&) = default;
 
+   virtual bool apply(MemoryState& memoryState, uint64_t startAddress,
+         struct _Processor* processor, struct _ProcessorFunctions* processorFunctions) override
+      {  memoryState.intersectMemory(
+            evaluateInMemory(memoryState, eAddress, processor, processorFunctions),
+            evaluateInMemory(memoryState, getConstraint(), processor, processorFunctions));
+         return true;
+      }
    virtual bool isIndirect() const override { return true; }
 };
 
@@ -418,6 +586,12 @@ class MemoryStateConstraint : public COL::TCopyCollection<COL::TArray<VirtualAdd
    MemoryStateConstraint() = default;
    MemoryStateConstraint(const MemoryStateConstraint&) = default;
 
+   void apply(MemoryState& memoryState, uint64_t startAddress, struct _Processor* processor,
+         struct _ProcessorFunctions* processorFunctions)
+      {  Cursor cursor(*this);
+         while (cursor.setToNext())
+            cursor.elementSAt().apply(memoryState, startAddress, processor, processorFunctions);
+      }
    ReadResult readJSon(STG::JSon::CommonParser::State& state, STG::JSon::CommonParser::Arguments& arguments);
    WriteResult writeJSon(STG::JSon::CommonWriter::State& state, STG::JSon::CommonWriter::Arguments& arguments) const;
 };
