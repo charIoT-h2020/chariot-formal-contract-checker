@@ -77,6 +77,7 @@ LNext:
             }
             else
                continue;
+            if (!arguments.setToNextToken(result)) return result;
          }
          state.point() = DAfterBegin;
          if (!arguments.setToNextToken(result)) return result;
@@ -115,6 +116,7 @@ LPrevious:
             }
             else
                continue;
+            if (!arguments.setToNextToken(result)) return result;
          }
          state.point() = DAfterBegin;
          if (!arguments.setToNextToken(result)) return result;
@@ -234,17 +236,15 @@ LZones:
       if (arguments.isAddKey()
             && ((result = arguments.setArgumentKey()), arguments.key() == "constraints")) {
          if (result == RRNeedChars) return result;
-         {  const auto& ruleResult = state.getResult((ReadRuleResult*) nullptr);
+         {  MemoryStateConstraint::ReadRuleResult ruleResult = state.getResult((ReadRuleResult*) nullptr);
             state.point() = DConstraints;
             arguments.shiftState(state, scMemoryConstraints, &MemoryStateConstraint::readJSon,
                   (MemoryStateConstraint::ReadRuleResult*) nullptr);
             state.getSResult((MemoryStateConstraint::ReadRuleResult*) nullptr)
-               = MemoryStateConstraint::ReadRuleResult(ruleResult);
+                  = std::move(ruleResult);
          }
          if (!arguments.setToNextToken(result)) return result;
          if (!arguments.parseTokens(state, result)) return result;
-         state.point() = DConstraints;
-         if (!arguments.setToNextToken(result)) return result;
 LConstraints:
          state.point() = DAfterBegin;
          if (!arguments.setToNextToken(result)) return result;
@@ -424,12 +424,12 @@ LZones:
 
 LConstraints:
    arguments.setAddKey(STG::SString("constraints"));
-   {  const auto& ruleResult = state.getResult((WriteRuleResult*) nullptr);
+   {  MemoryStateConstraint::WriteRuleResult ruleResult = state.getResult((WriteRuleResult*) nullptr);
       ++state.point();
       arguments.shiftState(state, scMemoryConstraints, &MemoryStateConstraint::writeJSon,
             (MemoryStateConstraint::WriteRuleResult*) nullptr);
       state.getSResult((MemoryStateConstraint::WriteRuleResult*) nullptr)
-         = MemoryStateConstraint::WriteRuleResult(ruleResult);
+         = std::move(ruleResult);
    }
    if (!arguments.writeEvent(result)) return result;
    if (!arguments.writeTokens(state, result)) return result;
@@ -491,7 +491,7 @@ LBegin:
 
 LContracts:
    while (!arguments.isCloseObject()) {
-      while (arguments.isOpen()) {
+      while (arguments.isOpenObject()) {
          if (!Parser::skipNodeInLoop(state, arguments, result) || result == RRNeedChars) return result;
          if (!arguments.setToNextToken(result)) return result;
       };
@@ -513,14 +513,19 @@ LContractsContent:
             if (arguments.isOpenObject()) {
                ++state.point();
                {  auto& ruleResult = state.getSResult((ReadRuleResult*) nullptr);
-                  insertNewAtEnd(new ContractPointer(new Contract(), PNT::Pointer::Init()));
-                  arguments.shiftState(state, *getSLast(), &Contract::readJSon,
+                  ruleResult.currentContract.absorbElement(new Contract());
+                  Contract::ReadRuleResult subruleResult(*ruleResult.idMap, *ruleResult.pendingIds,
+                           ruleResult);
+                  arguments.shiftState(state, *ruleResult.currentContract, &Contract::readJSon,
                         (Contract::ReadRuleResult*) nullptr);
-                  state.setResult(Contract::ReadRuleResult(ruleResult.idMap, ruleResult.pendingIds, ruleResult));
+                  state.setResult(std::move(subruleResult));
                }
-               if (!arguments.setToNextToken(result)) return result;
                if (!arguments.parseTokens(state, result)) return result;
 LContract:
+               {  auto& ruleResult = state.getSResult((ReadRuleResult*) nullptr);
+                  insertNewAtEnd(new ContractPointer(ruleResult.currentContract.extractElement(),
+                           PNT::Pointer::Init()));
+               }
                state.point() = DContractsContent;
             };
             if (!arguments.setToNextToken(result)) return result;
@@ -570,10 +575,11 @@ LWriteContract:
    cursor = &*state.getSResult((WriteRuleResult*) nullptr).cursor;
    while (cursor->setToNext()) {
       ++state.point();
-      {  const auto& ruleResult = state.getSResult((WriteRuleResult*) nullptr);
+      {  Contract::WriteRuleResult ruleResult;
+         ruleResult.setFrom(state.getResult((WriteRuleResult*) nullptr));
          arguments.shiftState(state, *cursor->elementSAt(), &Contract::writeJSon,
                (Contract::WriteRuleResult*) nullptr);
-         state.getSResult((Contract::WriteRuleResult*) nullptr).setFrom(ruleResult);
+         state.getSResult((Contract::WriteRuleResult*) nullptr) = std::move(ruleResult);
       }
       if (!arguments.writeEvent(result)) return result;
       if (!arguments.writeTokens(state, result)) return result;

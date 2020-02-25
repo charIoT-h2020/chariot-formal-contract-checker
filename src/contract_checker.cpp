@@ -75,11 +75,12 @@ bool processor_check_block(struct _PProcessor* aprocessor, uint64_t address,
 }
 
 struct _ContractGraphContent* load_contracts(const char* inputFilename,
-      struct _PProcessor* aprocessor)
+      struct _PProcessor* aprocessor, struct _WarningsContent* awarnings)
 {  Processor& processor = *reinterpret_cast<Processor*>(aprocessor);
    std::unique_ptr<ContractGraph> result(new ContractGraph());
+   Warnings& warnings = *reinterpret_cast<Warnings*>(awarnings);
    result->loadFromFile(inputFilename, processor.getDomainFunctions(),
-         processor.getContent(), &processor.getArchitectureFunctions());
+         processor.getContent(), &processor.getArchitectureFunctions(), warnings);
    return reinterpret_cast<struct _ContractGraphContent*>(result.release());
 }
 
@@ -145,7 +146,7 @@ contract_cursor_free(struct _ContractCursorContent* agraphCursor)
 struct _ContractContent*
 contract_cursor_get_contract(struct _ContractCursorContent* agraphCursor)
 {  ContractGraph::Cursor& graphCursor = *reinterpret_cast<ContractGraph::Cursor*>(agraphCursor);
-   return reinterpret_cast<struct _ContractContent*>(&graphCursor.elementSAt());
+   return reinterpret_cast<struct _ContractContent*>(&*graphCursor.elementSAt());
 }
 
 struct _ContractContent*
@@ -185,8 +186,31 @@ create_warnings()
 {  return reinterpret_cast<struct _WarningsContent*>(new Warnings()); }
 
 void
-free_warnings(struct _WarningsContent* coverage)
-{  delete reinterpret_cast<Warnings*>(coverage); }
+free_warnings(struct _WarningsContent* warnings)
+{  delete reinterpret_cast<Warnings*>(warnings); }
+
+struct _WarningCursorContent*
+warning_create_cursor(struct _WarningsContent* awarnings) {
+   auto& warnings = *reinterpret_cast<Warnings*>(awarnings);
+   return reinterpret_cast<struct _WarningCursorContent*>(new Warnings::Cursor(warnings));
+}
+
+void
+warning_free_cursor(struct _WarningCursorContent* warning_cursor)
+{  delete reinterpret_cast<Warnings::Cursor*>(warning_cursor); }
+
+bool
+warning_set_to_next(struct _WarningCursorContent* warning_cursor)
+{  return reinterpret_cast<Warnings::Cursor*>(warning_cursor)->setToNext(); }
+
+void
+warning_retrieve_message(struct _WarningCursorContent* warning_cursor, struct _Warning* warning)
+{  const auto& error = reinterpret_cast<Warnings::Cursor*>(warning_cursor)->elementAt();
+   warning->filepos = error.filepos().getChunk().string;
+   warning->linepos = error.linepos();
+   warning->columnpos = error.columnpos();
+   warning->message = error.getMessage().getChunk().string;
+}
 
 bool
 is_coverage_complete(struct _ContractCoverageContent* acoverage,

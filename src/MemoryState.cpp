@@ -322,9 +322,10 @@ LIdentifyContent:
                state.point() = DMemoryConstraint;
                const auto& ruleResult = state.getResult((ReadRuleResult*) nullptr);
                insertNewAtEnd(newAddressConstraint(ruleResult.type).extractElement());
+               VirtualAddressConstraint::ReadRuleResult subruleResult(ruleResult);
                arguments.shiftState(state, getSLast(), &VirtualAddressConstraint::readJSon,
-                     (VirtualAddressConstraint::RuleResult*) nullptr);
-               state.setResult(VirtualAddressConstraint::ReadRuleResult(ruleResult));
+                     (VirtualAddressConstraint::ReadRuleResult*) nullptr);
+               state.setResult(std::move(subruleResult));
                if (!arguments.setToNextToken(result)) return result;
                if (!arguments.parseTokens(state, result)) return result;
             }

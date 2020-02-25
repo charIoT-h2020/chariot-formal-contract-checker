@@ -64,6 +64,7 @@ typedef struct _ProcessorFunctions {
 
    struct _Processor* (*create_processor)();
    void (*set_domain_functions)(struct _Processor* processor, struct _DomainElementFunctions* functionTable);
+   struct _DomainElementFunctions* (*get_domain_functions)(struct _Processor* processor);
    void (*initialize_memory)(struct _Processor* processor, MemoryModel* memory,
          MemoryModelFunctions* memory_functions, InterpretParameters* parameters);
    void (*free_processor)(struct _Processor* processor);

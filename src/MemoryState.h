@@ -174,12 +174,12 @@ class MemoryState : public STG::IOObject {
       virtual ComparisonResult _compare(const EnhancedObject& asource) const
          {  ComparisonResult result = CREqual;
             const DomainValueZone& source = static_cast<const DomainValueZone&>(castFromCopyHandler(asource));
-            if (spmzZone.key() == source.spmzZone.key())
+            if (!spmzZone.isValid())
+               result = !source.spmzZone.isValid() ? CREqual : CRLess;
+            else if (!source.spmzZone.isValid())
+               result = CRGreater;
+            else if (spmzZone.key() == source.spmzZone.key())
                result = DomainValue::_compare(source);
-            else if (!spmzZone.key())
-               result = CRLess;
-            else if (!source.spmzZone.key())
-               result = CREqual;
             else
                result = fcompare(spmzZone->getId(), source.spmzZone->getId());
             return result;
@@ -569,8 +569,10 @@ class MemoryStateConstraint : public COL::TCopyCollection<COL::TArray<VirtualAdd
          switch (type) {
             case TCRegister:
                result.absorbElement(new RegisterConstraint());
+               break;
             case TCIndirect:
                result.absorbElement(new IndirectAddressConstraint());
+               break;
             default:
                break;
          }

@@ -646,9 +646,10 @@ LIdentifyContent:
                state.point() = DMemoryZone;
                const auto& ruleResult = state.getResult((ReadRuleResult*) nullptr);
                azaActions.insertNewAtEnd(newZoneAction(ruleResult.type).extractElement());
+               MemoryZoneAction::RuleResult subruleResult(ruleResult.functions);
                arguments.shiftState(state, azaActions.getSLast(), &MemoryZoneAction::readJSon,
                      (MemoryZoneAction::RuleResult*) nullptr);
-               state.setResult(MemoryZoneAction::RuleResult(ruleResult.functions));
+               state.setResult(std::move(subruleResult));
                if (!arguments.setToNextToken(result)) return result;
                if (!arguments.parseTokens(state, result)) return result;
             }

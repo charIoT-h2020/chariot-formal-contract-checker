@@ -1,0 +1,5 @@
+arm-none-eabi-gcc -O0 -g -static -march=armv7-a -mthumb --specs=nosys.specs example.c example_api.c -o example.out
+arm-none-eabi-objdump -D -marm -Mforce-thumb example.out
+arm-none-eabi-objdump -D -b binary -marm -Mforce-thumb modbus.nobug.bin
+
+

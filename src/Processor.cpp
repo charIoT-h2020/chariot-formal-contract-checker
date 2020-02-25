@@ -4,17 +4,22 @@ void
 Processor::setFromFile(const char* filename) {
    AssumeCondition(!pvContent)
    dlProcessorLibrary.setFromFile(filename);
+   dlProcessorLibrary.loadSymbol("create_processor", &architectureFunctions.create_processor);
    dlProcessorLibrary.loadSymbol("set_domain_functions", &architectureFunctions.set_domain_functions);
+   dlProcessorLibrary.loadSymbol("get_domain_functions", &architectureFunctions.get_domain_functions);
    dlProcessorLibrary.loadSymbol("initialize_memory", &architectureFunctions.initialize_memory);
    dlProcessorLibrary.loadSymbol("free_processor", &architectureFunctions.free_processor);
    dlProcessorLibrary.loadSymbol("processor_get_register_index", &architectureFunctions.get_register_index);
    dlProcessorLibrary.loadSymbol("processor_get_register_name", &architectureFunctions.get_register_name);
    dlProcessorLibrary.loadSymbol("processor_next_targets", &architectureFunctions.processor_next_targets);
    dlProcessorLibrary.loadSymbol("processor_interpret", &architectureFunctions.processor_interpret);
+   pvContent = (*architectureFunctions.create_processor)();
 }
 
 void
 Processor::setDomainFunctionsFromFile(const char* domainFilename) {
+   AssumeCondition(pvContent)
+   struct _DomainElementFunctions domainFunctions;
    dlDomainLibrary.setFromFile(domainFilename);
    dlDomainLibrary.loadSymbol("domain_get_type", &domainFunctions.get_type);
    dlDomainLibrary.loadSymbol("domain_query_zero_result", &domainFunctions.query_zero_result);
@@ -108,6 +113,7 @@ Processor::setDomainFunctionsFromFile(const char* domainFilename) {
    dlDomainLibrary.loadSymbol("domain_create_disjunction_and_absorb", &domainFunctions.create_disjunction_and_absorb);
    dlDomainLibrary.loadSymbol("domain_disjunction_absorb", &domainFunctions.disjunction_absorb);
    dlDomainLibrary.loadSymbol("domain_specialize", &domainFunctions.specialize);
+   (*architectureFunctions.set_domain_functions)(pvContent, &domainFunctions);
 }
 
 bool

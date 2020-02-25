@@ -96,6 +96,8 @@ class Processor(object):
         result = self.funs.create_address_vector()
         is_valid = self.funs.processor_get_targets(self.content, address, contract.content,
                 ctypes.pointer(result))
+        if not is_valid:
+            return [ ]
         assert is_valid
         index = 0
         res = [ ]
@@ -179,7 +181,7 @@ class ContractCursor(object):
         return self.funs.contract_cursor_get_address(self.content)
     def get_contract(self) -> ContractReference:
         result = ContractReference()
-        result.content = self.funs.contract_cursor_get_contract(content)
+        result.content = self.funs.contract_cursor_get_contract(self.content)
         return result
 
 class Contract(object):
@@ -211,7 +213,8 @@ class ContractCoverage(object):
             self.content = None
     def is_complete(self, first_contract : ctypes.POINTER(_ContractContent),
             last_contract : ctypes.POINTER(_ContractContent)) -> bool:
-        return self.funs.is_coverage_complete(self.content, first_contract, last_contract)
+        return self.funs.is_coverage_complete(self.content, first_contract.content,
+                last_contract.content)
 
 class Warnings(object):
     def __init__(self, processor : Processor):

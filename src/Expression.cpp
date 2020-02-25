@@ -1242,7 +1242,7 @@ class DomainNode::Operator : public COL::List::Node, public ExtendedParameters {
    Operator& absorbFirstArgument(DomainValue&& domain) { dFirst = std::move(domain); return *this; }
    Operator& absorbSecondArgument(DomainValue&& domain) { dSecond = std::move(domain); return *this; }
    Operator& absorbLastArgument(DomainValue&& domain)
-      {  (dFirst.isValid() ? dFirst : dSecond) = std::move(domain);
+      {  (!dFirst.isValid() ? dFirst : dSecond) = std::move(domain);
          decLeftSubExpressions();
          return *this;
       } 
@@ -2178,6 +2178,7 @@ LBegin: // DBegin, DBeginStack
                state.getUnionResult((OperatorStack*) nullptr).pushLastArgument(std::move(element));
             state.point() += DAfterPrimary - DBegin;
             if (!arguments.setToNextToken(result)) return result;
+            hasReadToken = true;
          }
          else if (token.getType() == AbstractToken::TIdentifier) {
             if (arguments.setArgumentToIdentifier() == RRNeedChars) return RRNeedChars;
@@ -2194,6 +2195,7 @@ LBegin: // DBegin, DBeginStack
                   state.getUnionResult((OperatorStack*) nullptr).pushLastArgument(std::move(element));
                state.point() += DAfterPrimary - DBegin;
                if (!arguments.setToNextToken(result)) return result;
+               hasReadToken = true;
             }
             else if (arguments.getIdentifierResult().isQualifier()) {
                if (state.point() == DBegin) {
@@ -2208,8 +2210,8 @@ LBegin: // DBegin, DBeginStack
             }
             else {
                convertTokenToError<T>(arguments.getIdentifierResult(), arguments, doesRetry);
-               if (doesRetry) return RRContinue;
                arguments.reduceState(state);
+               if (doesRetry) return RRContinue;
                return RRHasToken;
             };
          }
@@ -2250,8 +2252,8 @@ LSet: LFirstSetElement: LSetElement: LEndSet: LAfterSet:
          }
       }
 
-      state.point() += DAfterPrimary - DBegin;
       if (!hasReadToken) {
+         state.point() += DAfterPrimary - DBegin;
          if (!arguments.setToNextToken(result)) return result;
       }
 
@@ -3618,6 +3620,7 @@ LIdentifyContent:
          state.setResult(std::move(ruleResult));
          if (!arguments.setToNextToken(result)) return result;
          if (!arguments.parseTokens(state, result)) return result;
+         if (!arguments.setToNextToken(result)) return result;
          continue;
       }
       else

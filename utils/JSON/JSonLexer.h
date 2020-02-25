@@ -108,6 +108,10 @@ class GenericLexer : public IOObject, public STG::Lexer::Base {
       bool isInteger() const { return !fFloat; }
       bool isFloat() const { return fFloat; }
       bool isNegative() const { return fNegative; }
+      bool hasSpecialCoding() const { return scCoding != SCNone; }
+      bool isBitCoding() const { return scCoding == SCBit; }
+      bool isOctalCoding() const { return scCoding == SCOctal; }
+      bool isHexaCoding() const { return scCoding == SCHexa; }
    };
 
    class Token {

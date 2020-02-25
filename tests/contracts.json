@@ -1,0 +1,86 @@
+{
+  [
+    { "nexts": [ 2 ],
+      "previouses": [],
+      "id": 1,
+      "address": 0x81aa,
+      "localization": "before",
+      "zones" :
+        [
+        ],
+      "constraints":
+        [
+          { "type": "register",
+            "content":
+            { "constraint":
+              { "type": "domain",
+                "content":
+                  { "content": "T_32",
+                    "comment": "a let variable"
+                  }
+              },
+              "register": "r0"
+            }
+          },
+          { "type": "register",
+            "content":
+            { "constraint":
+              { "type": "domain",
+                "content":
+                  { "content": "[21_32, 500_32]S_32"
+                  }
+              },
+              "register": "r1"
+            }
+          }
+        ]
+    },
+    { "nexts": [],
+      "previouses": [ 1 ],
+      "id": 2,
+      "address": 0x81c8,
+      "localization": "before",
+      "zones" :
+        [
+        ],
+      "constraints":
+        [
+          { "type": "register",
+            "content":
+            { "constraint":
+              { "type": "domain",
+                "content":
+                  { "content": "T_32",
+                    "comment": "a let variable"
+                  }
+              },
+              "register": "r0"
+            }
+          },
+          { "type": "register",
+            "content":
+            { "constraint":
+              { "type": "domain",
+                "content":
+                  { "content": "0x8bf4_32"
+                  }
+              },
+              "register": "r1"
+            }
+          },
+          { "type": "register",
+            "content":
+            { "constraint":
+              { "type": "domain",
+                "content":
+                  { "content": "20_32"
+                  }
+              },
+              "register": "r2"
+            }
+          }
+        ]
+    }
+  ]
+}
+

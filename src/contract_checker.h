@@ -71,7 +71,7 @@ bool processor_check_block(struct _PProcessor* processor, uint64_t address,
 struct _ContractGraphContent;
 
 struct _ContractGraphContent* load_contracts(const char* inputFilename,
-      struct _PProcessor* processor);
+      struct _PProcessor* processor, struct _WarningsContent* awarnings);
 enum ContractConditionLocalization { CCLPreCondition, CCLPostCondition };
 void free_contracts(struct _ContractGraphContent* contracts);
 
@@ -95,8 +95,19 @@ struct _ContractCoverageContent;
 struct _ContractCoverageContent* create_empty_coverage(struct _ContractGraphContent* agraph);
 void free_coverage(struct _ContractCoverageContent* coverage);
 
+struct _Warning {
+   const char* filepos;
+   int linepos, columnpos;
+   const char* message;
+};
+
 struct _WarningsContent* create_warnings();
-void free_warnings(struct _WarningsContent* coverage);
+void free_warnings(struct _WarningsContent* warnings);
+struct _WarningCursorContent;
+struct _WarningCursorContent* warning_create_cursor(struct _WarningsContent* warnings);
+void warning_free_cursor(struct _WarningCursorContent* warning_cursor);
+bool warning_set_to_next(struct _WarningCursorContent* warning_cursor);
+void warning_retrieve_message(struct _WarningCursorContent* warning_cursor, struct _Warning* warning);
 
 bool is_coverage_complete(struct _ContractCoverageContent* coverage,
       struct _ContractContent* first, struct _ContractContent* last);

@@ -80,10 +80,8 @@ class IndirectionNode : public VirtualExpressionNode {
       {  ComparisonResult result = VirtualExpressionNode::_compare(asource);
          if (result == CREqual) {
             const auto& source = static_cast<const IndirectionNode&>(castFromCopyHandler(asource));
-            if (mpAddress.key() == source.mpAddress.key())
-               result = fcompare(uSizeInBytes, source.uSizeInBytes);
-            else if (!mpAddress.isValid())
-               result = CRLess;
+            if (!mpAddress.isValid())
+               result = !source.mpAddress.isValid() ? CREqual : CRLess;
             else if (!source.mpAddress.isValid())
                result = CRGreater;
             else

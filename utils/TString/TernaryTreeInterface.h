@@ -367,8 +367,8 @@ TernaryTree<TypeSubString>::_addAll(const VirtualCollection& source,
       const VirtualCollectionCursor* endSource) {
    AssumeCondition(dynamic_cast<const inherited*>(&source))
    if (dynamic_cast<const thisType*>(&source))
-      _addAll((const thisType&) source, parameters, (thisCursorType*) cursor,
-            (const thisCursorType*) startSource, (const thisCursorType*) endSource);
+      _addAll((const thisType&) source, parameters, (Cursor*) cursor,
+            (const Cursor*) startSource, (const Cursor*) endSource);
    else
       inherited::paddAll((const inherited&) source, parameters, (thisCursorType*) cursor,
             (const typename inherited::interfaceType::Cursor*) startSource,

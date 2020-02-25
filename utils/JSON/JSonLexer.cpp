@@ -178,7 +178,7 @@ namespace DGenericLexer {
 
 enum NumberContext
    {  NCNone, NCHexa=0x1, NCBinary, NCOctal, NCPositive=0x4, NCNegative,
-      NCInteger=0x8, NCFractional, NCSignExponent, NCExponent
+      NCInteger=0x8, NCFractional=0x16, NCSignExponent, NCExponent
    };
 
 inline bool isCharDigit(char ch, NumberContext context) {
@@ -333,8 +333,6 @@ LCreateToken:
          else
             token = container->pntNumberToken;
          tbCurrentToken >> token->content();
-         if (chContext > NCInteger) /* isFloat */
-            token->setFloat();
          if (chContext & NCFormat) {
             if ((chContext & NCFormat) == NCBinary)
                token->setBitCoding();

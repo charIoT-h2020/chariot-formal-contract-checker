@@ -11,6 +11,9 @@
 enum ContractLocalization
    {  CLBeforeInstruction, CLAfterInstruction, CLBetweenInstruction };
 
+typedef STG::JSon::CommonParser::Arguments::ErrorMessage Warning;
+typedef COL::TCopyCollection<COL::TList<Warning> > Warnings;
+
 class ContractGraph;
 class Contract : public PNT::SharedElement, public STG::IOObject, public STG::Lexer::Base {
   public:
@@ -82,7 +85,7 @@ class Contract : public PNT::SharedElement, public STG::IOObject, public STG::Le
                result = PNT::TSharedPointer<Contract>(found->second, PNT::Pointer::Init());
             else {
                auto localize = pendingIds->lower_bound(id);
-               if (localize == pendingIds->end() || localize->first == id)
+               if (localize == pendingIds->end() || localize->first != id)
                   localize = pendingIds->insert(localize, std::make_pair(id, std::vector<PNT::TSharedPointer<Contract>*>()));
                localize->second.push_back(&result);
             }
@@ -156,34 +159,27 @@ class Contract : public PNT::SharedElement, public STG::IOObject, public STG::Le
    const uint64_t& getAddress() const { return uAddress; }
 };
 
-class Warning : public STG::IOObject {
-  private:
-   STG::SubString ssErrorMessage = STG::SString();
-
-  public:
-
-};
-
-typedef COL::TCopyCollection<COL::TArray<Warning> > Warnings;
-
 class ContractGraph : public COL::TCopyCollection<COL::TSortedArray<Contract::ContractPointer, Contract::ContractPointer::Key> >, public STG::IOObject, public STG::Lexer::Base {
   public:
    typedef Contract::ContractPointer ContractPointer;
    typedef COL::TCopyCollection<COL::TSortedArray<ContractPointer, ContractPointer::Key> > inherited;
+   typedef std::map<int, Contract*> IdMap;
+   typedef std::map<int, std::vector<PNT::TSharedPointer<Contract>*> > PendingIds;
 
   private:
    ContractPointer cpInitial, cpFinal;
    
    struct ReadRuleResult : public MemoryStateConstraint::ReadRuleResult {
-      typedef std::map<int, Contract*> IdMap;
-      typedef std::map<int, std::vector<PNT::TSharedPointer<Contract>*> > PendingIds;
-      IdMap idMap;
-      PendingIds pendingIds;
+      PNT::PassPointer<Contract> currentContract;
+      IdMap* idMap = nullptr;
+      PendingIds* pendingIds = nullptr;
 
       ReadRuleResult() = default;
       ReadRuleResult(struct _DomainElementFunctions* aelementFunctions,
-            struct _Processor* aprocessor, struct _ProcessorFunctions* aprocessorFunctions)
-         :  MemoryStateConstraint::ReadRuleResult(aelementFunctions, aprocessor, aprocessorFunctions) {}
+            struct _Processor* aprocessor, struct _ProcessorFunctions* aprocessorFunctions,
+            IdMap& aidMap, PendingIds& apendingIds)
+         :  MemoryStateConstraint::ReadRuleResult(aelementFunctions, aprocessor, aprocessorFunctions),
+            idMap(&aidMap), pendingIds(&apendingIds) {}
       ReadRuleResult(const ReadRuleResult&) = default;
       ReadRuleResult& operator=(const ReadRuleResult&) = default;
    };
@@ -208,14 +204,20 @@ class ContractGraph : public COL::TCopyCollection<COL::TSortedArray<Contract::Co
             });
       }
    bool loadFromFile(const char* filename, struct _DomainElementFunctions* domainFunctions,
-         struct _Processor* processor, struct _ProcessorFunctions* processorFunctions)
+         struct _Processor* processor, struct _ProcessorFunctions* processorFunctions, Warnings& errors)
       {  STG::DIOObject::IFStream inputFile(filename);
          if (!inputFile.good())
             return false;
+         IdMap idMap;
+         PendingIds pendingIds;
          STG::JSon::CommonParser parser(*this, (ReadRuleResult*) nullptr, STG::JSon::CommonParser::Parse());
-         parser.state().getSResult((ReadRuleResult*) nullptr) = ReadRuleResult(domainFunctions, processor, processorFunctions);
+         parser.state().getSResult((ReadRuleResult*) nullptr) = ReadRuleResult(domainFunctions, processor, processorFunctions, idMap, pendingIds);
          parser.setPartialToken();
          parser.parse(inputFile);
+         if (parser.arguments().hasErrors()) {
+            parser.sarguments().errors().swap(errors);
+            return false;
+         }
          return true;
       }
    bool saveFromFile(const char* filename)

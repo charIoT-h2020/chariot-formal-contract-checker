@@ -980,9 +980,7 @@ CommonParser::Arguments::convertReaderToInt(Event newEvent) {
       else if (res.getContent().compareI("true") == CREqual)
          setBoolValue(true);
       else {
-         if (res.getContent().compareI("0x", 2) == CREqual) {
-            SubString val(res.getContent());
-            val.advance(2);
+         if (res.isHexaCoding()) {
             if (newEvent == ESetLUInt)
                setLUIntValue(res.getContent().queryHexaULInteger());
             else if (newEvent == ESetLInt)

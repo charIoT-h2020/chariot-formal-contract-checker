@@ -11,7 +11,7 @@ class Processor {
    DLL::Library dlDomainLibrary;
    struct _Processor* pvContent;
    struct _ProcessorFunctions architectureFunctions;
-   struct _DomainElementFunctions domainFunctions;
+   // struct _DomainElementFunctions domainFunctions;
    std::ifstream fBinaryFile;
 
    static uint64_t* reallocAddresses(uint64_t* old_addresses, int old_size,
@@ -34,11 +34,11 @@ class Processor {
       :  dlProcessorLibrary(std::move(source.dlProcessorLibrary)),
          dlDomainLibrary(std::move(source.dlDomainLibrary)),
          pvContent(source.pvContent),
-         architectureFunctions(source.architectureFunctions),
-         domainFunctions(source.domainFunctions)
+         architectureFunctions(source.architectureFunctions)/* ,
+         domainFunctions(source.domainFunctions) */
       {  source.pvContent = nullptr;
          source.architectureFunctions = _ProcessorFunctions{};
-         source.domainFunctions = _DomainElementFunctions{};
+         // source.domainFunctions = _DomainElementFunctions{};
       }
    ~Processor() { if (pvContent) { (*architectureFunctions.free_processor)(pvContent); pvContent = nullptr; } }
 
@@ -53,12 +53,15 @@ class Processor {
             &MemoryState::functions, reinterpret_cast<InterpretParameters*>(&parameters));
       }
 
-   void setDomainFunctions(struct _DomainElementFunctions* functions)
-      {  AssumeCondition(pvContent)
-         (*architectureFunctions.set_domain_functions)(pvContent, functions);
-      }
+   // void setDomainFunctions(struct _DomainElementFunctions* functions)
+   //    {  AssumeCondition(pvContent)
+   //       (*architectureFunctions.set_domain_functions)(pvContent, functions);
+   //    }
    struct _DomainElementFunctions* getDomainFunctions() const
-      {  return const_cast<struct _DomainElementFunctions*>(&domainFunctions); }
+      {  AssumeCondition(pvContent)
+         return (*architectureFunctions.get_domain_functions)(pvContent);
+      }
+   //   {  return const_cast<struct _DomainElementFunctions*>(&domainFunctions); }
    bool retrieveNextTargets(uint64_t address, MemoryState& memoryState,
          TargetAddresses& targetAddresses, MemoryInterpretParameters& parameters);
    void interpret(uint64_t address, MemoryState& memoryState,

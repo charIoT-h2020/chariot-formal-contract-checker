@@ -181,6 +181,34 @@ class AProcessor {
          struct _ContractContent* lastContract, const AContractCoverage* coverage, AWarnings& warnings);
 };
 
+class AWarnings {
+  private:
+   struct _WarningsContent* pvContent;
+
+  public:
+   AWarnings() : pvContent(create_warnings()) {}
+   ~AWarnings() { if (pvContent) { free_warnings(pvContent); pvContent = nullptr; } }
+
+   struct _WarningsContent* getContent() const { return pvContent; }
+
+   class Cursor {
+     private:
+      struct _WarningCursorContent* pvContent;
+
+     public:
+      Cursor(const AWarnings& support) : pvContent(warning_create_cursor(support.getContent())) {}
+      ~Cursor() { warning_free_cursor(pvContent); }
+
+      bool setToNext()
+         {  return warning_set_to_next(pvContent); }
+      struct _Warning elementAt() const
+         {  struct _Warning result{};
+            warning_retrieve_message(pvContent, &result);
+            return result;
+         }
+   };
+};
+
 class AContracts {
   private:
    struct _ContractGraphContent* pvContent = nullptr;
@@ -188,9 +216,9 @@ class AContracts {
   public:
    AContracts() = default;
    ~AContracts() { if (pvContent) { free_contracts(pvContent); pvContent = nullptr; } }
-   bool loadFromFile(const char* filename, const AProcessor& processor)
+   bool loadFromFile(const char* filename, const AProcessor& processor, AWarnings& errors)
       {  assert(!pvContent);
-         pvContent = load_contracts(filename, processor.getContent());
+         pvContent = load_contracts(filename, processor.getContent(), errors.getContent());
          return pvContent;
       }
    struct _ContractGraphContent* getContent() const { return pvContent; }
@@ -247,17 +275,6 @@ class AContractCoverage {
    struct _ContractCoverageContent* getContent() const { return pvContent; }
 };
 
-class AWarnings {
-  private:
-   struct _WarningsContent* pvContent;
-
-  public:
-   AWarnings() : pvContent(create_warnings()) {}
-   ~AWarnings() { if (pvContent) { free_warnings(pvContent); pvContent = nullptr; } }
-
-   struct _WarningsContent* getContent() const { return pvContent; }
-};
-
 inline bool
 AProcessor::checkBlock(uint64_t address, uint64_t target, struct _ContractContent* firstContract,
       struct _ContractContent* lastContract, const AContractCoverage* coverage, AWarnings& warnings)
@@ -281,9 +298,18 @@ int main(int argc, char** argv) {
          processArgument.hasDomain() ? processArgument.getDomain() : "libScalarInterface.so");
 
    AContracts contracts;
-   if (!contracts.loadFromFile(processArgument.getMemoryFile(), processor)) {
-      std::cout << "unable to load contracts from file " << processArgument.getMemoryFile() << std::endl;
-      return 0;
+   {  AWarnings warnings;
+      if (!contracts.loadFromFile(processArgument.getMemoryFile(), processor, warnings)) {
+         std::cout << "unable to load contracts from file " << processArgument.getMemoryFile() << std::endl;
+         AWarnings::Cursor cursor(warnings);
+         while (cursor.setToNext()) {
+            auto error = cursor.elementAt();
+            std::cerr << error.filepos << ':' << error.linepos << " error at column "
+               << error.columnpos << ", " << error.message << '\n';
+         };
+         std::cerr.flush();
+         return 0;
+      }
    }
    AContracts::Cursor cursor(contracts);
    AContractCoverage coverage(contracts);

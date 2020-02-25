@@ -548,6 +548,7 @@ class CommonParser : public BasicParser {
       friend class CommonParser;
 
       /* for inlining */
+     public:
       class ErrorMessage : public COL::List::Node {
         private:
          STG::SubString ssMessage;
@@ -565,6 +566,7 @@ class CommonParser : public BasicParser {
          unsigned columnpos() const { return uColumnPos; }
       };
 
+     private:
       CommonParser* pcpParser;
       int uLocalStackHeight = 0;
       COL::TCopyCollection<COL::TList<ErrorMessage> >* plemErrorMessages = nullptr;
@@ -930,6 +932,9 @@ class CommonParser : public BasicParser {
    CommonParser& operator=(const CommonParser& source) = default;
    DefineCopy(CommonParser)
    DDefineAssign(CommonParser)
+
+   const Arguments& arguments() const { return aArguments; }
+   Arguments& sarguments() { return aArguments; }
 
    State& state() { return sState; }
    const State& state() const { return sState; }
