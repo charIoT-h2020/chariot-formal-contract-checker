@@ -10,6 +10,8 @@ parser.add_argument('-arch', nargs=1,
                    help='the instruction set as a dynamic library')
 parser.add_argument('-dom', nargs=1,
                    help='the library of domains as a dynamic library')
+parser.add_argument('-v', '--verbose', help='set verbose mode',
+                    action='store_true')
 parser.add_argument('-prop', nargs=1,
                    help='the additional properties to check')
 args = parser.parse_args()
@@ -24,11 +26,21 @@ else:
     args.dom = args.dom[0]
 
 processor = Processor("./libcontract_checker.so", args.arch, args.dom)
+if args.verbose:
+    processor.set_verbose()
 
 contracts = Contracts(processor)
-if not contracts.load_from_file(args.contracts, processor):
+warnings = Warnings(processor)
+if not contracts.load_from_file(args.contracts, processor, warnings):
+    warning_cursor = _WarningCursor(warnings)
     print ("unable to load contracts from file " + args.contracts)
+    while warning_cursor.set_to_next():
+        warning = warning_cursor.element_at()
+        print ("at " + warning.filepos + ":" + warning.linepos
+                + " error at column " + error.columnpos + ", " + error.message)
     sys.exit(0)
+if args.verbose:
+    print ("contracts in " + args.contracts + " successfully loaded")
 
 contract_cursor = ContractCursor()
 contract_cursor.init(contracts)
@@ -36,6 +48,8 @@ coverage = ContractCoverage(contracts) # Directed Acyclic Graph with domination 
 if not processor.load_code(args.binary_file):
     print ("unable to load code from file " + args.binary_file)
     sys.exit(0)
+if args.verbose:
+    print ("code in " + args.binary_file + " successfully loaded")
 
 first_contract = ContractReference()
 last_contract = ContractReference()
@@ -56,19 +70,30 @@ while contract_cursor.set_to_next():
     if contract_cursor.is_final():
         last_contract = contract_cursor.get_contract()
         continue
-    targets = processor.get_targets(address, contract_cursor.get_contract())
-    for target in targets:
+    targets = contract_cursor.funs.create_address_vector()
+    contract_cursor.fill_stop_addresses(ctypes.pointer(targets))
+    if args.verbose:
+        print ("look for targets starting at " + hex(address) + " by instruction interpretation")
+    processor.retrieve_targets(address, contract_cursor.get_contract(), ctypes.pointer(targets))
+    target_index = 0
+    while target_index < targets.addresses_array_length:
+        target = targets.addresses[target_index]
         post_contract_cursor = contract_cursor
         post_contract_cursor.set_after_address(target)
         assert (post_contract_cursor.get_address() == target)
+        break
         warnings = Warnings(processor)
 
         if not processor.check_block(address, target,
                 contract_cursor.get_contract(), post_contract_cursor.get_contract(),
                 coverage, warnings):
-            for warning in warnings:
-                print (warning)
+            warning_cursor = _WarningCursor(warnings)
+            while warning_cursor.set_to_next():
+                warning = warning_cursor.element_at()
+                print ("at " + warning.filepos + ":" + warning.linepos
+                        + " error at column " + error.columnpos + ", " + error.message);
             all_valid = False
+    targets = contract_cursor.funs.free_address_vector(targets)
 
     if not first_contract.is_valid:
         print ("no initial contract found")

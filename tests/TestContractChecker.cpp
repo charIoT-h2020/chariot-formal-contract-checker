@@ -11,6 +11,7 @@ class ProcessArgument {
    const char* szArch = nullptr;
    const char* szDomain = nullptr;
    const char* szProperty = nullptr;
+   bool fVerbose = false;
    bool fHasEchoedMessage = false;
 
   public:
@@ -31,12 +32,14 @@ class ProcessArgument {
              << "where option can be:\n"
              << "\t-arch armsec.so \tto provide the instruction set\n"
              << "\t-dom domsec.so \tto provide the domain library\n"
-             << "\t-prop property.json \tuser contract to check\n";
+             << "\t-prop property.json \tuser contract to check\n"
+             << "\t-v \t\tfor verbose mode\n";
          out.flush();
       }
 
    bool isValid() const { return szInputFile && szMemoryFile; }
    bool hasEchoedMessage() const { return fHasEchoedMessage; }
+   bool isVerbose() const { return fVerbose; }
 
    const char* getInputFile() const { return szInputFile; }
    const char* getMemoryFile() const { return szMemoryFile; }
@@ -90,6 +93,18 @@ ProcessArgument::process(char** argument, int& currentArgument) {
                };
                currentArgument -= 2;
                szProperty = argument[1];
+            }
+            else {
+               printUsage(std::cout);
+               fHasEchoedMessage = true;
+               --currentArgument;
+            }
+            return true;
+         case 'v':
+            if ((strcmp(&argument[0][1], "v") == 0) ||
+                  (strcmp(&argument[0][1], "verbose") == 0)) {
+               --currentArgument;
+               fVerbose = true;
             }
             else {
                printUsage(std::cout);
@@ -159,6 +174,8 @@ class AProcessor {
    ~AProcessor() { if (pvContent) { free_processor(pvContent); pvContent = nullptr; } }
 
    struct _PProcessor* getContent() const { return pvContent; }
+   void setVerbose()
+      {  if (pvContent) { processor_set_verbose(pvContent); } }
    bool loadCode(const char* filename)
       {  return processor_load_code(pvContent, filename); }
    std::vector<uint64_t> getTargets(uint64_t address, const AContractReference& contract) const
@@ -171,6 +188,7 @@ class AProcessor {
          argument.addresses_length = 0;
          argument.realloc_addresses = &reallocAddresses;
          argument.address_container = &result;
+         contract_fill_stop_addresses(contract.getContent(), &argument);
          bool isValid = processor_get_targets(pvContent, address, contract.getContent(), &argument);
          assert(isValid);
          result.resize(argument.addresses_length);
@@ -300,7 +318,7 @@ int main(int argc, char** argv) {
    AContracts contracts;
    {  AWarnings warnings;
       if (!contracts.loadFromFile(processArgument.getMemoryFile(), processor, warnings)) {
-         std::cout << "unable to load contracts from file " << processArgument.getMemoryFile() << std::endl;
+         std::cerr << "unable to load contracts from file " << processArgument.getMemoryFile() << std::endl;
          AWarnings::Cursor cursor(warnings);
          while (cursor.setToNext()) {
             auto error = cursor.elementAt();
@@ -310,15 +328,21 @@ int main(int argc, char** argv) {
          std::cerr.flush();
          return 0;
       }
+      if (processArgument.isVerbose())
+         std::cout << "contracts in " << processArgument.getMemoryFile() << " successfully loaded\n";
    }
    AContracts::Cursor cursor(contracts);
    AContractCoverage coverage(contracts);
    if (!processor.loadCode(processArgument.getInputFile())) {
-      std::cout << "unable to load code from file " << processArgument.getInputFile() << std::endl;
+      std::cerr << "unable to load code from file " << processArgument.getInputFile() << std::endl;
       return 0;
    }
+   if (processArgument.isVerbose())
+      std::cout << "code in " << processArgument.getInputFile() << " successfully loaded\n";
 
    AContractReference firstContract, lastContract;
+   if (processArgument.isVerbose())
+      processor.setVerbose();
 
    while (cursor.setToNext()) {
       auto address = cursor.getAddress();
@@ -328,12 +352,15 @@ int main(int argc, char** argv) {
          lastContract = cursor.getContract();
          continue;
       }
+      if (processArgument.isVerbose())
+         std::cout << "look for targets starting at " << address << "by instruction interpretation\n";
       auto targets = processor.getTargets(address, cursor.getContract());
       for (const auto& target : targets) {
          AContracts::Cursor lastCursor(cursor);
          lastCursor.setAfterAddress(target);
          assert(lastCursor.getAddress() == target);
          AWarnings warnings;
+         break;
          if (!processor.checkBlock(address, target, cursor.getContract().getContent(),
                   lastCursor.getContract().getContent(), &coverage, warnings)) {
             // for (const auto& warning : warnings)
@@ -343,11 +370,11 @@ int main(int argc, char** argv) {
       };
    }
    if (!firstContract.isValid()) {
-      std::cout << "no initial contract found\n";
+      std::cerr << "no initial contract found\n";
       return 0;
    }
    if (!lastContract.isValid()) {
-      std::cout << "no final contract found\n";
+      std::cerr << "no final contract found\n";
       return 0;
    }
    if (coverage.isComplete(firstContract.getContent(), lastContract.getContent()))
@@ -359,7 +386,7 @@ int main(int argc, char** argv) {
    if (processArgument.hasProperty()) {
       AContract contract;
       if (!contract.loadFromFile(processArgument.getProperty())) {
-         std::cout << "unable to load the property from file " << processArgument.getProperty() << std::endl;
+         std::cerr << "unable to load the property from file " << processArgument.getProperty() << std::endl;
          return 0;
       }
       if (coverage.isComplete(firstContract.getContent(), contract.getContent()))

@@ -67,6 +67,7 @@ typedef struct _ProcessorFunctions {
    struct _DomainElementFunctions* (*get_domain_functions)(struct _Processor* processor);
    void (*initialize_memory)(struct _Processor* processor, MemoryModel* memory,
          MemoryModelFunctions* memory_functions, InterpretParameters* parameters);
+   void (*set_verbose)(struct _Processor* processor);
    void (*free_processor)(struct _Processor* processor);
    int (*get_register_index)(struct _Processor* processor, const char* name);
    const char* (*get_register_name)(struct _Processor* processor, int register_index);

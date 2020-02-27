@@ -152,8 +152,22 @@ class Contract : public PNT::SharedElement, public STG::IOObject, public STG::Le
    ReadResult readJSon(STG::JSon::CommonParser::State& state, STG::JSon::CommonParser::Arguments& arguments);
    WriteResult writeJSon(STG::JSon::CommonWriter::State& state, STG::JSon::CommonWriter::Arguments& arguments) const;
 
-   bool isInitial() const;
-   bool isFinal() const;
+   void retrieveNextAddresses(TargetAddresses& targets)
+      {  for (EdgeContract& edgeContract : lecNexts)
+            if (edgeContract.isValid()) {
+               if (targets.addresses_length >= targets.addresses_array_size) {
+                  int old_size = targets.addresses_array_size;
+                  targets.addresses = (*targets.realloc_addresses)(
+                     targets.addresses, old_size,
+                     &targets.addresses_array_size,
+                     targets.address_container);
+               }
+               targets.addresses[targets.addresses_length] = edgeContract->uAddress;
+               ++targets.addresses_length;
+            }
+      }
+   bool isInitial() const { return lecPreviouses.isEmpty(); }
+   bool isFinal() const { return lecNexts.isEmpty(); }
    void applyTo(MemoryState& memoryState, struct _Processor* processor,
          struct _ProcessorFunctions* processorFunctions);
    const uint64_t& getAddress() const { return uAddress; }
@@ -233,6 +247,7 @@ class ContractGraph : public COL::TCopyCollection<COL::TSortedArray<Contract::Co
    WriteResult writeJSon(STG::JSon::CommonWriter::State& state, STG::JSon::CommonWriter::Arguments& arguments) const;
 };
 
+/*
 inline bool
 Contract::isInitial() const
    {  return pcgParent && pcgParent->getInitial().key() == this; }
@@ -240,6 +255,7 @@ Contract::isInitial() const
 inline bool
 Contract::isFinal() const
    {  return pcgParent && pcgParent->getFinal().key() == this; }
+*/
 
 class ContractCoverage : public STG::IOObject {
   public:

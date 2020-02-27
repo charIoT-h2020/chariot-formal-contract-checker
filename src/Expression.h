@@ -6,6 +6,8 @@
 #include "decsec_callback.h"
 #include "DomainValue.h"
 
+const char* debugPrint(STG::IOObject* object);
+
 class Expression;
 class VirtualExpressionNode : public PNT::MngElement, public STG::IOObject, public STG::Lexer::Base {
   public:

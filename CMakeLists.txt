@@ -42,6 +42,7 @@ target_link_libraries(contract_checker utils numerics stdc++)
 enable_testing()
 # add_subdirectory(tests)
 add_test(NAME TestPython COMMAND python3 ${CMAKE_SOURCE_DIR}/src/check_contract.py
+        -v
         -arch ${CMAKE_SOURCE_DIR}/../chariot-formal-decoder-armv7/src/armsec_decoder.so
         -dom  ${CMAKE_SOURCE_DIR}/../chariot-semantic-domains/build/libapplications/libScalarInterface.so
         ${CMAKE_SOURCE_DIR}/tests/modbus.nobug.bin ${CMAKE_SOURCE_DIR}/tests/contracts.json)

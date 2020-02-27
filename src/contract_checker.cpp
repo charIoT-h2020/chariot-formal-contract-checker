@@ -30,6 +30,11 @@ free_processor(struct _PProcessor* processor)
 {  delete reinterpret_cast<Processor*>(processor);
 }
 
+void
+processor_set_verbose(struct _PProcessor* processor)
+{  reinterpret_cast<Processor*>(processor)->setVerbose();
+}
+
 bool
 processor_load_code(struct _PProcessor* aprocessor, const char* filename)
 {  Processor* processor = reinterpret_cast<Processor*>(aprocessor);
@@ -86,6 +91,11 @@ struct _ContractGraphContent* load_contracts(const char* inputFilename,
 
 void free_contracts(struct _ContractGraphContent* acontracts)
 {  delete reinterpret_cast<ContractGraph*>(acontracts); }
+
+void contract_fill_stop_addresses(struct _ContractContent* acontract, TargetAddresses* stop_addresses)
+{  Contract& contract = *reinterpret_cast<Contract*>(acontract);
+   contract.retrieveNextAddresses(*stop_addresses);
+}
 
 struct _ContractCursorContent*
 contract_cursor_new(struct _ContractGraphContent* agraph)

@@ -4,6 +4,7 @@ class _PProcessor(ctypes.Structure): pass
 class _ContractContent(ctypes.Structure): pass
 class _ContractCoverageContent(ctypes.Structure): pass
 class _WarningsContent(ctypes.Structure): pass
+class _WarningCursorContent(ctypes.Structure): pass
 class _ContractGraphContent(ctypes.Structure): pass
 class _ContractCursorContent(ctypes.Structure): pass
 class _ContractCoverageContent(ctypes.Structure): pass
@@ -16,6 +17,12 @@ class _TargetAddresses(ctypes.Structure):
                     ctypes.POINTER(ctypes.c_uint64), ctypes.c_int,
                     ctypes.POINTER(ctypes.c_int), ctypes.c_void_p)),
                 ("address_container", ctypes.c_void_p)]
+
+class _Warning(ctypes.Structure):
+    _fields_ = [("filepos", ctypes.c_char_p),
+                ("linepos", ctypes.c_int),
+                ("columnpos", ctypes.c_int),
+                ("message", ctypes.c_char_p)]
 
 class ContractReference(object):
     def __init__(self):
@@ -33,6 +40,7 @@ class Processor(object):
         self.funs.create_processor.argtypes = [ ctypes.c_char_p, ctypes.c_char_p ]
         self.funs.create_processor.restype = ctypes.POINTER(_PProcessor)
         self.funs.free_processor.argtypes = [ ctypes.POINTER(_PProcessor) ]
+        self.funs.processor_set_verbose.argtypes = [ ctypes.POINTER(_PProcessor) ]
         self.funs.processor_load_code.argtypes = [ ctypes.POINTER(_PProcessor), ctypes.c_char_p ]
         self.funs.processor_load_code.restype = ctypes.c_bool
         self.funs.processor_get_targets.argtypes = [ ctypes.POINTER(_PProcessor),
@@ -44,9 +52,12 @@ class Processor(object):
             ctypes.POINTER(_ContractContent), ctypes.POINTER(_ContractCoverageContent),
             ctypes.POINTER(_WarningsContent) ]
         self.funs.processor_check_block.restype = ctypes.c_bool
-        self.funs.load_contracts.argtypes = [ ctypes.c_char_p, ctypes.POINTER(_PProcessor) ]
+        self.funs.load_contracts.argtypes = [ ctypes.c_char_p, ctypes.POINTER(_PProcessor),
+                ctypes.POINTER(_WarningsContent) ]
         self.funs.load_contracts.restype = ctypes.POINTER(_ContractGraphContent)
         self.funs.free_contracts.argtypes = [ ctypes.POINTER(_ContractGraphContent) ]
+        self.funs.contract_fill_stop_addresses.argtypes = [ ctypes.POINTER(_ContractContent),
+                ctypes.POINTER(_TargetAddresses) ]
         self.funs.contract_cursor_new.argtypes = [ ctypes.POINTER(_ContractGraphContent) ]
         self.funs.contract_cursor_new.restype = ctypes.POINTER(_ContractCursorContent)
         self.funs.contract_cursor_set_to_next.argtypes = [ ctypes.POINTER(_ContractCursorContent) ]
@@ -76,6 +87,13 @@ class Processor(object):
         self.funs.create_warnings.argtypes = [ ]
         self.funs.create_warnings.restype = ctypes.POINTER(_WarningsContent)
         self.funs.free_warnings.argtypes = [ ctypes.POINTER(_WarningsContent) ]
+        self.funs.warning_create_cursor.argtypes = [ ctypes.POINTER(_WarningsContent) ]
+        self.funs.warning_create_cursor.restype = ctypes.POINTER(_WarningCursorContent)
+        self.funs.warning_free_cursor.argtypes = [ ctypes.POINTER(_WarningCursorContent) ]
+        self.funs.warning_set_to_next.argtypes = [ ctypes.POINTER(_WarningCursorContent) ]
+        self.funs.warning_set_to_next.restype = ctypes.c_bool
+        self.funs.warning_retrieve_message.argtypes = [ ctypes.POINTER(_WarningCursorContent),
+                ctypes.POINTER(_Warning)]
         self.funs.is_coverage_complete.argtypes = [ ctypes.POINTER(_ContractCoverageContent),
                 ctypes.POINTER(_ContractContent), ctypes.POINTER(_ContractContent) ]
         self.funs.is_coverage_complete.restype = ctypes.c_bool
@@ -90,19 +108,22 @@ class Processor(object):
         if self.content:
             self.funs.free_processor(self.content)
             self.content = None
+    def set_verbose(self):
+        if self.content:
+            self.funs.processor_set_verbose(self.content)
     def load_code(self, filename : str) -> bool:
         return self.funs.processor_load_code(self.content, filename.encode())
-    def get_targets(self, address : ctypes.c_uint64, contract : ContractReference):
-        result = self.funs.create_address_vector()
+    def retrieve_targets(self, address : ctypes.c_uint64, contract : ContractReference,
+            result: ctypes.POINTER(_TargetAddresses)):
         is_valid = self.funs.processor_get_targets(self.content, address, contract.content,
-                ctypes.pointer(result))
+                result)
         if not is_valid:
             return [ ]
         assert is_valid
         index = 0
         res = [ ]
         while index < result.addresses_array_length:
-            res += result.addresses[index]
+            res += result.contents.addresses[index]
             index = index+1
         return res
 
@@ -128,6 +149,36 @@ class Processor(object):
         return self.funs.processor_check_block(content, address, target, first_contract,
                 last_contract, coverage, warnings)
 
+class Warnings(object):
+    def __init__(self, processor : Processor):
+        self.funs = processor.funs
+        self.content = self.funs.create_warnings()
+    def __del__(self):
+        self.clear()
+    def clear(self):
+        if self.content:
+            self.funs.free_warnings(self.content)
+            self.content = None
+
+class WarningCursor(object):
+    def __init__(self, warnings : Warnings):
+        self.funs = warnings.funs
+        self.content = funs.warning_create_cursor(warnings.content)
+    def __del__(self):
+        self.clear()
+    def clear(self):
+        if self.content:
+            self.funs.warning_free_cursor(self.content)
+            self.content = None
+    def set_to_next(self) -> bool:
+        assert (self.content)
+        return self.funs.warning_set_to_next(self.content)
+    def element_at(self) -> _Warning:
+        assert (self.content)
+        warning = _Warning()
+        self.funs.warning_retrieve_message(self.content, ctypes.pointer(warning))
+        return warning
+
 class Contracts(object):
     def __init__(self, processor : Processor):
         self.funs = processor.funs
@@ -143,10 +194,11 @@ class Contracts(object):
     # post-condition: the graph is connex, has only a start contract and it has
     #   final contracts. Every node in the graph should be correctly connected
     #   (consistency of the fields nexts, previouses and dominator)
-    def load_from_file(self, filename : str, processor : Processor) -> bool:
+    def load_from_file(self, filename : str, processor : Processor, warnings : Warnings) -> bool:
         assert (not self.content)
         self.funs = processor.funs
-        self.content = self.funs.load_contracts(filename.encode(), processor.content)
+        self.content = self.funs.load_contracts(filename.encode(), processor.content,
+                warnings.content)
         return self.content
 
 class ContractCursor(object):
@@ -183,6 +235,9 @@ class ContractCursor(object):
         result = ContractReference()
         result.content = self.funs.contract_cursor_get_contract(self.content)
         return result
+    def fill_stop_addresses(self, result : ctypes.POINTER(_TargetAddresses)):
+        self.funs.contract_fill_stop_addresses(
+                self.funs.contract_cursor_get_contract(self.content), result)
 
 class Contract(object):
     def __init__(self):
@@ -215,15 +270,4 @@ class ContractCoverage(object):
             last_contract : ctypes.POINTER(_ContractContent)) -> bool:
         return self.funs.is_coverage_complete(self.content, first_contract.content,
                 last_contract.content)
-
-class Warnings(object):
-    def __init__(self, processor : Processor):
-        self.funs = processor.funs
-        self.content = funs.create_warnings()
-    def __del__(self):
-        self.clear()
-    def clear(self):
-        if self.content:
-            self.funs.free_warnings(self.content)
-            self.content = None
 

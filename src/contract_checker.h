@@ -57,6 +57,7 @@ extern "C" {
 struct _PProcessor;
 struct _PProcessor* create_processor(const char* architectureLibrary, const char* domainLibrary);
 void free_processor(struct _PProcessor*);
+void processor_set_verbose(struct _PProcessor*);
 bool processor_load_code(struct _PProcessor* processor, const char* filename);
 bool processor_get_targets(struct _PProcessor* processor, uint64_t address,
       struct _ContractContent* contract, TargetAddresses* target_addresses);
@@ -74,6 +75,7 @@ struct _ContractGraphContent* load_contracts(const char* inputFilename,
       struct _PProcessor* processor, struct _WarningsContent* awarnings);
 enum ContractConditionLocalization { CCLPreCondition, CCLPostCondition };
 void free_contracts(struct _ContractGraphContent* contracts);
+void contract_fill_stop_addresses(struct _ContractContent*, TargetAddresses* stop_addresses);
 
 struct _ContractCursorContent;
 struct _ContractCursorContent* contract_cursor_new(struct _ContractGraphContent*);

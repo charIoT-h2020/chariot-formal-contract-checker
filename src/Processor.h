@@ -29,7 +29,7 @@ class Processor {
 
   public:
    Processor()
-      :  pvContent(nullptr), architectureFunctions{} {}
+      :  pvContent(nullptr), architectureFunctions{} { debugPrint((STG::IOObject*) nullptr); }
    Processor(Processor&& source)
       :  dlProcessorLibrary(std::move(source.dlProcessorLibrary)),
          dlDomainLibrary(std::move(source.dlDomainLibrary)),
@@ -52,6 +52,7 @@ class Processor {
          (*architectureFunctions.initialize_memory)(pvContent, reinterpret_cast<MemoryModel*>(&memory),
             &MemoryState::functions, reinterpret_cast<InterpretParameters*>(&parameters));
       }
+   void setVerbose() { (*architectureFunctions.set_verbose)(pvContent); }
 
    // void setDomainFunctions(struct _DomainElementFunctions* functions)
    //    {  AssumeCondition(pvContent)

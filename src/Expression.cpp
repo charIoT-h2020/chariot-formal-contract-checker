@@ -4,6 +4,17 @@
 #include "Numerics/Integer.h"
 #include "Numerics/HostFloating.h"
 
+const char* debugPrint(STG::IOObject* object) {
+   static STG::SString result;
+   result.clear();
+   STG::DIOObject::OSRSubString out(result);
+   if (!object)
+      result.copy("null");
+   else
+      object->write(out, STG::IOObject::FormatParameters());
+   return result.getChunk().string;
+}
+
 STG::SubString
 VirtualExpressionNode::ssJSonContent = STG::SString("content");
 

@@ -2,6 +2,7 @@
 
 #include "dll.h"
 #include "domsec_callback.h"
+#include "StandardClasses/Persistence.h"
 
 class MemoryState;
 class DomainValue : public STG::IOObject {
@@ -26,7 +27,7 @@ class DomainValue : public STG::IOObject {
             int length = 0;
             (*pfFunctions->write)(deValue, buffer.getChunk().string, buffer_size,
                   &length, &buffer, &increase_buffer_size);
-            out.writeall(STG::SubString(buffer, length).asPersistent());
+            out.writeall(STG::SubString(buffer, 0, length).asPersistent());
          }
          else
             out << "...";

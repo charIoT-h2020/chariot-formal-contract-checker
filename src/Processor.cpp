@@ -8,6 +8,7 @@ Processor::setFromFile(const char* filename) {
    dlProcessorLibrary.loadSymbol("set_domain_functions", &architectureFunctions.set_domain_functions);
    dlProcessorLibrary.loadSymbol("get_domain_functions", &architectureFunctions.get_domain_functions);
    dlProcessorLibrary.loadSymbol("initialize_memory", &architectureFunctions.initialize_memory);
+   dlProcessorLibrary.loadSymbol("processor_set_verbose", &architectureFunctions.set_verbose);
    dlProcessorLibrary.loadSymbol("free_processor", &architectureFunctions.free_processor);
    dlProcessorLibrary.loadSymbol("processor_get_register_index", &architectureFunctions.get_register_index);
    dlProcessorLibrary.loadSymbol("processor_get_register_name", &architectureFunctions.get_register_name);
