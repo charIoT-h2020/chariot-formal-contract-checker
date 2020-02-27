@@ -27,7 +27,7 @@ At 21/02/2020, the following connections are still under implementations
     * [x] Directed Acyclic Graph of contracts - inheritance through dominance
     * [x] contract parsing
     * [x] contract graph parsing
-- [ ] [`Required`] Full connection between the components
+- [x] Full connection between the components
 - [ ] [`Required`] Testing, Debugging
 - [ ] [`Required`] Convincing demo
 - [ ] Translation of `src` into python code
