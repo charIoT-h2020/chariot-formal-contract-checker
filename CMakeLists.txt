@@ -45,7 +45,7 @@ add_test(NAME TestPython COMMAND python3 ${CMAKE_SOURCE_DIR}/src/check_contract.
         -v
         -arch ${CMAKE_SOURCE_DIR}/../chariot-formal-decoder-armv7/src/armsec_decoder.so
         -dom  ${CMAKE_SOURCE_DIR}/../chariot-semantic-domains/build/libapplications/libScalarInterface.so
-        ${CMAKE_SOURCE_DIR}/tests/modbus.nobug.bin ${CMAKE_SOURCE_DIR}/tests/contracts.json)
+        ${CMAKE_SOURCE_DIR}/tests/example.out ${CMAKE_SOURCE_DIR}/tests/contracts.json)
 
 install(TARGETS contract_checker
         LIBRARY DESTINATION bin)

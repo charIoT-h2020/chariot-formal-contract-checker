@@ -122,8 +122,8 @@ class Processor(object):
         assert is_valid
         index = 0
         res = [ ]
-        while index < result.addresses_array_length:
-            res += result.contents.addresses[index]
+        while index < result.contents.addresses_array_length:
+            res.append(result.contents.addresses[index])
             index = index+1
         return res
 
