@@ -28,7 +28,7 @@ At 21/02/2020, the following connections are still under implementations
     * [x] contract parsing
     * [x] contract graph parsing
 - [x] Full connection between the components
-- [ ] [`Required`] Testing, Debugging
+- [x] Testing, Debugging
 - [ ] [`Required`] Convincing demo
 - [ ] Translation of `src` into python code
 - [ ] Integration in the Security Engine

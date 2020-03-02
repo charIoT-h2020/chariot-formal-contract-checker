@@ -14,6 +14,7 @@
 #include <memory>
 #include <cassert>
 #include <vector>
+#include <iostream>
 
 extern "C" {
 
@@ -282,5 +283,8 @@ free_address_vector(TargetAddresses* addresses) {
    delete container;
    *addresses = { nullptr, 0, 0, nullptr, nullptr };
 }
+
+void
+flush_cpp_stdout() { std::cout.flush(); }
 
 } // end of extern "C"

@@ -123,6 +123,7 @@ bool is_coverage_complete(struct _ContractCoverageContent* coverage,
 
 TargetAddresses create_address_vector();
 void free_address_vector(TargetAddresses*);
+void flush_cpp_stdout();
 
 #ifdef __cplusplus
 }

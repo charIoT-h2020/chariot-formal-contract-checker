@@ -135,6 +135,7 @@ class Processor(object):
         self.funs.create_address_vector.argtypes = [ ]
         self.funs.create_address_vector.restype = _TargetAddresses
         self.funs.free_address_vector.argtypes = [ ctypes.POINTER(_TargetAddresses) ]
+        self.funs.flush_cpp_stdout.argtypes = []
         self.content = self.funs.create_processor(arch_library.encode(), dom_library.encode())
 
     def __del__(self):
@@ -146,6 +147,8 @@ class Processor(object):
     def set_verbose(self):
         if self.content:
             self.funs.processor_set_verbose(self.content)
+    def flush_cpp_out(self):
+        self.funs.flush_cpp_stdout()
     def load_code(self, filename : str) -> bool:
         return self.funs.processor_load_code(self.content, filename.encode())
     def retrieve_targets(self, address : ctypes.c_uint64, contract : ContractReference,
