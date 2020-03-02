@@ -108,6 +108,7 @@ class SortedArray : public GenericSortedArray {
       {  VirtualCollection::TInsertInitialNewValue<thisType, Element, Cast> insertInitialValue(*this);
          initialValues.foreachDo(insertInitialValue);
       }
+   SortedArray(SortedArray<Element, Key, Cast>&& source) : GenericSortedArray(std::move(source)) {}
    SortedArray(const SortedArray<Element, Key, Cast>& source, AddMode mode=AMNoDuplicate,
          const VirtualCast* retrieveRegistrationFromCopy=nullptr)
       :  GenericSortedArray(source, mode, retrieveRegistrationFromCopy) {}
@@ -459,9 +460,13 @@ class TSortedArray : public GenericSortedArray {
       {  VirtualCollection::TInsertInitialNewValue<thisType, TypeElement, TypeCast> insertInitialValue(*this);
          initialValues.foreachDo(insertInitialValue);
       }
+   TSortedArray(thisType&& source) : GenericSortedArray(std::move(source)) {}
    TSortedArray(const thisType& source, AddMode mode=AMNoDuplicate,
          const VirtualCast* retrieveRegistrationFromCopy=nullptr)
       :  GenericSortedArray(source, mode, retrieveRegistrationFromCopy) {}
+
+   thisType& operator=(thisType&& source) = default;
+   thisType& operator=(const thisType& source) = default;
    Template3DefineCopy(TSortedArray, TypeElement, TypeKey, TypeCast)
    Template3DefineCollectionForAbstractCollect(TSortedArray, TSortedArrayCursor, TypeElement, TypeKey, TypeCast)
 

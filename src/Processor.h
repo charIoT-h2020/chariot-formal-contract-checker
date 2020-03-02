@@ -5,6 +5,33 @@
 #include <vector>
 #include "decsec_callback.h"
 
+class DecisionVector {
+  private:
+   struct _DecisionVector* pvContent;
+   struct _ProcessorFunctions* architectureFunctions;
+
+  public:
+   DecisionVector(struct _DecisionVector* content, struct _ProcessorFunctions* functions)
+      : pvContent(content), architectureFunctions(functions) {}
+   DecisionVector(DecisionVector&& source)
+      : pvContent(source.pvContent), architectureFunctions(source.architectureFunctions)
+      {  source.pvContent = nullptr; }
+   DecisionVector(const DecisionVector& source)
+      :  pvContent(nullptr), architectureFunctions(source.architectureFunctions)
+      {  if (source.pvContent)
+            pvContent = (*architectureFunctions->clone_decision_vector)(source.pvContent);
+      }
+   ~DecisionVector()
+      {  if (pvContent) {
+            (*architectureFunctions->free_decision_vector)(pvContent);
+            pvContent = nullptr;
+         }
+      }
+   void filter(uint64_t address)
+      {  (*architectureFunctions->filter_decision_vector)(pvContent, address); }
+   struct _DecisionVector* getContent() const { return pvContent; }
+};
+
 class Processor {
   private:
    DLL::Library dlProcessorLibrary;
@@ -47,12 +74,20 @@ class Processor {
    void setFromFile(const char* filename);
    void setDomainFunctionsFromFile(const char* domainFilename);
    std::ifstream& binaryFile() { return fBinaryFile; }
+   void setVerbose() { (*architectureFunctions.set_verbose)(pvContent); }
+   int getRegistersNumber() const
+      {  AssumeCondition(pvContent)
+         return (*architectureFunctions.get_registers_number)(pvContent);
+      }
    void initializeMemory(MemoryState& memory, MemoryInterpretParameters& parameters)
       {  AssumeCondition(pvContent)
          (*architectureFunctions.initialize_memory)(pvContent, reinterpret_cast<MemoryModel*>(&memory),
             &MemoryState::functions, reinterpret_cast<InterpretParameters*>(&parameters));
       }
-   void setVerbose() { (*architectureFunctions.set_verbose)(pvContent); }
+   DecisionVector createDecisionVector() const
+      {  return DecisionVector((*architectureFunctions.create_decision_vector)(pvContent),
+            &const_cast<struct _ProcessorFunctions&>(architectureFunctions));
+      }
 
    // void setDomainFunctions(struct _DomainElementFunctions* functions)
    //    {  AssumeCondition(pvContent)
@@ -64,8 +99,10 @@ class Processor {
       }
    //   {  return const_cast<struct _DomainElementFunctions*>(&domainFunctions); }
    bool retrieveNextTargets(uint64_t address, MemoryState& memoryState,
-         TargetAddresses& targetAddresses, MemoryInterpretParameters& parameters);
+         TargetAddresses& targetAddresses, DecisionVector& decisionVector,
+         MemoryInterpretParameters& parameters);
    void interpret(uint64_t address, MemoryState& memoryState,
-         uint64_t targetAddress, Warnings& warnings, MemoryInterpretParameters& parameters);
+         uint64_t targetAddress, DecisionVector& decisionVector, Warnings& warnings,
+         MemoryInterpretParameters& parameters);
 };
 

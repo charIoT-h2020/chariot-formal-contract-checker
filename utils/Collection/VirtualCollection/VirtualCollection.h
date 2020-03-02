@@ -603,6 +603,8 @@ class TCopyCollection : public TypeCollection {
       :  TypeCollection(initialValues) {}
    TCopyCollection(const typename TypeCollection::InitialNewValues& initialValues)
       :  TypeCollection(initialValues) {}
+   TCopyCollection(TCopyCollection<TypeCollection>&& source)
+      {  TypeCollection::swap(source); }
    TCopyCollection(const TCopyCollection<TypeCollection>& source)
       :  TypeCollection(source, TypeCollection::AMDuplicate) {}
    virtual ~TCopyCollection() { TypeCollection::_removeAll(ExtendedSuppressParameters().setFree()); }
@@ -611,6 +613,11 @@ class TCopyCollection : public TypeCollection {
    TCopyCollection<TypeCollection>& operator=(const TCopyCollection<TypeCollection>& source)
       {  TypeCollection::_fullAssign((const TypeCollection&) source,
             ExtendedReplaceParameters().setDuplicate().setFree());
+         return *this;
+      }
+   TCopyCollection<TypeCollection>& operator=(TCopyCollection<TypeCollection>&& source)
+      {  TypeCollection::swap(source);
+         source.TypeCollection::_removeAll(ExtendedSuppressParameters().setFree());
          return *this;
       }
 };

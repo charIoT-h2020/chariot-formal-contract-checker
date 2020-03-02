@@ -3,6 +3,11 @@
 
 MemoryModelFunctions MemoryState::functions={
    &MemoryState::set_number_of_registers,
+   &MemoryState::clone,
+   &MemoryState::assign,
+   &MemoryState::swap,
+   &MemoryState::free,
+   &MemoryState::merge,
    &MemoryState::set_register_value,
    &MemoryState::get_register_value,
    &MemoryState::load_multibit_value,

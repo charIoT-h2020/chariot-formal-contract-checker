@@ -115,6 +115,8 @@ class MultiArray : public GenericMultiArray {
    MultiArray(const MultiArray<Element, Key, Cast>& source, AddMode mode=AMNoDuplicate,
          const VirtualCast* retrieveRegistrationFromCopy=nullptr)
       :  GenericMultiArray(source, mode, retrieveRegistrationFromCopy) {}
+   MultiArray(MultiArray<Element, Key, Cast>&& source)
+      :  GenericMultiArray(std::move(source)) {}
    Template3DefineCopy(MultiArray, Element, Key, Cast)
    Template3DefineCollectionForAbstractCollect(MultiArray, MultiArrayCursor, Element, Key, Cast)
 
@@ -297,6 +299,8 @@ class TMultiArray : public GenericMultiArray {
    TMultiArray(const TMultiArray<TypeElement, TypeKey, TypeCast>& source, AddMode mode=AMNoDuplicate,
          const VirtualCast* retrieveRegistrationFromCopy=nullptr)
       :  GenericMultiArray(source, mode, retrieveRegistrationFromCopy) {}
+   TMultiArray(TMultiArray<TypeElement, TypeKey, TypeCast>&& source)
+      :  GenericMultiArray(std::move(source)) {}
    Template3DefineCopy(TMultiArray, TypeElement, TypeKey, TypeCast)
    Template3DefineCollectionForAbstractCollect(TMultiArray, TMultiArrayCursor, TypeElement, TypeKey, TypeCast)
 

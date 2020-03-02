@@ -114,6 +114,8 @@ class EmptyCollection : public VirtualCollection {
 
   public:
    EmptyCollection() {}
+   EmptyCollection(EmptyCollection&& source)
+      :  inherited(source) {}
    EmptyCollection(const EmptyCollection& source, AddMode mode=AMDuplicate,
          const VirtualCast* retrieveRegistrationFromCopy=nullptr)
       :  inherited(source, mode) {}
@@ -281,6 +283,7 @@ class UniqueCollection : public VirtualCollection {
       {  TInsertInitialNewValue<UniqueCollection, EnhancedObject, SimpleCast> insertInitialValue(*this);
          initialValues.foreachDo(insertInitialValue);
       }
+   UniqueCollection(UniqueCollection&& source) : peoElement(nullptr) { swap(source); }
    UniqueCollection(const UniqueCollection& source, AddMode mode=AMDuplicate,
          const VirtualCast* retrieveRegistrationFromCopy=nullptr)
       :  inherited(source), peoElement((source.peoElement && (mode==AMDuplicate))
@@ -288,6 +291,10 @@ class UniqueCollection : public VirtualCollection {
                ? ((const VirtualCastWithElement*) retrieveRegistrationFromCopy)
                   ->castFrom(source.peoElement->createCopy(), source.peoElement)
                : source.peoElement->createCopy()) : source.peoElement) {}
+   UniqueCollection& operator=(UniqueCollection&& source)
+      {  peoElement = source.peoElement; source.peoElement = nullptr; return *this; }
+   UniqueCollection& operator=(const UniqueCollection& source)
+      {  peoElement = source.peoElement; return *this; }
    typedef EnhancedObject Node;
    DefineCopy(UniqueCollection)
    DDefineAssign(UniqueCollection)
@@ -594,6 +601,8 @@ class DoubleCollection : public VirtualCollection {
       {  TInsertInitialNewValue<DoubleCollection, EnhancedObject, SimpleCast> insertInitialValue(*this);
          initialValues.foreachDo(insertInitialValue);
       }
+   DoubleCollection(DoubleCollection&& source)
+      :  peoFirst(nullptr), peoSecond(nullptr) { swap(source); }
    DoubleCollection(const DoubleCollection& source, AddMode mode=AMDuplicate,
          const VirtualCast* retrieveRegistrationFromCopy=nullptr)
       :  inherited(source),
@@ -607,6 +616,15 @@ class DoubleCollection : public VirtualCollection {
                   ->castFrom(source.peoSecond->createCopy(), source.peoSecond)
             : source.peoSecond->createCopy())
             : source.peoSecond) {}
+   DoubleCollection& operator=(DoubleCollection&& source)
+      {  peoFirst = source.peoFirst; peoSecond = source.peoSecond;
+         source.peoFirst = source.peoSecond = nullptr;
+         return *this;
+      }
+   DoubleCollection& operator=(const DoubleCollection& source)
+      {  peoFirst = source.peoFirst; peoSecond = source.peoSecond;
+         return *this;
+      }
    typedef EnhancedObject Node;
    DefineCopy(DoubleCollection)
    DDefineAssign(DoubleCollection)
@@ -903,6 +921,7 @@ class TUniqueCollection : public UniqueCollection {
       {  UniqueCollection::TInsertInitialNewValue<thisType, TypeElement, Cast> insertInitialValue(*this);
          initialValues.foreachDo(insertInitialValue);
       }
+   TUniqueCollection(thisType&& source) : UniqueCollection(std::move(source)) {}
    TUniqueCollection(const thisType& source, AddMode mode=AMNoDuplicate,
          const VirtualCast* retrieveRegistrationFromCopy=nullptr)
       :  UniqueCollection(source, mode, retrieveRegistrationFromCopy) {}
@@ -993,6 +1012,7 @@ class TDoubleCollection : public DoubleCollection {
       {  DoubleCollection::TInsertInitialNewValue<thisType, TypeElement, Cast> insertInitialValue(*this);
          initialValues.foreachDo(insertInitialValue);
       }
+   TDoubleCollection(thisType&& source) : DoubleCollection(std::move(source)) {}
    TDoubleCollection(const thisType& source, AddMode mode=AMNoDuplicate,
          const VirtualCast* retrieveRegistrationFromCopy=nullptr)
       :  DoubleCollection(source, mode, retrieveRegistrationFromCopy) {}

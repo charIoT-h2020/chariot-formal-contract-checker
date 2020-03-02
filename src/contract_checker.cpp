@@ -44,34 +44,59 @@ processor_load_code(struct _PProcessor* aprocessor, const char* filename)
    return true;
 }
 
+struct _PDecisionVector*
+processor_create_decision_vector(struct _PProcessor* aprocessor)
+{  Processor* processor = reinterpret_cast<Processor*>(aprocessor);
+   return reinterpret_cast<struct _PDecisionVector*>(new DecisionVector(processor->createDecisionVector()));
+}
+
+struct _PDecisionVector*
+processor_clone_decision_vector(struct _PDecisionVector* decision_vector)
+{  DecisionVector* decision = reinterpret_cast<DecisionVector*>(decision_vector);
+   return reinterpret_cast<struct _PDecisionVector*>(new DecisionVector(*decision));
+}
+
+void processor_free_decision_vector(struct _PDecisionVector* decision_vector)
+{  DecisionVector* decision = reinterpret_cast<DecisionVector*>(decision_vector);
+   delete decision;
+}
+
+void processor_filter_decision_vector(struct _PDecisionVector* decision_vector, uint64_t address)
+{  DecisionVector* decision = reinterpret_cast<DecisionVector*>(decision_vector);
+   decision->filter(address);
+}
+
 bool
 processor_get_targets(struct _PProcessor* aprocessor, uint64_t address,
-      struct _ContractContent* contract, TargetAddresses* target_addresses)
+      struct _ContractContent* contract, struct _PDecisionVector* adecision,
+      TargetAddresses* target_addresses)
 {  Processor& processor = *reinterpret_cast<Processor*>(aprocessor);
    Contract& startContract = *reinterpret_cast<Contract*>(contract);
-   MemoryState memoryState(processor.getDomainFunctions());
+   DecisionVector& decision = *reinterpret_cast<DecisionVector*>(adecision);
+   MemoryState memoryState(processor.getRegistersNumber(), processor.getDomainFunctions());
    MemoryInterpretParameters parameters;
-   // [TODO] remove it
-   processor.initializeMemory(memoryState, parameters);
+   if (startContract.isInitial())
+      processor.initializeMemory(memoryState, parameters);
    startContract.applyTo(memoryState, processor.getContent(), &processor.getArchitectureFunctions());
-   return processor.retrieveNextTargets(address, memoryState, *target_addresses, parameters);
+   return processor.retrieveNextTargets(address, memoryState, *target_addresses, decision, parameters);
 }
 
 bool processor_check_block(struct _PProcessor* aprocessor, uint64_t address,
       uint64_t target, struct _ContractContent* afirstContract,
-      struct _ContractContent* alastContract, struct _ContractCoverageContent* acoverage,
-      struct _WarningsContent* awarnings)
+      struct _ContractContent* alastContract, struct _PDecisionVector* adecision,
+      struct _ContractCoverageContent* acoverage, struct _WarningsContent* awarnings)
 {  Processor& processor = *reinterpret_cast<Processor*>(aprocessor);
    Contract& firstContract = *reinterpret_cast<Contract*>(afirstContract);
    Contract& lastContract = *reinterpret_cast<Contract*>(alastContract);
+   DecisionVector& decision = *reinterpret_cast<DecisionVector*>(adecision);
    Warnings& warnings = *reinterpret_cast<Warnings*>(awarnings);
-   MemoryState memoryState(processor.getDomainFunctions());
+   MemoryState memoryState(processor.getRegistersNumber(), processor.getDomainFunctions());
    MemoryInterpretParameters parameters;
-   // [TODO] remove it
-   processor.initializeMemory(memoryState, parameters);
+   if (firstContract.isInitial())
+      processor.initializeMemory(memoryState, parameters);
    firstContract.applyTo(memoryState, processor.getContent(), &processor.getArchitectureFunctions());
-   processor.interpret(address, memoryState, target, warnings, parameters);
-   MemoryState lastMemoryState(processor.getDomainFunctions());
+   processor.interpret(address, memoryState, target, decision, warnings, parameters);
+   MemoryState lastMemoryState(processor.getRegistersNumber(), processor.getDomainFunctions());
    processor.initializeMemory(lastMemoryState, parameters);
    lastContract.applyTo(lastMemoryState, processor.getContent(), &processor.getArchitectureFunctions());
    ContractCoverage& coverage = *reinterpret_cast<ContractCoverage*>(acoverage);

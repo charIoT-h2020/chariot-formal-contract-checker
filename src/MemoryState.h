@@ -193,6 +193,20 @@ class MemoryState : public STG::IOObject {
       DomainValueZone& operator=(DomainValueZone&& source) = default;
       DomainValueZone& operator=(const DomainValueZone& source) = default;
 
+      void mergeWith(DomainValueZone& source)
+         {  if (spmzZone.key() != source.spmzZone.key())
+               spmzZone = PNT::TSharedPointer<MemoryZone>();
+            DomainEvaluationEnvironment env{};
+            env.defaultDomainType = DISFormal;
+            DomainValue::mergeWith(source, env);
+         }
+      bool contain(const DomainValueZone& source) const
+         {  // if (spmzZone.isValid() && spmzZone.key() != source.spmzZone.key())
+            //    return false;
+            DomainEvaluationEnvironment env{};
+            env.defaultDomainType = DISFormal;
+            return DomainValue::contain(source, env);
+         }
       const PNT::TSharedPointer<MemoryZone>& getZone() const { return spmzZone; }
       void setFrom(DomainValue&& value, const PNT::TSharedPointer<MemoryZone>& zone)
          {  DomainValue::operator=(std::move(value)); spmzZone = zone; }
@@ -218,6 +232,15 @@ class MemoryState : public STG::IOObject {
       void setValue(DomainValueZone&& value)
          {  dvzValue = std::move(value); }
       const DomainValue& getValue() const { return dvzValue; }
+      void mergeWith(RegisterValue& source)
+         {  AssumeCondition(uRegister == source.uRegister)
+            dvzValue.mergeWith(source.dvzValue);
+         }
+      bool contain(const RegisterValue& source) const
+         {  AssumeCondition(uRegister == source.uRegister)
+            return dvzValue.contain(source.dvzValue);
+         }
+      bool isTop() const { return dvzValue.isTop(); }
       class Key {
         public:
          Key(const COL::VirtualCollection&) {}
@@ -248,6 +271,13 @@ class MemoryState : public STG::IOObject {
       void setValue(DomainValueZone&& value)
          {  dvzValue = std::move(value); }
       const DomainValueZone& getValue() const { return dvzValue; }
+      void mergeWith(MemoryValue& source)
+         {  dvzValue.mergeWith(source.dvzValue);
+         }
+      bool contain(const MemoryValue& source) const
+         {  return dvzValue.contain(source.dvzValue);
+         }
+      bool isTop() const { return dvzValue.isTop(); }
       class Key {
         public:
          Key(const COL::VirtualCollection&) {}
@@ -275,6 +305,29 @@ class MemoryState : public STG::IOObject {
    static void set_number_of_registers(MemoryModel* amemory, int numbers)
       {  MemoryState* memory = reinterpret_cast<MemoryState*>(amemory);
          memory->uRegisterNumber = numbers;
+      }
+   static MemoryModel* clone(MemoryModel* amemory)
+      {  MemoryState* memory = reinterpret_cast<MemoryState*>(amemory);
+         return reinterpret_cast<MemoryModel*>(new MemoryState(*memory));
+      }
+   static void assign(MemoryModel* afirst, MemoryModel* asecond)
+      {  MemoryState* first = reinterpret_cast<MemoryState*>(afirst);
+         MemoryState* second = reinterpret_cast<MemoryState*>(asecond);
+         *first = *second;
+      }
+   static void swap(MemoryModel* afirst, MemoryModel* asecond)
+      {  MemoryState* first = reinterpret_cast<MemoryState*>(afirst);
+         MemoryState* second = reinterpret_cast<MemoryState*>(asecond);
+         first->swap(*second);
+      }
+   static void free(MemoryModel* amemory)
+      {  MemoryState* memory = reinterpret_cast<MemoryState*>(amemory);
+         delete memory;
+      }
+   static void merge(MemoryModel* afirst, MemoryModel* asecond)
+      {  MemoryState* first = reinterpret_cast<MemoryState*>(afirst);
+         MemoryState* second = reinterpret_cast<MemoryState*>(asecond);
+         first->mergeWith(*second);
       }
    // [TODO] augment DomainElement with a zone
    static void set_register_value(MemoryModel* amemory, int registerIndex,
@@ -361,9 +414,83 @@ class MemoryState : public STG::IOObject {
       }
 
   public:
-   MemoryState(struct _DomainElementFunctions* adomainFunctions)
-      :  domainFunctions(adomainFunctions) {}
+   MemoryState(int registerNumber, struct _DomainElementFunctions* adomainFunctions)
+      :  uRegisterNumber(registerNumber), domainFunctions(adomainFunctions) {}
+   MemoryState(MemoryState&&) = default;
    MemoryState(const MemoryState&) = default;
+   MemoryState& operator=(MemoryState&&) = default;
+   MemoryState& operator=(const MemoryState&) = default;
+
+   void swap(MemoryState& source)
+      {  AssumeCondition(uRegisterNumber == source.uRegisterNumber && domainFunctions == source.domainFunctions
+               && sphImplicitHypotheses.isValid() == source.sphImplicitHypotheses.isValid()
+               && (!sphImplicitHypotheses.isValid() || sphImplicitHypotheses.key() == source.sphImplicitHypotheses.key()))
+         rcRegisters.swap(source.rcRegisters);
+         mcMemory.swap(source.mcMemory);
+         mzMemoryZones.swap(source.mzMemoryZones);
+      }
+   void mergeWith(MemoryState& source)
+      {  AssumeCondition(uRegisterNumber == source.uRegisterNumber && domainFunctions == source.domainFunctions
+               && sphImplicitHypotheses.isValid() == source.sphImplicitHypotheses.isValid()
+               && (!sphImplicitHypotheses.isValid() || sphImplicitHypotheses.key() == source.sphImplicitHypotheses.key()))
+         mzMemoryZones.mergeWith(source.mzMemoryZones);
+         {  RegisterContent::Cursor thisCursor(rcRegisters), sourceCursor(source.rcRegisters);
+            sourceCursor.setToFirst();
+            while (thisCursor.setToNext()) {
+               if (!sourceCursor.isValid()) {
+                  auto copyCursor = thisCursor;
+                  thisCursor.setToPrevious();
+                  rcRegisters.freeAt(copyCursor);
+               }
+               else {
+                  ComparisonResult compare = RegisterValue::Key::compare(
+                        RegisterValue::Key::key(thisCursor.elementAt()),
+                        RegisterValue::Key::key(sourceCursor.elementAt()));
+                  if (compare == CRLess) {
+                     auto copyCursor = thisCursor;
+                     thisCursor.setToPrevious();
+                     rcRegisters.freeAt(copyCursor);
+                  }
+                  else if (compare == CRGreater) {
+                     thisCursor.setToPrevious();
+                     sourceCursor.setToNext();
+                  }
+                  else {
+                     thisCursor.elementSAt().mergeWith(sourceCursor.elementSAt());
+                     sourceCursor.setToNext();
+                  }
+               };
+            };
+         }
+         {  MemoryContent::Cursor thisCursor(mcMemory), sourceCursor(source.mcMemory);
+            sourceCursor.setToFirst();
+            while (thisCursor.setToNext()) {
+               if (!sourceCursor.isValid()) {
+                  auto copyCursor = thisCursor;
+                  thisCursor.setToPrevious();
+                  mcMemory.freeAt(copyCursor);
+               }
+               else {
+                  ComparisonResult compare = MemoryValue::Key::compare(
+                        MemoryValue::Key::key(thisCursor.elementAt()),
+                        MemoryValue::Key::key(sourceCursor.elementAt()));
+                  if (compare == CRLess) {
+                     auto copyCursor = thisCursor;
+                     thisCursor.setToPrevious();
+                     mcMemory.freeAt(copyCursor);
+                  }
+                  else if (compare == CRGreater) {
+                     thisCursor.setToPrevious();
+                     sourceCursor.setToNext();
+                  }
+                  else {
+                     thisCursor.elementSAt().mergeWith(sourceCursor.elementSAt());
+                     sourceCursor.setToNext();
+                  }
+               };
+            };
+         }
+      }
 
    DomainValue evaluate(const VirtualExpressionNode& aexpression, struct _Processor* processor,
          struct _ProcessorFunctions* processorFunctions)
@@ -409,8 +536,66 @@ class MemoryState : public STG::IOObject {
    MemoryModelFunctions* getFunctions() const { return &functions; }
    void write(std::ostream& out) const { out << "end of memory description\n"; }
    const struct _DomainElementFunctions* getDomainFunctions() const { return domainFunctions; }
-   // [TODO] to implement
-   bool contain(const MemoryState& source, const MemoryInterpretParameters& parameters) { return true; } 
+   bool contain(const MemoryState& source, const MemoryInterpretParameters& parameters)
+      {  AssumeCondition(uRegisterNumber == source.uRegisterNumber && domainFunctions == source.domainFunctions
+               && sphImplicitHypotheses.isValid() == source.sphImplicitHypotheses.isValid()
+               && (!sphImplicitHypotheses.isValid() || sphImplicitHypotheses.key() == source.sphImplicitHypotheses.key()))
+         {  RegisterContent::Cursor thisCursor(rcRegisters), sourceCursor(source.rcRegisters);
+            sourceCursor.setToFirst();
+            while (thisCursor.setToNext()) {
+               if (!sourceCursor.isValid()) {
+                  if (!thisCursor.elementAt().isTop())
+                     return false;
+               }
+               else {
+                  ComparisonResult compare = RegisterValue::Key::compare(
+                        RegisterValue::Key::key(thisCursor.elementAt()),
+                        RegisterValue::Key::key(sourceCursor.elementAt()));
+                  if (compare == CRLess) {
+                     if (!thisCursor.elementAt().isTop())
+                        return false;
+                  }
+                  else if (compare == CRGreater) {
+                     thisCursor.setToPrevious();
+                     sourceCursor.setToNext();
+                  }
+                  else {
+                     if (!thisCursor.elementSAt().contain(sourceCursor.elementSAt()))
+                        return false;
+                     sourceCursor.setToNext();
+                  }
+               };
+            };
+         }
+         {  MemoryContent::Cursor thisCursor(mcMemory), sourceCursor(source.mcMemory);
+            sourceCursor.setToFirst();
+            while (thisCursor.setToNext()) {
+               if (!sourceCursor.isValid()) {
+                  if (!thisCursor.elementAt().isTop())
+                     return false;
+               }
+               else {
+                  ComparisonResult compare = MemoryValue::Key::compare(
+                        MemoryValue::Key::key(thisCursor.elementAt()),
+                        MemoryValue::Key::key(sourceCursor.elementAt()));
+                  if (compare == CRLess) {
+                     if (!thisCursor.elementAt().isTop())
+                        return false;
+                  }
+                  else if (compare == CRGreater) {
+                     thisCursor.setToPrevious();
+                     sourceCursor.setToNext();
+                  }
+                  else {
+                     if (!thisCursor.elementSAt().contain(sourceCursor.elementSAt()))
+                        return false;
+                     sourceCursor.setToNext();
+                  }
+               };
+            };
+         }
+         return true;
+      }
    void intersectRegister(int registerIndex, DomainValue&& avalue)
       {  RegisterContent::Cursor cursor(rcRegisters);
          auto locationResult = rcRegisters.locateKey(registerIndex, cursor);

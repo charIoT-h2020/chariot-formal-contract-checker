@@ -98,6 +98,14 @@ class DomainValue : public STG::IOObject {
    DefineCopy(DomainValue)
    DDefineAssign(DomainValue)
 
+   void mergeWith(DomainValue& source, DomainEvaluationEnvironment& env)
+      {  bool result = (*pfFunctions->merge)(&deValue, source.deValue, &env);
+         AssumeCondition(result)
+      }
+   bool isTop() const
+      {  return (*pfFunctions->is_top)(deValue); }
+   bool contain(const DomainValue& source, DomainEvaluationEnvironment& env) const
+      {  return (*pfFunctions->contain)(deValue, source.deValue, &env); }
    void applyAssign(DomainBitUnaryOperation operation, DomainEvaluationEnvironment& env)
       {  bool result = (*pfFunctions->bit_unary_apply_assign)(&deValue, operation, &env);
          AssumeCondition(result)

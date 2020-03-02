@@ -374,6 +374,10 @@ class DomainNode::NumberToken : public AbstractToken {
    enum IntegerExtension { IENoExtension, IEBit };
    enum Coding { CDecimal, CBit, COctal, CHexaDecimal };
 
+   void setSpecialCoding(Coding coding)
+      {  AssumeCondition(!hasCodingField()) mergeCodingField(coding); }
+   friend class DomainNode::Lexer;
+
   protected:
    DefineExtendedParameters(4, AbstractToken)
    DefineSubExtendedParameters(BasicType, 1, INHERITED)
@@ -706,21 +710,24 @@ DomainNode::Lexer::readMain(STG::SubString& in, unsigned& apos) {
       if ((chs == 'x') || (chs == 'X')) {
          fReadNumber = true;
          chContext = (char) 3;
-         apos += pos;
+         in.advance(2);
+         apos += pos + 2;
          tToken = NumberToken();
          return RRHasToken;
       }
       else if ((chs == 'b') || (chs == 'B')) {
          fReadNumber = true;
          chContext = (char) 1;
-         apos += pos;
+         in.advance(2);
+         apos += pos + 2;
          tToken = NumberToken();
          return RRHasToken;
       }
       else if (chs >= '0' && chs <= '7') {
          fReadNumber = true;
          chContext = (char) 2;
-         apos += pos;
+         in.advance(2);
+         apos += pos + 2;
          tToken = NumberToken();
          return RRHasToken;
       };
@@ -831,12 +838,18 @@ DomainNode::Lexer::readNumberToken(STG::SubString& in, unsigned& apos, NumberTok
       number.setLength(pos);
    };
    bool isInteger = (((chContext >> 2) & 0x3) == 0);
-   if (result)
+   if (result) {
       *result = NumberToken(number, !isInteger /* isFloat */);
+      if (chContext & 0x3)
+         result->setSpecialCoding((NumberToken::Coding) (chContext & 0x3));
+   }
    if (result)
       tToken = AbstractToken(*result);
-   else
+   else {
       tToken = AbstractToken(NumberToken(number, !isInteger /* isFloat */));
+      // if (chContext & 0x3)
+      //    ((NumberToken&) tToken).setSpecialCoding((NumberToken::Coding) (chContext & 0x3));
+   }
    if (result && ((chContext >> 2) & 4)) {
       if ((chContext >> 2) & 8)
          result->setDoubleSize(firstSize, secondSize);
@@ -2363,6 +2376,7 @@ LReadContent:
             parser.state().shift(*this, &DomainNode::readToken<char>,
                   (DomainNode::Parser<char>::State::UnionResult<DomainNode, OperatorStack>*) nullptr);
             parser.parse(arguments.valueAsText());
+            arguments.valueAsText().setToSupport();
          };
       }
       state.point() = DAfterBegin;

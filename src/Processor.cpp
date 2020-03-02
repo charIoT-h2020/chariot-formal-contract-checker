@@ -10,8 +10,13 @@ Processor::setFromFile(const char* filename) {
    dlProcessorLibrary.loadSymbol("initialize_memory", &architectureFunctions.initialize_memory);
    dlProcessorLibrary.loadSymbol("processor_set_verbose", &architectureFunctions.set_verbose);
    dlProcessorLibrary.loadSymbol("free_processor", &architectureFunctions.free_processor);
+   dlProcessorLibrary.loadSymbol("processor_get_registers_number", &architectureFunctions.get_registers_number);
    dlProcessorLibrary.loadSymbol("processor_get_register_index", &architectureFunctions.get_register_index);
    dlProcessorLibrary.loadSymbol("processor_get_register_name", &architectureFunctions.get_register_name);
+   dlProcessorLibrary.loadSymbol("processor_create_decision_vector", &architectureFunctions.create_decision_vector);
+   dlProcessorLibrary.loadSymbol("processor_clone_decision_vector", &architectureFunctions.clone_decision_vector);
+   dlProcessorLibrary.loadSymbol("processor_free_decision_vector", &architectureFunctions.free_decision_vector);
+   dlProcessorLibrary.loadSymbol("processor_filter_decision_vector", &architectureFunctions.filter_decision_vector);
    dlProcessorLibrary.loadSymbol("processor_next_targets", &architectureFunctions.processor_next_targets);
    dlProcessorLibrary.loadSymbol("processor_interpret", &architectureFunctions.processor_interpret);
    pvContent = (*architectureFunctions.create_processor)();
@@ -25,6 +30,7 @@ Processor::setDomainFunctionsFromFile(const char* domainFilename) {
    dlDomainLibrary.loadSymbol("domain_get_type", &domainFunctions.get_type);
    dlDomainLibrary.loadSymbol("domain_query_zero_result", &domainFunctions.query_zero_result);
    dlDomainLibrary.loadSymbol("domain_get_size_in_bits", &domainFunctions.get_size_in_bits);
+   dlDomainLibrary.loadSymbol("domain_is_top", &domainFunctions.is_top);
    dlDomainLibrary.loadSymbol("domain_free", &domainFunctions.free);
    dlDomainLibrary.loadSymbol("domain_clone", &domainFunctions.clone);
 
@@ -119,7 +125,8 @@ Processor::setDomainFunctionsFromFile(const char* domainFilename) {
 
 bool
 Processor::retrieveNextTargets(uint64_t address, MemoryState& memoryState,
-      TargetAddresses& targetAddresses, MemoryInterpretParameters& parameters) {
+      TargetAddresses& targetAddresses, DecisionVector& decisionVector,
+      MemoryInterpretParameters& parameters) {
    if ((uint64_t) fBinaryFile.tellg() != address) {
       fBinaryFile.seekg(address);
       if (!fBinaryFile.good())
@@ -143,7 +150,7 @@ Processor::retrieveNextTargets(uint64_t address, MemoryState& memoryState,
       bool isValid = (*architectureFunctions.processor_next_targets)(pvContent,
             nextInstruction, length, address, &targetAddresses,
             reinterpret_cast<MemoryModel*>(&memoryState), memoryState.getFunctions(),
-            reinterpret_cast<InterpretParameters*>(&parameters));
+            decisionVector.getContent(), reinterpret_cast<InterpretParameters*>(&parameters));
       AssumeCondition(isValid)
       if (targetAddresses.addresses_length == 1) {
          if (targetAddresses.addresses[0] == stopAddress)
@@ -169,7 +176,8 @@ Processor::retrieveNextTargets(uint64_t address, MemoryState& memoryState,
 
 void
 Processor::interpret(uint64_t address, MemoryState& memoryState,
-      uint64_t targetAddress, Warnings& warnings, MemoryInterpretParameters& parameters) {
+      uint64_t targetAddress, DecisionVector& decisionVector, Warnings& warnings,
+      MemoryInterpretParameters& parameters) {
    if ((uint64_t) fBinaryFile.tellg() != address) {
       fBinaryFile.seekg(address);
       if (!fBinaryFile.good())
@@ -181,18 +189,18 @@ Processor::interpret(uint64_t address, MemoryState& memoryState,
       return;
 
    char* instruction = instructionBuffer;
-   char* nextInstruction = instructionBuffer;
-
+   decisionVector.filter(targetAddress);
    while (length > 0) {
+      uint64_t old_address = address;
       bool hasFound = (*architectureFunctions.processor_interpret)(pvContent,
-            nextInstruction, length, address, targetAddress,
+            instruction, length, &address, targetAddress,
             reinterpret_cast<MemoryModel*>(&memoryState), memoryState.getFunctions(),
-            reinterpret_cast<InterpretParameters*>(&parameters));
+            decisionVector.getContent(), reinterpret_cast<InterpretParameters*>(&parameters));
       if (hasFound)
          return;
-      length -= (nextInstruction-instruction);
-      address += (nextInstruction-instruction);
-      instruction = nextInstruction;
+      instruction += (address-old_address);
+      AssumeCondition(instruction >= instructionBuffer && instruction < instructionBuffer+1000)
+      length -= (address-old_address);
    }
 }
 

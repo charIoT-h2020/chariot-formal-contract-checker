@@ -1,6 +1,7 @@
 import ctypes
 
 class _PProcessor(ctypes.Structure): pass
+class _DecisionVectorContent(ctypes.Structure): pass
 class _ContractContent(ctypes.Structure): pass
 class _ContractCoverageContent(ctypes.Structure): pass
 class _WarningsContent(ctypes.Structure): pass
@@ -34,6 +35,31 @@ class ContractReference(object):
     def is_valid(self):
         return not (self.content is None)
 
+class DecisionVector(object):
+    def __init__(self):
+        self.funs = None
+        self.content = None
+
+    def set_from(self, processor):
+        self.funs = processor.funs
+        self.content = self.funs.processor_create_decision_vector(processor.content)
+    def set_from_move(self, source):
+        self.funs = source.funs
+        self.content = source.content
+        source.funs = None
+        source.content = None
+    def __del__(self):
+        self.clear()
+    def clear(self):
+        if self.content:
+            self.funs.processor_free_decision_vector(self.content)
+            self.content = None
+    def clone(self):
+        result = DecisionVector()
+        result.funs = self.funs
+        result.content = self.funs.processor_clone_decision_vector(self.content)
+        return result;
+
 class Processor(object):
     def __init__(self, memsec_library: str, arch_library: str, dom_library: str):
         self.funs = ctypes.cdll.LoadLibrary(memsec_library)
@@ -43,14 +69,23 @@ class Processor(object):
         self.funs.processor_set_verbose.argtypes = [ ctypes.POINTER(_PProcessor) ]
         self.funs.processor_load_code.argtypes = [ ctypes.POINTER(_PProcessor), ctypes.c_char_p ]
         self.funs.processor_load_code.restype = ctypes.c_bool
+        self.funs.processor_create_decision_vector.argtypes = [ ctypes.POINTER(_PProcessor) ]
+        self.funs.processor_create_decision_vector.restype = ctypes.POINTER(_DecisionVectorContent)
+        self.funs.processor_clone_decision_vector.argtypes = [
+                ctypes.POINTER(_DecisionVectorContent) ]
+        self.funs.processor_clone_decision_vector.restype = ctypes.POINTER(_DecisionVectorContent)
+        self.funs.processor_free_decision_vector.argtypes = [
+                ctypes.POINTER(_DecisionVectorContent) ]
+        self.funs.processor_filter_decision_vector.argtypes = [
+                ctypes.POINTER(_DecisionVectorContent), ctypes.c_uint64 ]
         self.funs.processor_get_targets.argtypes = [ ctypes.POINTER(_PProcessor),
             ctypes.c_uint64, ctypes.POINTER(_ContractContent),
-            ctypes.POINTER(_TargetAddresses) ]
+            ctypes.POINTER(_DecisionVectorContent), ctypes.POINTER(_TargetAddresses) ]
         self.funs.processor_get_targets.restype = ctypes.c_bool
         self.funs.processor_check_block.argtypes = [ ctypes.POINTER(_PProcessor),
             ctypes.c_uint64, ctypes.c_uint64, ctypes.POINTER(_ContractContent),
-            ctypes.POINTER(_ContractContent), ctypes.POINTER(_ContractCoverageContent),
-            ctypes.POINTER(_WarningsContent) ]
+            ctypes.POINTER(_ContractContent), ctypes.POINTER(_DecisionVectorContent),
+            ctypes.POINTER(_ContractCoverageContent), ctypes.POINTER(_WarningsContent) ]
         self.funs.processor_check_block.restype = ctypes.c_bool
         self.funs.load_contracts.argtypes = [ ctypes.c_char_p, ctypes.POINTER(_PProcessor),
                 ctypes.POINTER(_WarningsContent) ]
@@ -114,9 +149,9 @@ class Processor(object):
     def load_code(self, filename : str) -> bool:
         return self.funs.processor_load_code(self.content, filename.encode())
     def retrieve_targets(self, address : ctypes.c_uint64, contract : ContractReference,
-            result: ctypes.POINTER(_TargetAddresses)):
+            decisions: DecisionVector, result: ctypes.POINTER(_TargetAddresses)):
         is_valid = self.funs.processor_get_targets(self.content, address, contract.content,
-                result)
+                decisions.content, result)
         if not is_valid:
             return [ ]
         assert is_valid
@@ -132,6 +167,7 @@ class Processor(object):
     def check_block(self, address : ctypes.c_uint64, target : ctypes.c_uint64,
             first_contract : ctypes.POINTER(_ContractContent),
             last_contract : ctypes.POINTER(_ContractContent),
+            decisions: ctypes.POINTER(_DecisionVectorContent),
             coverage : ctypes.POINTER(_ContractCoverageContent),
             warnings : ctypes.POINTER(_WarningsContent)) -> bool:
         # for each target at the end of the block (branch, dynamic calls,
@@ -146,8 +182,8 @@ class Processor(object):
         #   create a MemoryModel named post_mem for the post-condition contract
         #       and the memory model attached to its inherited contract
         #   return mem.is_included_in(post_mem)
-        return self.funs.processor_check_block(content, address, target, first_contract,
-                last_contract, coverage, warnings)
+        return self.funs.processor_check_block(self.content, address, target, first_contract,
+                last_contract, decisions, coverage, warnings)
 
 class Warnings(object):
     def __init__(self, processor : Processor):
@@ -213,6 +249,7 @@ class ContractCursor(object):
         result = ContractCursor()
         result.funs = self.funs
         result.content = self.funs.contract_cursor_clone(self.content)
+        return result
     def __del__(self):
         self.clear()
     def clear(self):

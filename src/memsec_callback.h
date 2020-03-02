@@ -33,6 +33,11 @@ typedef struct _InterpretParameters InterpretParameters;
 typedef struct _MemoryModel MemoryModel;
 typedef struct _MemoryModelFunctions {
   void (*set_number_of_registers)(MemoryModel* memory, int numbers);
+  MemoryModel* (*clone)(MemoryModel* memory);
+  void (*assign)(MemoryModel* first, MemoryModel* second);
+  void (*swap)(MemoryModel* first, MemoryModel* second);
+  void (*free)(MemoryModel* memory);
+  void (*merge)(MemoryModel* first, MemoryModel* second);
 
   void (*set_register_value)(MemoryModel* memory, int registerIndex,
       DomainElement* value, InterpretParameters* parameters,

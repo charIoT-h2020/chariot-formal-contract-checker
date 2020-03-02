@@ -185,6 +185,7 @@ struct _DomainElementFunctions {
   DomainType (*get_type)(DomainElement domain);
   ZeroResult (*query_zero_result)(DomainElement domain);
   int (*get_size_in_bits)(DomainElement domain);
+  bool (*is_top)(DomainElement domain);
   void (*free)(DomainElement* element);
   DomainElement (*clone)(DomainElement element);
 

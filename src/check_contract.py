@@ -73,27 +73,36 @@ while contract_cursor.set_to_next():
     targets = contract_cursor.funs.create_address_vector()
     contract_cursor.fill_stop_addresses(ctypes.pointer(targets))
     if args.verbose:
-        print ("look for targets starting at " + hex(address) + " by instruction interpretation")
-    processor.retrieve_targets(address, contract_cursor.get_contract(), ctypes.pointer(targets))
+        print ("look for targets starting at 0x" + hex(address) + " by instruction interpretation")
+    decisions = DecisionVector()
+    decisions.set_from(processor)
+    processor.retrieve_targets(address, contract_cursor.get_contract(),
+            decisions, ctypes.pointer(targets))
     target_index = 0
     while target_index < targets.addresses_array_length:
         target = targets.addresses[target_index]
-        post_contract_cursor = contract_cursor
+        post_contract_cursor = contract_cursor.clone()
         post_contract_cursor.set_after_address(target)
         assert (post_contract_cursor.get_address() == target)
-        break
         warnings = Warnings(processor)
 
-        if not processor.check_block(address, target,
-                contract_cursor.get_contract(), post_contract_cursor.get_contract(),
-                coverage, warnings):
+        if args.verbose:
+            print ("check block starting at 0x" + hex(address) + " by instruction interpretation")
+        decisions_target = decisions.clone()
+        if not processor.check_block(address, target, contract_cursor.get_contract().content,
+                post_contract_cursor.get_contract().content,
+                decisions_target.content, coverage.content, warnings.content):
+            print ("unable to check block starting at 0x" + hex(address))
             warning_cursor = _WarningCursor(warnings)
             while warning_cursor.set_to_next():
                 warning = warning_cursor.element_at()
                 print ("at " + warning.filepos + ":" + warning.linepos
                         + " error at column " + error.columnpos + ", " + error.message);
             all_valid = False
+        decisions_target.clear()
+        target_index = target_index + 1
     targets = contract_cursor.funs.free_address_vector(targets)
+    decisions.clear()
 
     if not first_contract.is_valid:
         print ("no initial contract found")
@@ -114,13 +123,21 @@ while contract_cursor.set_to_next():
         contract_cursor.set_before_address(contract.get_address())
 
         warnings = Warnings(processor)
+        decisions = DecisionVector()
+        decisions.set_from(processor)
+        targets = contract_cursor.funs.create_address_vector()
+        processor.retrieve_targets(contract_cursor.get_address(), contract_cursor.get_contract(),
+                decisions, ctypes.pointer(targets))
+        targets = contract_cursor.funs.free_address_vector(targets)
         if not processor.check_block(contract_cursor.get_address(), contract.get_address(),
-                contract_cursor.get_contract(), contract, None, warnings):
+                contract_cursor.get_contract().content, contract.content, decisions.content,
+                None, warnings.content):
             for warning in warnings:
                 print (warning)
             print ("property is not proved")
         else:
             print ("property is proved")
+        decisions.clear()
 if all_valid:
     print ("all contracts have been verified!")
 else:

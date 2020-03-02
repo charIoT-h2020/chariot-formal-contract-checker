@@ -206,11 +206,14 @@ class DefGenericAVL : public VirtualSortedCollection, private DefImplBinaryTree 
       {  TInsertInitialNewValue<DefGenericAVL, Node, SimpleCast> insertInitialValue(*this);
          initialValues.foreachDo(insertInitialValue);
       }
+   DefGenericAVL(DefGenericAVL&& source) { swap(source); }
    DefGenericAVL(const DefGenericAVL& source, AddMode mode=AMNoDuplicate,
          const VirtualCast* retrieveRegistrationFromCopy=nullptr)
       :  VirtualSortedCollection(source, mode),
          inheritedImplementation(source, mode==AMDuplicate, retrieveRegistrationFromCopy) {}
 
+   DefGenericAVL& operator=(DefGenericAVL&& source)
+      {  swap(source); return *this; }
    DefGenericAVL& operator=(const DefGenericAVL& source)
       {  thisType::_fullAssign(source, ExtendedReplaceParameters()); return *this; }
 #ifndef DefTypeBinaryParent
@@ -525,6 +528,7 @@ class DefSortedAVL : public DefGenericAVL {
       {  VirtualCollection::TInsertInitialNewValue<thisType, Element, Cast> insertInitialValue(*this);
          initialValues.foreachDo(insertInitialValue);
       }
+   DefSortedAVL(thisType&& source) : DefGenericAVL(std::move(source)) {}
    DefSortedAVL(const thisType& source, AddMode mode=AMNoDuplicate,
          const VirtualCast* retrieveRegistrationFromCopy=nullptr)
       :  DefGenericAVL(source, mode, retrieveRegistrationFromCopy) {}
@@ -738,6 +742,8 @@ class DefTSortedAVL : public DefGenericAVL {
       {  VirtualCollection::TInsertInitialNewValue<thisType, Element, TypeCast> insertInitialValue(*this);
          initialValues.foreachDo(insertInitialValue);
       }
+   DefTSortedAVL(DefTSortedAVL<Element, Key, TypeCast>&& source)
+      :  DefGenericAVL(std::move(source)) {}
    DefTSortedAVL(const DefTSortedAVL<Element, Key, TypeCast>& source, AddMode mode=AMNoDuplicate,
          const VirtualCast* retrieveRegistrationFromCopy=nullptr)
       :  DefGenericAVL(source, mode, retrieveRegistrationFromCopy) {}

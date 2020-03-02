@@ -60,6 +60,8 @@ typedef struct _InterpretParameters InterpretParameters;
 typedef struct _MemoryModel MemoryModel;
 typedef struct _MemoryModelFunctions MemoryModelFunctions;
 struct _Processor;
+struct _DecisionVector;
+
 typedef struct _ProcessorFunctions {
 
    struct _Processor* (*create_processor)();
@@ -69,17 +71,22 @@ typedef struct _ProcessorFunctions {
          MemoryModelFunctions* memory_functions, InterpretParameters* parameters);
    void (*set_verbose)(struct _Processor* processor);
    void (*free_processor)(struct _Processor* processor);
+   bool (*get_registers_number)(struct _Processor* processor);
    int (*get_register_index)(struct _Processor* processor, const char* name);
    const char* (*get_register_name)(struct _Processor* processor, int register_index);
+   struct _DecisionVector* (*create_decision_vector)(struct _Processor* processor);
+   struct _DecisionVector* (*clone_decision_vector)(struct _DecisionVector* decision_vector);
+   void (*free_decision_vector)(struct _DecisionVector* decision_vector);
+   void (*filter_decision_vector)(struct _DecisionVector* decision_vector, uint64_t address);
 
    bool (*processor_next_targets)(struct _Processor* processor, char* instruction_buffer,
          size_t buffer_size, uint64_t address, TargetAddresses* target_addresses,
          MemoryModel* memory, MemoryModelFunctions* memory_functions,
-         InterpretParameters* parameters);
+         struct _DecisionVector* decision_vector, InterpretParameters* parameters);
    bool (*processor_interpret)(struct _Processor* processor, char* instruction_buffer,
-         size_t buffer_size, uint64_t address, uint64_t target_address,
+         size_t buffer_size, uint64_t* address, uint64_t target_address,
          MemoryModel* memory, MemoryModelFunctions* memory_functions,
-         InterpretParameters* parameters);
+         struct _DecisionVector* decision_vector, InterpretParameters* parameters);
 
 } ProcessorFunctions;
 

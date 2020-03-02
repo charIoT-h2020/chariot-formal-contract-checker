@@ -51,6 +51,7 @@ class GenericTree : public TGenericTree<GenericTreeElement, GenericImplTreeCurso
 
   public:
    GenericTree() {}
+   GenericTree(GenericTree&& source) : inherited (std::move(source)) {}
    GenericTree(const GenericTree& source, AddMode mode=AMNoDuplicate,
          const VirtualCast* retrieveRegistrationFromCopy=nullptr)
       :  inherited (source, mode, retrieveRegistrationFromCopy) {}
@@ -166,6 +167,8 @@ class Tree : public GenericTree {
 
   public:
    Tree() {}
+   Tree(Tree<Element, Cast>&& source)
+      :  GenericTree(std::move(source)) {}
    Tree(const Tree<Element, Cast>& source, AddMode mode=AMNoDuplicate,
          const VirtualCast* retrieveRegistrationFromCopy=nullptr)
       :  GenericTree(source, mode, retrieveRegistrationFromCopy) {}

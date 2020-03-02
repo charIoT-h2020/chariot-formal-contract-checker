@@ -73,6 +73,7 @@ class TreeParent : public
    typedef typename inherited::RemoveMode RemoveMode;
 
    TreeParent() {}
+   TreeParent(thisType&& source) : inherited(std::move(source)) {}
    TreeParent(const thisType& source, AddMode mode=VirtualCollection::AMNoDuplicate,
          const VirtualCast* retrieveRegistrationFromCopy=nullptr)
       :  inherited(source, mode, retrieveRegistrationFromCopy) {}

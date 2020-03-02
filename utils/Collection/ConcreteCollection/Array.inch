@@ -193,6 +193,7 @@ class DefTypeCollection : public DefTypeVirtualInheritedCollection, private Impl
          const VirtualCast* retrieveRegistrationFromCopy=nullptr)
       :  DefTypeVirtualInheritedCollection(source, dupMode),
          ImplArray(source, dupMode==AMDuplicate, retrieveRegistrationFromCopy) {}
+   DefTypeCollection(DefTypeCollection&& source) { swap(source); }
 
    DefineCopy(DefTypeCollection)
    DDefineAssign(DefTypeCollection)
@@ -201,6 +202,8 @@ class DefTypeCollection : public DefTypeVirtualInheritedCollection, private Impl
    DefineCollectionForAbstractCollect(DefTypeCollection, DefTypeCursor)
    DefTypeCollection& operator=(const DefTypeCollection& source)
       {  DefTypeCollection::_fullAssign(source, ExtendedReplaceParameters()); return *this; }
+   DefTypeCollection& operator=(DefTypeCollection&& source)
+      {  swap(source); return *this; }
 
    virtual bool isValid() const override
       {  return DefTypeVirtualInheritedCollection::isValid() && ImplArray::isValid(); } 

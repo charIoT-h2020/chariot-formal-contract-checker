@@ -182,6 +182,7 @@ class TGenericTree : public VirtualTree, protected TypeImplTree, public DTree::G
 
   public:
    TGenericTree() {}
+   TGenericTree(thisType&& source) { swap(source); }
    TGenericTree(const thisType& source, AddMode mode=AMNoDuplicate,
          const VirtualCast* retrieveRegistrationFromCopy=nullptr)
       :  VirtualTree(source, mode), TypeImplTree(source)
@@ -195,6 +196,7 @@ class TGenericTree : public VirtualTree, protected TypeImplTree, public DTree::G
                   ExtendedTreeReplaceParameters().setDuplicate().setFreeOnError());
          };
       }
+   thisType& operator=(thisType&& source) { swap(source); return *this; }
    thisType& operator=(const thisType& source)
       {  return (thisType&) inherited::operator=(source); }
    Template3DefineCopy(TGenericTree, TypeNode, TypeImplCursor, TypeImplTree)

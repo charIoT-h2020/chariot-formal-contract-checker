@@ -151,6 +151,21 @@ class AContractReference {
    bool isValid() const { return pvContent; }
 };
 
+class AProcessor;
+class ADecisionVector {
+  private:
+   struct _PDecisionVector* pvContent;
+
+  public:
+   ADecisionVector(const AProcessor& processor);
+   ADecisionVector(ADecisionVector&& source)
+      : pvContent(source.pvContent) { source.pvContent = nullptr; }
+   ADecisionVector(const ADecisionVector& source)
+      : pvContent(processor_clone_decision_vector(source.pvContent)) {}
+   ~ADecisionVector() { if (pvContent) { processor_free_decision_vector(pvContent); pvContent = nullptr; } }
+   struct _PDecisionVector* getContent() const { return pvContent; }
+};
+
 class AProcessor {
   private:
    struct _PProcessor* pvContent;
@@ -178,7 +193,8 @@ class AProcessor {
       {  if (pvContent) { processor_set_verbose(pvContent); } }
    bool loadCode(const char* filename)
       {  return processor_load_code(pvContent, filename); }
-   std::vector<uint64_t> getTargets(uint64_t address, const AContractReference& contract) const
+   std::vector<uint64_t> getTargets(uint64_t address, const AContractReference& contract,
+         ADecisionVector& decisions) const
       {  std::vector<uint64_t> result;
          result.push_back(0);
          result.push_back(0);
@@ -189,15 +205,21 @@ class AProcessor {
          argument.realloc_addresses = &reallocAddresses;
          argument.address_container = &result;
          contract_fill_stop_addresses(contract.getContent(), &argument);
-         bool isValid = processor_get_targets(pvContent, address, contract.getContent(), &argument);
+         bool isValid = processor_get_targets(pvContent, address, contract.getContent(),
+               decisions.getContent(), &argument);
          assert(isValid);
          result.resize(argument.addresses_length);
          return result;
       }
 
    bool checkBlock(uint64_t address, uint64_t target, struct _ContractContent* firstContract,
-         struct _ContractContent* lastContract, const AContractCoverage* coverage, AWarnings& warnings);
+         struct _ContractContent* lastContract, ADecisionVector& decisions,
+         const AContractCoverage* coverage, AWarnings& warnings);
 };
+
+inline
+ADecisionVector::ADecisionVector(const AProcessor& processor)
+   :  pvContent(processor_create_decision_vector(processor.getContent())) {}
 
 class AWarnings {
   private:
@@ -295,9 +317,10 @@ class AContractCoverage {
 
 inline bool
 AProcessor::checkBlock(uint64_t address, uint64_t target, struct _ContractContent* firstContract,
-      struct _ContractContent* lastContract, const AContractCoverage* coverage, AWarnings& warnings)
+      struct _ContractContent* lastContract, ADecisionVector& decisions,
+      const AContractCoverage* coverage, AWarnings& warnings)
 {  return processor_check_block(pvContent, address, target, firstContract, lastContract,
-      coverage ? coverage->getContent() : nullptr, warnings.getContent());
+      decisions.getContent(), coverage ? coverage->getContent() : nullptr, warnings.getContent());
 }
 
 int main(int argc, char** argv) {
@@ -353,19 +376,28 @@ int main(int argc, char** argv) {
          continue;
       }
       if (processArgument.isVerbose())
-         std::cout << "look for targets starting at " << address << "by instruction interpretation\n";
-      auto targets = processor.getTargets(address, cursor.getContract());
+         std::cout << "look for targets starting at 0x" << std::hex << address << std::dec << " by instruction interpretation\n";
+      ADecisionVector decisions(processor);
+      auto targets = processor.getTargets(address, cursor.getContract(), decisions);
       for (const auto& target : targets) {
          AContracts::Cursor lastCursor(cursor);
          lastCursor.setAfterAddress(target);
          assert(lastCursor.getAddress() == target);
          AWarnings warnings;
-         break;
+         if (processArgument.isVerbose())
+            std::cout << "check block starting at 0x" << std::hex << address << std::dec << " by instruction interpretation\n";
+         ADecisionVector decisionsTarget(decisions);
          if (!processor.checkBlock(address, target, cursor.getContract().getContent(),
-                  lastCursor.getContract().getContent(), &coverage, warnings)) {
-            // for (const auto& warning : warnings)
-            //    std::cout << warning << '\n';
-            // warnings.clear();
+                  lastCursor.getContract().getContent(), decisionsTarget, &coverage, warnings)) {
+            std::cerr << "unable to check block starting at 0x" << std::hex << address << std::dec << '\n';
+            AWarnings::Cursor cursor(warnings);
+            while (cursor.setToNext()) {
+               auto error = cursor.elementAt();
+               std::cerr << error.filepos << ':' << error.linepos << " error at column "
+                  << error.columnpos << ", " << error.message << '\n';
+            };
+            std::cerr.flush();
+            return 0;
          }
       };
    }
@@ -395,8 +427,11 @@ int main(int argc, char** argv) {
          std::cout << "incomplete contract verification";
       cursor.setBeforeAddress(contract.getAddress());
       AWarnings warnings;
+      ADecisionVector decisions(processor);
+      processor.getTargets(cursor.getAddress(), cursor.getContract(), decisions);
       if (!processor.checkBlock(cursor.getAddress(), contract.getAddress(),
-               cursor.getContract().getContent(), contract.getContent(), nullptr, warnings)) {
+               cursor.getContract().getContent(), contract.getContent(), decisions,
+               nullptr, warnings)) {
          // for (const auto& warning : warnings)
          //    std::cout << warning << '\n';
          // warnings.clear();

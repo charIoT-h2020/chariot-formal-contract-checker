@@ -55,19 +55,26 @@ extern "C" {
 #include "target_address_decoder.h"
 
 struct _PProcessor;
+struct _PDecisionVector;
 struct _PProcessor* create_processor(const char* architectureLibrary, const char* domainLibrary);
 void free_processor(struct _PProcessor*);
 void processor_set_verbose(struct _PProcessor*);
 bool processor_load_code(struct _PProcessor* processor, const char* filename);
+struct _PDecisionVector* processor_create_decision_vector(struct _PProcessor* processor);
+struct _PDecisionVector* processor_clone_decision_vector(struct _PDecisionVector* decision_vector);
+void processor_free_decision_vector(struct _PDecisionVector* decision_vector);
+void processor_filter_decision_vector(struct _PDecisionVector* decision_vector, uint64_t address);
+
 bool processor_get_targets(struct _PProcessor* processor, uint64_t address,
-      struct _ContractContent* contract, TargetAddresses* target_addresses);
+      struct _ContractContent* contract, struct _PDecisionVector* decisions,
+      TargetAddresses* target_addresses);
 struct _ContractContent;
 struct _ContractCoverageContent;
 struct _WarningsContent;
 bool processor_check_block(struct _PProcessor* processor, uint64_t address,
       uint64_t target, struct _ContractContent* firstContract,
-      struct _ContractContent* lastContract, struct _ContractCoverageContent* coverage,
-      struct _WarningsContent* warnings);
+      struct _ContractContent* lastContract, struct _PDecisionVector* decisions,
+      struct _ContractCoverageContent* coverage, struct _WarningsContent* warnings);
 
 struct _ContractGraphContent;
 

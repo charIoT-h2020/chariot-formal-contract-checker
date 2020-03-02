@@ -212,8 +212,11 @@ class DefBasicGenericAVL : public DefGenericAVL {
       }
    DefBasicGenericAVL(const DefBasicGenericAVL& source, AddMode mode=AMNoDuplicate,
          const VirtualCast* retrieveRegistrationFromCopy=nullptr);
-   DefGenericAVL& operator=(const DefGenericAVL& source)
+   DefBasicGenericAVL(DefBasicGenericAVL&& source) { swap(source); }
+   DefBasicGenericAVL& operator=(const DefBasicGenericAVL& source)
       {  inherited::_fullAssign(source, ExtendedReplaceParameters().setDuplicate()); return *this; }
+   DefBasicGenericAVL& operator=(DefBasicGenericAVL&& source)
+      {  swap(source); return *this; }
 
 #ifndef DefTypeBinaryParent
    DefineCopy(BasicGenericAVL)
@@ -348,6 +351,8 @@ class DefBasicSortedAVL : public DefBasicGenericAVL {
    DefBasicSortedAVL(const DefBasicSortedAVL<Element, Key, Cast>& source, AddMode mode=AMNoDuplicate,
          const VirtualCast* retrieveRegistrationFromCopy=nullptr)
       :  DefBasicGenericAVL(source, mode, retrieveRegistrationFromCopy) {}
+   DefBasicSortedAVL(DefBasicSortedAVL<Element, Key, Cast>&& source)
+      :  DefBasicGenericAVL(std::move(source)) {}
 #ifndef DefTypeBinaryParent
    Template3DefineCopy(BasicSortedAVL, Element, Key, Cast)
    Template3DefineCollectionForAbstractCollect(BasicSortedAVL, BasicSortedAVLCursor, Element, Key, Cast)
@@ -526,6 +531,8 @@ class DefTBasicSortedAVL : public DefBasicGenericAVL {
    DefTBasicSortedAVL(const thisType& source, AddMode mode=AMNoDuplicate,
          const VirtualCast* retrieveRegistrationFromCopy=nullptr)
       :  DefBasicGenericAVL(source, mode, retrieveRegistrationFromCopy) {}
+   DefTBasicSortedAVL(thisType&& source)
+      :  DefBasicGenericAVL(std::move(source)) {}
 #ifndef DefTypeBinaryParent
    Template3DefineCopy(TBasicSortedAVL, Element, Key, TypeCast)
    Template3DefineCollectionForAbstractCollect(TBasicSortedAVL, TBasicSortedAVLCursor, Element, Key, TypeCast)

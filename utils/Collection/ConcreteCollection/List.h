@@ -314,9 +314,11 @@ class List : public GenericList {
    List(const List& source, AddMode dupMode=AMNoDuplicate,
          const VirtualCast* retrieveRegistrationFromCopy=nullptr)
       : GenericList(source, dupMode, retrieveRegistrationFromCopy) {}
+   List(List&& source) { swap(source); }
    DefineCopy(List)
    DDefineAssign(List)
    DefineCollectionForAbstractCollect(List, ListCursor)
+   List& operator=(List&& source) { swap(source); return *this; }
    List& operator=(const List& source)
       {  VirtualCollection::operator=(source);
          if (this != &source)
@@ -448,6 +450,8 @@ class TList : public List {
    TList(const TList<ListElement, ListCast>& source, AddMode dupMode=AMNoDuplicate,
          const VirtualCast* retrieveRegistrationFromCopy=nullptr)
       : List(source, dupMode, retrieveRegistrationFromCopy) {}
+   TList(TList<ListElement, ListCast>&& source)
+      : List(std::move(source)) {}
    Template2DefineCopy(TList, ListElement, ListCast)
 
 #define DefTypeElement ListElement

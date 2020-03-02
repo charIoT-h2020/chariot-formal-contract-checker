@@ -104,6 +104,33 @@ class MemoryZones : public COL::TCopyCollection<COL::TSortedArray<MemoryZone, Me
    MemoryZones() = default;
    MemoryZones(const MemoryZones&) = default;
 
+   void mergeWith(MemoryZones& source)
+      {  Cursor thisCursor(*this), sourceCursor(source);
+         sourceCursor.setToFirst();
+         while (thisCursor.setToNext()) {
+            if (!sourceCursor.isValid()) {
+               auto copyCursor = thisCursor;
+               thisCursor.setToPrevious();
+               freeAt(copyCursor);
+            }
+            else {
+               ComparisonResult compare = MemoryZone::Key::compare(
+                     MemoryZone::Key::key(thisCursor.elementAt()),
+                     MemoryZone::Key::key(sourceCursor.elementAt()));
+               if (compare == CRLess) {
+                  auto copyCursor = thisCursor;
+                  thisCursor.setToPrevious();
+                  freeAt(copyCursor);
+               }
+               else if (compare == CRGreater)
+                  sourceCursor.setToNext();
+               else {
+                  thisCursor.elementSAt().mergeWith(std::move(sourceCursor.elementSAt()));
+                  sourceCursor.setToNext();
+               }
+            };
+         };
+      }
 };
 
 class MemoryZoneAction : public STG::IOObject, public STG::Lexer::Base {
