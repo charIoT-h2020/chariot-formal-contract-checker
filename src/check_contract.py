@@ -95,7 +95,7 @@ while contract_cursor.set_to_next():
                 decisions_target.content, coverage.content, warnings.content):
             processor.flush_cpp_out()
             print ("unable to check block starting at 0x" + hex(address))
-            warning_cursor = _WarningCursor(warnings)
+            warning_cursor = WarningCursor(warnings)
             while warning_cursor.set_to_next():
                 warning = warning_cursor.element_at()
                 print ("at " + warning.filepos + ":" + warning.linepos

@@ -202,7 +202,7 @@ class Warnings(object):
 class WarningCursor(object):
     def __init__(self, warnings : Warnings):
         self.funs = warnings.funs
-        self.content = funs.warning_create_cursor(warnings.content)
+        self.content = self.funs.warning_create_cursor(warnings.content)
     def __del__(self):
         self.clear()
     def clear(self):
