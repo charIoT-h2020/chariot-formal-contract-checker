@@ -194,7 +194,8 @@ class MemoryState : public STG::IOObject {
       DomainValueZone& operator=(const DomainValueZone& source) = default;
 
       void mergeWith(DomainValueZone& source)
-         {  if (spmzZone.key() != source.spmzZone.key())
+         {  if (spmzZone.isValid() != source.spmzZone.isValid()
+                  || (spmzZone.isValid() && spmzZone.key() != source.spmzZone.key()))
                spmzZone = PNT::TSharedPointer<MemoryZone>();
             DomainEvaluationEnvironment env{};
             env.defaultDomainType = DISFormal;

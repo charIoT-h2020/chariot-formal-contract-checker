@@ -140,11 +140,14 @@ Processor::retrieveNextTargets(uint64_t address, MemoryState& memoryState,
    char* instruction = instructionBuffer;
    char* nextInstruction = instructionBuffer;
 
-   uint64_t stopAddress = 0;
-   if (targetAddresses.addresses_length == 1) {
+   std::vector<uint64_t> stopAddresses;
+   stopAddresses.reserve(targetAddresses.addresses_length);
+   if (targetAddresses.addresses_length >= 1) {
+      for (int index = 0; index < targetAddresses.addresses_length; ++index) {
+         stopAddresses.push_back(targetAddresses.addresses[index]);
+         targetAddresses.addresses[index] = 0;
+      }
       targetAddresses.addresses_length = 0;
-      stopAddress = targetAddresses.addresses[0];
-      targetAddresses.addresses[0] = 0;
    }
    while (length > 0) {
       bool isValid = (*architectureFunctions.processor_next_targets)(pvContent,
@@ -153,8 +156,9 @@ Processor::retrieveNextTargets(uint64_t address, MemoryState& memoryState,
             decisionVector.getContent(), reinterpret_cast<InterpretParameters*>(&parameters));
       AssumeCondition(isValid)
       if (targetAddresses.addresses_length == 1) {
-         if (targetAddresses.addresses[0] == stopAddress)
-            return true;
+         for (const auto& stopAddress : stopAddresses)
+            if (targetAddresses.addresses[0] == stopAddress)
+               return true;
          if (nextInstruction == instruction)
             nextInstruction += targetAddresses.addresses[0]-address;
          else
