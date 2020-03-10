@@ -444,8 +444,10 @@ DefineBigCellInt DefineBigCellTemplateParameters(BaseIntegerTraits)&
 DefineBigCellInt DefineBigCellTemplateParameters(BaseIntegerTraits)::operator|=(const thisType& source) {
    int size = inherited::getSize();
    int sourceSize = source.inherited::getSize();
-   if (size < sourceSize)
+   if (size < sourceSize) {
       inherited::adjustSize(sourceSize);
+      size = sourceSize;
+   }
    for (int index = 0; index < size; ++index)
       array(index) |= source.carray(index);
    return *this;
@@ -456,8 +458,10 @@ DefineBigCellInt DefineBigCellTemplateParameters(BaseIntegerTraits)&
 DefineBigCellInt DefineBigCellTemplateParameters(BaseIntegerTraits)::operator^=(const thisType& source) {
    int size = inherited::getSize();
    int sourceSize = source.inherited::getSize();
-   if (size < sourceSize)
+   if (size < sourceSize) {
       inherited::adjustSize(sourceSize);
+      size = sourceSize;
+   }
    for (int index = 0; index < size; ++index)
       array(index) ^= source.carray(index);
    return *this;

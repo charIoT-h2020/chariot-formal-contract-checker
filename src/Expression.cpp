@@ -2528,7 +2528,7 @@ OperationNode::setCodeFromText(const STG::SubString& text,
       auto type = mpFirst->getType();
       int arity = mpSecond.isValid() ? 2 : 1;
       if (!(code & 1)) {
-         switch ((code & ~(~0U << FType) >> FExtended)) {
+         switch ((code & ~(~0U << FSymbolic)) >> FType) {
             case TPlus: result = (type == DTBit) ? (unsigned) DBBOPlus : ((type == DTInteger)
                            ? (unsigned) DMBBOPlusSigned : (unsigned) DMFBOPlus); break;
             case TPlusSigned: result = (unsigned) DMBBOPlusSigned; break;
@@ -2594,6 +2594,7 @@ OperationNode::setCodeFromText(const STG::SubString& text,
                            ? (unsigned) DMBBOMaxSigned : (unsigned) DMFBOMax); break;
             case TCallMaxSigned: result = (unsigned) DMBBOMaxSigned; break;
             case TCallMaxUnsigned: result = (unsigned) DMBBOMaxUnsigned; break;
+            case TCallConcat: result = (unsigned) DMBBOConcat; break;
             default:
                break;
          }
@@ -2601,15 +2602,15 @@ OperationNode::setCodeFromText(const STG::SubString& text,
             if (!arguments.addErrorMessage(STG::SString("operation not in adequation with the types of operands")))
                return false;
          }
-         uOperationCode = (result << FExtended);
+         uOperationCode = (result << FType);
          fSymbolic = (code >> FSymbolic);
       }
       else {
-         uOperationCode = code & ~(~0U << FSymbolic);
+         uOperationCode = (code & ~(~0U << FSymbolic));
          fSymbolic = (code >> FSymbolic);
       }
    }
-   if (!arguments.addErrorMessage(STG::SString("unknown operation")))
+   if (!uOperationCode && !arguments.addErrorMessage(STG::SString("unknown operation")))
       return false;
    return true;
 }
@@ -2725,6 +2726,7 @@ LIdentifyFirstContent:
                   state.setResult(std::move(ruleResult));
                   if (!arguments.setToNextToken(result)) return result;
                   if (!arguments.parseTokens(state, result)) return result;
+                  if (!arguments.setToNextToken(result)) return result;
                   continue;
                }
                else
@@ -2734,6 +2736,7 @@ LIdentifyFirstContent:
             }
          }
          state.point() = DAfterBegin;
+         if (!arguments.setToNextToken(result)) return result;
       }
       else
          if (result == RRNeedChars) return result;
@@ -2779,6 +2782,7 @@ LIdentifySecondContent:
                   state.setResult(std::move(ruleResult));
                   if (!arguments.setToNextToken(result)) return result;
                   if (!arguments.parseTokens(state, result)) return result;
+                  if (!arguments.setToNextToken(result)) return result;
                   continue;
                }
                else
@@ -2788,6 +2792,7 @@ LIdentifySecondContent:
             }
          }
          state.point() = DAfterBegin;
+         if (!arguments.setToNextToken(result)) return result;
       }
       else if (arguments.isAddKey() && (result == RRNeedChars))
          return result;
@@ -2800,12 +2805,16 @@ LReadCode:
          if (arguments.isSetString()) {
             if (arguments.setArgumentTextValue() == RRNeedChars) return RRNeedChars;
             if (dtType == DTUndefined) {
-               if (!arguments.addErrorMessage(STG::SString("type should be set before reading the code")))
+               if (!arguments.addErrorMessage(STG::SString("type should be set before reading the code"))) {
+                  state.point() = DAfterBegin;
                   return RRContinue;
+               }
             }
             else
-               if (!setCodeFromText(arguments.valueAsText(), arguments))
+               if (!setCodeFromText(arguments.valueAsText(), arguments)) {
+                  state.point() = DAfterBegin;
                   return RRContinue;
+               }
          }
          state.point() = DAfterBegin;
       }

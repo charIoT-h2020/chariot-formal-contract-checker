@@ -98,7 +98,7 @@ bool processor_check_block(struct _PProcessor* aprocessor, uint64_t address,
    firstContract.applyTo(memoryState, processor.getContent(), &processor.getArchitectureFunctions());
    processor.interpret(address, memoryState, target, decision, warnings, parameters);
    MemoryState lastMemoryState(processor.getRegistersNumber(), processor.getDomainFunctions());
-   processor.initializeMemory(lastMemoryState, parameters);
+   // processor.initializeMemory(lastMemoryState, parameters);
    lastContract.applyTo(lastMemoryState, processor.getContent(), &processor.getArchitectureFunctions());
    ContractCoverage& coverage = *reinterpret_cast<ContractCoverage*>(acoverage);
    coverage.add(firstContract, lastContract);
