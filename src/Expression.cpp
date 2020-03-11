@@ -72,6 +72,8 @@ LBegin:
    if (!arguments.isOpenObject()) {
       if (!arguments.addErrorMessage(STG::SString("expected '{'")))
          return result;
+      arguments.reduceState(state);
+      return RRHasToken;
    }
    ++state.point();
    if (!arguments.setToNextToken(result)) return result;
@@ -99,6 +101,8 @@ LReadContent:
       if (!arguments.setToNextToken(result)) return result;
    }
    state.point() = DEnd;
+   if (!arguments.setToNextToken(result)) return result;
+
 LEnd:
    arguments.reduceState(state);
    return RRHasToken;
@@ -149,10 +153,11 @@ IndirectionNode::readJSon(STG::JSon::CommonParser::State& state,
       STG::JSon::CommonParser::Arguments& arguments) {
    typedef STG::JSon::CommonParser Parser;
    ReadResult result = RRContinue;
+   bool hasHit = false, hasHitSecond = false;
 
    enum Delimiters
       {  DBegin, DAfterBegin, DReadAddress, DReadAddressContent, DIdentifyAddressContent,
-         DReadSize, DEnd
+         DIdentifyTypeAddressContent, DReadSize, DEnd
       };
 
    #define DefineGoto(Target) case D##Target: goto L##Target;
@@ -161,6 +166,7 @@ IndirectionNode::readJSon(STG::JSon::CommonParser::State& state,
       DefineGoto(AfterBegin)
       DefineGoto(ReadAddress)
       DefineGoto(ReadAddressContent)
+      DefineGoto(IdentifyTypeAddressContent)
       DefineGoto(IdentifyAddressContent)
       DefineGoto(ReadSize)
       DefineGoto(End)
@@ -171,6 +177,8 @@ LBegin:
    if (!arguments.isOpenObject()) {
       if (!arguments.addErrorMessage(STG::SString("expected '{'")))
          return result;
+      arguments.reduceState(state);
+      return RRHasToken;
    }
    ++state.point();
    if (!arguments.setToNextToken(result)) return result;
@@ -182,6 +190,7 @@ LAfterBegin:
          if (!arguments.setToNextToken(result)) return result;
       };
 
+      hasHit = false;
       if (arguments.isAddKey()
             && ((result = arguments.setArgumentKey()), arguments.key() == "address")) {
          if (result == RRNeedChars) return result;
@@ -199,40 +208,61 @@ LReadAddressContent:
                };
                if (arguments.isCloseArray())
                   {  AssumeUncalled }
-               else if (arguments.isAddKey()
+               hasHitSecond = false;
+               if (arguments.isAddKey()
                      && ((result = arguments.setArgumentKey()), arguments.key() == "type")) {
                   if (result == RRNeedChars) return result;
-                  state.point() = DIdentifyAddressContent;
+                  state.point() = DIdentifyTypeAddressContent;
                   if (!arguments.setToNextToken(result)) return result;
-LIdentifyAddressContent:
+LIdentifyTypeAddressContent:
                   if (arguments.isSetString()) {
                      if (arguments.setArgumentTextValue() == RRNeedChars) return RRNeedChars;
                      if (!setArgumentFromText(mpAddress, arguments.valueAsText(), arguments,
-                              state.getResult((RuleResult*) nullptr)))
+                              state.getResult((RuleResult*) nullptr))) {
+                        state.point() = DReadAddressContent;
+                        if (!arguments.setToNextToken(result)) return result;
                         return RRContinue;
+                     }
                   }
+                  state.point() = DReadAddressContent;
+                  if (!arguments.setToNextToken(result)) return result;
+                  hasHitSecond = true;
                }
                else
                   if (result == RRNeedChars) return result;
                if (arguments.isAddKey()
                      && ((result = arguments.setArgumentKey()), arguments.key() == "content")) {
                   if (result == RRNeedChars) return result;
-                  state.point() = DReadAddressContent;
-                  auto ruleResult = state.getResult((VirtualExpressionNode::RuleResult*) nullptr);
-                  arguments.shiftState(state, *mpAddress, &VirtualExpressionNode::readJSon,
-                        (VirtualExpressionNode::RuleResult*) nullptr);
-                  state.setResult(std::move(ruleResult));
+                  state.point() = DIdentifyAddressContent;
+                  {  auto ruleResult = state.getResult((VirtualExpressionNode::RuleResult*) nullptr);
+                     arguments.shiftState(state, *mpAddress, &VirtualExpressionNode::readJSon,
+                           (VirtualExpressionNode::RuleResult*) nullptr);
+                     state.setResult(std::move(ruleResult));
+                  }
                   if (!arguments.setToNextToken(result)) return result;
                   if (!arguments.parseTokens(state, result)) return result;
-                  continue;
+LIdentifyAddressContent:
+                  state.point() = DReadAddressContent;
+                  hasHitSecond = true;
                }
                else
                   if (result == RRNeedChars) return result;
                state.point() = DReadAddressContent;
-               if (!arguments.setToNextToken(result)) return result;
+               if (!hasHitSecond)
+                  if (!arguments.setToNextToken(result)) return result;
             }
          }
+         else if (arguments.isOpen()) {
+            state.point() = DAfterBegin;
+            do {
+               if (!Parser::skipNodeInLoop(state, arguments, result) || result == RRNeedChars) return result;
+               if (!arguments.setToNextToken(result)) return result;
+            }
+            while (arguments.isOpen());
+         }
          state.point() = DAfterBegin;
+         if (!arguments.setToNextToken(result)) return result;
+         hasHit = true;
       }
       else if (arguments.isAddKey() && (result == RRNeedChars))
          return result;
@@ -247,13 +277,19 @@ LReadSize:
                && arguments.setArgumentToInt() == RRNeedChars) return RRNeedChars;
          if (arguments.isSetInt())
             uSizeInBytes = arguments.valueAsInt();
+         state.point() = DAfterBegin;
+         if (!arguments.setToNextToken(result)) return result;
+         hasHit = true;
       }
       else if (arguments.isAddKey() && (result == RRNeedChars))
          return result;
       state.point() = DAfterBegin;
-      if (!arguments.setToNextToken(result)) return result;
+      if (!hasHit)
+         if (!arguments.setToNextToken(result)) return result;
    }
    state.point() = DEnd;
+   if (!arguments.setToNextToken(result)) return result;
+
 LEnd:
    arguments.reduceState(state);
    return RRHasToken;
@@ -2334,7 +2370,7 @@ DomainNode::ReadResult
 DomainNode::readJSon(STG::JSon::CommonParser::State& state, STG::JSon::CommonParser::Arguments& arguments) {
    typedef STG::JSon::CommonParser Parser;
    ReadResult result = RRContinue;
-   bool isEqual;
+   bool isEqual = false;
 
    enum Delimiters
       {  DBegin, DAfterBegin, DReadContent, DEnd };
@@ -2352,6 +2388,8 @@ LBegin:
    if (!arguments.isOpenObject()) {
       if (!arguments.addErrorMessage(STG::SString("expected '{'")))
          return result;
+      arguments.reduceState(state);
+      return RRHasToken;
    }
    ++state.point();
    if (!arguments.setToNextToken(result)) return result;
@@ -2383,8 +2421,9 @@ LReadContent:
       if (!arguments.setToNextToken(result)) return result;
    }
    state.point() = DEnd;
+   if (!arguments.setToNextToken(result)) return result;
 LEnd:
-   state.reduce();
+   arguments.reduceState(state);
    return RRHasToken;
 }
 
@@ -2620,11 +2659,12 @@ OperationNode::readJSon(STG::JSon::CommonParser::State& state,
       STG::JSon::CommonParser::Arguments& arguments) {
    typedef STG::JSon::CommonParser Parser;
    ReadResult result = RRContinue;
+   bool hasHit = false, hasHitSecond = false;
 
    enum Delimiters
       {  DBegin, DAfterBegin, DReadType, DReadFirst, DReadFirstContent, DIdentifyFirstContent,
-         DReadSecond, DReadSecondContent, DIdentifySecondContent, DReadCode, DReadSize,
-         DReadStart, DReadSigned, DEnd
+         DAfterReadFirstContent, DReadSecond, DReadSecondContent, DIdentifySecondContent,
+         DAfterReadSecondContent, DReadCode, DReadSize, DReadStart, DReadSigned, DEnd
       };
 
    #define DefineGoto(Target) case D##Target: goto L##Target;
@@ -2635,9 +2675,11 @@ OperationNode::readJSon(STG::JSon::CommonParser::State& state,
       DefineGoto(ReadFirst)
       DefineGoto(ReadFirstContent)
       DefineGoto(IdentifyFirstContent)
+      DefineGoto(AfterReadFirstContent)
       DefineGoto(ReadSecond)
       DefineGoto(ReadSecondContent)
       DefineGoto(IdentifySecondContent)
+      DefineGoto(AfterReadSecondContent)
       DefineGoto(ReadCode)
       DefineGoto(ReadSize)
       DefineGoto(ReadStart)
@@ -2650,6 +2692,8 @@ LBegin:
    if (!arguments.isOpenObject()) {
       if (!arguments.addErrorMessage(STG::SString("expected '{'")))
          return result;
+      arguments.reduceState(state);
+      return RRHasToken;
    }
    ++state.point();
    if (!arguments.setToNextToken(result)) return result;
@@ -2661,6 +2705,7 @@ LAfterBegin:
          if (!arguments.setToNextToken(result)) return result;
       };
 
+      hasHit = false;
       if (arguments.isAddKey()
             && ((result = arguments.setArgumentKey()), arguments.key() == "type")) {
          if (result == RRNeedChars) return result;
@@ -2676,11 +2721,14 @@ LReadType:
             else if (arguments.valueAsText() == "floating")
                dtType = DTFloating;
             else {
+               state.point() = DAfterBegin;
                if (!arguments.addErrorMessage(STG::SString("unknown type")))
                   return result;
             }
          };
          state.point() = DAfterBegin;
+         if (!arguments.setToNextToken(result)) return result;
+         hasHit = true;
       }
       else
          if (result == RRNeedChars) return result;
@@ -2699,6 +2747,7 @@ LReadFirstContent:
                   if (!Parser::skipNodeInLoop(state, arguments, result) || result == RRNeedChars) return result;
                   if (!arguments.setToNextToken(result)) return result;
                };
+               hasHitSecond = false;
                if (arguments.isCloseArray())
                   {  AssumeUncalled }
                else if (arguments.isAddKey()
@@ -2710,33 +2759,50 @@ LIdentifyFirstContent:
                   if (arguments.isSetString()) {
                      if (arguments.setArgumentTextValue() == RRNeedChars) return RRNeedChars;
                      if (!setArgumentFromText(mpFirst, arguments.valueAsText(), arguments,
-                              state.getResult((RuleResult*) nullptr)))
+                              state.getResult((RuleResult*) nullptr))) {
+                        state.point() = DReadFirstContent;
                         return RRContinue;
+                     }
                   }
+                  state.point() = DReadFirstContent;
+                  if (!arguments.setToNextToken(result)) return result;
+                  hasHitSecond = true;
                }
                else
                   if (result == RRNeedChars) return result;
                if (arguments.isAddKey()
                      && ((result = arguments.setArgumentKey()), arguments.key() == "content")) {
                   if (result == RRNeedChars) return result;
-                  state.point() = DReadFirstContent;
-                  auto ruleResult = state.getResult((VirtualExpressionNode::RuleResult*) nullptr);
-                  arguments.shiftState(state, *mpFirst, &VirtualExpressionNode::readJSon,
-                        (VirtualExpressionNode::RuleResult*) nullptr);
-                  state.setResult(std::move(ruleResult));
+                  state.point() = DAfterReadFirstContent;
+                  {  auto ruleResult = state.getResult((VirtualExpressionNode::RuleResult*) nullptr);
+                     arguments.shiftState(state, *mpFirst, &VirtualExpressionNode::readJSon,
+                           (VirtualExpressionNode::RuleResult*) nullptr);
+                     state.setResult(std::move(ruleResult));
+                  }
                   if (!arguments.setToNextToken(result)) return result;
                   if (!arguments.parseTokens(state, result)) return result;
-                  if (!arguments.setToNextToken(result)) return result;
-                  continue;
+LAfterReadFirstContent:
+                  state.point() = DReadFirstContent;
+                  hasHitSecond = true;
                }
                else
                   if (result == RRNeedChars) return result;
                state.point() = DReadFirstContent;
+               if (!hasHitSecond)
+                  if (!arguments.setToNextToken(result)) return result;
+            }
+         }
+         else if (arguments.isOpen()) {
+            state.point() = DAfterBegin;
+            do {
+               if (!Parser::skipNodeInLoop(state, arguments, result) || result == RRNeedChars) return result;
                if (!arguments.setToNextToken(result)) return result;
             }
+            while (arguments.isOpen());
          }
          state.point() = DAfterBegin;
          if (!arguments.setToNextToken(result)) return result;
+         hasHit = true;
       }
       else
          if (result == RRNeedChars) return result;
@@ -2755,6 +2821,7 @@ LReadSecondContent:
                   if (!Parser::skipNodeInLoop(state, arguments, result) || result == RRNeedChars) return result;
                   if (!arguments.setToNextToken(result)) return result;
                };
+               hasHitSecond = false;
                if (arguments.isCloseArray())
                   {  AssumeUncalled }
                else if (arguments.isAddKey()
@@ -2766,33 +2833,50 @@ LIdentifySecondContent:
                   if (arguments.isSetString()) {
                      if (arguments.setArgumentTextValue() == RRNeedChars) return RRNeedChars;
                      if (!setArgumentFromText(mpSecond, arguments.valueAsText(), arguments,
-                              state.getResult((RuleResult*) nullptr)))
+                              state.getResult((RuleResult*) nullptr))) {
+                        state.point() = DReadSecondContent;
                         return RRContinue;
+                     }
                   }
+                  state.point() = DReadSecondContent;
+                  if (!arguments.setToNextToken(result)) return result;
+                  hasHitSecond = true;
                }
                else
                   if (result == RRNeedChars) return result;
                if (arguments.isAddKey()
                      && ((result = arguments.setArgumentKey()), arguments.key() == "content")) {
                   if (result == RRNeedChars) return result;
-                  state.point() = DReadSecondContent;
-                  auto ruleResult = state.getResult((VirtualExpressionNode::RuleResult*) nullptr);
-                  arguments.shiftState(state, *mpSecond, &VirtualExpressionNode::readJSon,
-                        (VirtualExpressionNode::RuleResult*) nullptr);
-                  state.setResult(std::move(ruleResult));
+                  state.point() = DAfterReadSecondContent;
+                  {  auto ruleResult = state.getResult((VirtualExpressionNode::RuleResult*) nullptr);
+                     arguments.shiftState(state, *mpSecond, &VirtualExpressionNode::readJSon,
+                           (VirtualExpressionNode::RuleResult*) nullptr);
+                     state.setResult(std::move(ruleResult));
+                  }
                   if (!arguments.setToNextToken(result)) return result;
                   if (!arguments.parseTokens(state, result)) return result;
-                  if (!arguments.setToNextToken(result)) return result;
-                  continue;
+LAfterReadSecondContent:
+                  state.point() = DReadSecondContent;
+                  hasHitSecond = true;
                }
                else
                   if (result == RRNeedChars) return result;
                state.point() = DReadSecondContent;
+               if (!hasHitSecond)
+                  if (!arguments.setToNextToken(result)) return result;
+            }
+         }
+         else if (arguments.isOpen()) {
+            state.point() = DAfterBegin;
+            do {
+               if (!Parser::skipNodeInLoop(state, arguments, result) || result == RRNeedChars) return result;
                if (!arguments.setToNextToken(result)) return result;
             }
+            while (arguments.isOpen());
          }
          state.point() = DAfterBegin;
          if (!arguments.setToNextToken(result)) return result;
+         hasHit = true;
       }
       else if (arguments.isAddKey() && (result == RRNeedChars))
          return result;
@@ -2807,16 +2891,24 @@ LReadCode:
             if (dtType == DTUndefined) {
                if (!arguments.addErrorMessage(STG::SString("type should be set before reading the code"))) {
                   state.point() = DAfterBegin;
+                  if (!arguments.setToNextToken(result)) return result;
                   return RRContinue;
                }
             }
             else
                if (!setCodeFromText(arguments.valueAsText(), arguments)) {
                   state.point() = DAfterBegin;
+                  if (!arguments.setToNextToken(result)) return result;
                   return RRContinue;
                }
+            if (!arguments.setToNextToken(result)) return result;
+         }
+         else {
+            state.point() = DAfterBegin;
+            continue;
          }
          state.point() = DAfterBegin;
+         hasHit = true;
       }
       else
          if (result == RRNeedChars) return result;
@@ -2830,7 +2922,13 @@ LReadSize:
                && arguments.setArgumentToInt() == RRNeedChars) return RRNeedChars;
          if (arguments.isSetInt())
             uSizeInBits = arguments.valueAsInt();
+         else {
+            state.point() = DAfterBegin;
+            continue;
+         }
          state.point() = DAfterBegin;
+         if (!arguments.setToNextToken(result)) return result;
+         hasHit = true;
       }
       else
          if (result == RRNeedChars) return result;
@@ -2845,7 +2943,13 @@ LReadStart:
                && arguments.setArgumentToInt() == RRNeedChars) return RRNeedChars;
          if (arguments.isSetInt())
             uStart = arguments.valueAsInt();
+         else {
+            state.point() = DAfterBegin;
+            continue;
+         }
          state.point() = DAfterBegin;
+         if (!arguments.setToNextToken(result)) return result;
+         hasHit = true;
       }
       else
          if (result == RRNeedChars) return result;
@@ -2859,28 +2963,36 @@ LReadSigned:
                && arguments.setArgumentToBool() == RRNeedChars) return RRNeedChars;
          if (arguments.isSetBool())
             fSigned = arguments.valueAsBool();
+         else {
+            state.point() = DAfterBegin;
+            continue;
+         }
          state.point() = DAfterBegin;
+         if (!arguments.setToNextToken(result)) return result;
+         hasHit = true;
       }
       else
          if (result == RRNeedChars) return result;
       state.point() = DAfterBegin;
-      if (!arguments.setToNextToken(result)) return result;
+      if (!hasHit)
+         if (!arguments.setToNextToken(result)) return result;
    }
    state.point() = DEnd;
+   if (!arguments.setToNextToken(result)) return result;
 LEnd:
+   arguments.reduceState(state);
    if (!isValid()) {
       if (!arguments.addErrorMessage(STG::SString("inconsistent operation")))
          return RRContinue;
    }
-   arguments.reduceState(state);
    return RRHasToken;
 }
 
 STG::SubString
 OperationNode::getTextOperationFromCode(unsigned code, bool isSymbolic) const {
    int arity = mpSecond.isValid() ? 2 : 1;
-   bool isExtended = code & ~(~0U << FExtended);
-   code >>= FExtended;
+   bool isExtended = code & (1U << FExtended);
+   code >>= FType;
 
    if (!isExtended) {
       if (dtType == DTBit) {
@@ -3089,10 +3201,10 @@ OperationNode::getTextOperationFromCode(unsigned code, bool isSymbolic) const {
 
 bool
 OperationNode::hasSizeExtension(int code) const {
-   bool isExtended = code & ~(~0U << FExtended);
+   bool isExtended = code & (1U << FExtended);
    if (!isExtended)
       return false;
-   code >>= FExtended;
+   code >>= FType;
 
    switch (code) {
       case TECastBit:
@@ -3117,10 +3229,10 @@ OperationNode::hasSizeExtension(int code) const {
 
 bool
 OperationNode::hasStartExtension(int code) const {
-   bool isExtended = code & ~(~0U << FExtended);
+   bool isExtended = code & (1U << FExtended);
    if (!isExtended)
       return false;
-   code >>= FExtended;
+   code >>= FType;
 
    switch (code) {
       case TECastBit:
@@ -3145,10 +3257,10 @@ OperationNode::hasStartExtension(int code) const {
 
 bool
 OperationNode::hasSignedExtension(int code) const {
-   bool isExtended = code & ~(~0U << FExtended);
+   bool isExtended = code & (1U << FExtended);
    if (!isExtended)
       return false;
-   code >>= FExtended;
+   code >>= FType;
 
    switch (code) {
       case TECastBit:
@@ -3381,8 +3493,8 @@ OperationNode::isValid() const {
       return false;
    int code = uOperationCode;
    int arity = mpSecond.isValid() ? 2 : 1;
-   bool isExtended = code & ~(~0U << FExtended);
-   code >>= FExtended;
+   bool isExtended = code & (1U << FExtended);
+   code >>= FType;
 
    if (!isExtended) {
       if (fSigned || uStart || uSizeInBits)
@@ -3446,8 +3558,8 @@ void
 OperationNode::applyOperation(DomainValue& first, const DomainValue& second) const {
    int code = uOperationCode;
    int arity = mpSecond.isValid() ? 2 : 1;
-   bool isExtended = code & ~(~0U << FExtended);
-   code >>= FExtended;
+   bool isExtended = code & (1U << FExtended);
+   code >>= FType;
    DomainEvaluationEnvironment env{};
    env.defaultDomainType = DISFormal;
 
@@ -3597,15 +3709,17 @@ Expression::readJSon(STG::JSon::CommonParser::State& state,
       STG::JSon::CommonParser::Arguments& arguments) {
    typedef STG::JSon::CommonParser Parser;
    ReadResult result = RRContinue;
+   bool hasHit = false;
 
    enum Delimiters
-      {  DBegin, DAfterBegin, DReadContent, DIdentifyContent, DEnd };
+      {  DBegin, DAfterBegin, DReadContent, DIdentifyContent, DAfterReadContent, DEnd };
 
    #define DefineGoto(Target) case D##Target: goto L##Target;
    switch (state.point()) {
       DefineGoto(Begin)
       DefineGoto(ReadContent)
       DefineGoto(IdentifyContent)
+      DefineGoto(AfterReadContent)
       DefineGoto(End)
    };
    #undef DefineGoto
@@ -3614,6 +3728,8 @@ LBegin:
    if (!arguments.isOpenObject()) {
       if (!arguments.addErrorMessage(STG::SString("expected '{'")))
          return result;
+      arguments.reduceState(state);
+      return RRHasToken;
    }
    ++state.point();
    if (!arguments.setToNextToken(result)) return result;
@@ -3624,6 +3740,7 @@ LReadContent:
          if (!Parser::skipNodeInLoop(state, arguments, result) || result == RRNeedChars) return result;
          if (!arguments.setToNextToken(result)) return result;
       };
+      hasHit = false;
       if (arguments.isCloseArray())
          {  AssumeUncalled }
       else if (arguments.isAddKey()
@@ -3635,11 +3752,14 @@ LIdentifyContent:
          if (arguments.isSetString()) {
             if (arguments.setArgumentTextValue() == RRNeedChars) return RRNeedChars;
             if (!VirtualExpressionNode::setArgumentFromText(mpContent, arguments.valueAsText(),
-                     arguments, state.getResult((RuleResult*) nullptr)))
+                     arguments, state.getResult((RuleResult*) nullptr))) {
+               state.point() = DReadContent;
                return RRContinue;
+            }
          }
          state.point() = DReadContent;
          if (!arguments.setToNextToken(result)) return result;
+         hasHit = true;
          // may skip two consecutive types
       }
       else
@@ -3647,22 +3767,26 @@ LIdentifyContent:
       if (arguments.isAddKey()
             && ((result = arguments.setArgumentKey()), arguments.key() == "content")) {
          if (result == RRNeedChars) return result;
-         state.point() = DReadContent;
-         auto ruleResult = state.getResult((VirtualExpressionNode::RuleResult*) nullptr);
-         arguments.shiftState(state, *mpContent, &VirtualExpressionNode::readJSon,
-               (VirtualExpressionNode::RuleResult*) nullptr);
-         state.setResult(std::move(ruleResult));
+         state.point() = DAfterReadContent;
+         {  auto ruleResult = state.getResult((VirtualExpressionNode::RuleResult*) nullptr);
+            arguments.shiftState(state, *mpContent, &VirtualExpressionNode::readJSon,
+                  (VirtualExpressionNode::RuleResult*) nullptr);
+            state.setResult(std::move(ruleResult));
+         }
          if (!arguments.setToNextToken(result)) return result;
          if (!arguments.parseTokens(state, result)) return result;
-         if (!arguments.setToNextToken(result)) return result;
-         continue;
+LAfterReadContent:
+         state.point() = DReadContent;
+         hasHit = true;
       }
       else
          if (result == RRNeedChars) return result;
       state.point() = DReadContent;
-      if (!arguments.setToNextToken(result)) return result;
+      if (!hasHit)
+         if (!arguments.setToNextToken(result)) return result;
    }
    state.point() = DEnd;
+   if (!arguments.setToNextToken(result)) return result;
 LEnd:
    arguments.reduceState(state);
    return RRHasToken;

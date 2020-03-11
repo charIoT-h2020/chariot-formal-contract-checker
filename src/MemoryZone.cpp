@@ -50,7 +50,6 @@ LAfterBegin:
          if (!arguments.parseTokens(state, result)) return result;
 LAfterStart:
          state.point() = DAfterBegin;
-         if (!arguments.setToNextToken(result)) return result;
          hasHit = true;
       }
       else
@@ -69,7 +68,6 @@ LAfterStart:
          if (!arguments.parseTokens(state, result)) return result;
 LAfterLength:
          state.point() = DAfterBegin;
-         if (!arguments.setToNextToken(result)) return result;
          hasHit = true;
       }
       else
@@ -96,6 +94,7 @@ LName:
          if (!arguments.setToNextToken(result)) return result;
    }
    state.point() = DEnd;
+   if (!arguments.setToNextToken(result)) return result;
 LEnd:
    arguments.reduceState(state);
    return RRHasToken;
@@ -221,6 +220,7 @@ LNewName:
       if (!arguments.setToNextToken(result)) return result;
    }
    state.point() = DEnd;
+   if (!arguments.setToNextToken(result)) return result;
 LEnd:
    arguments.reduceState(state);
    return RRHasToken;
@@ -323,7 +323,6 @@ LAfterBegin:
          if (!arguments.parseTokens(state, result)) return result;
 LAfterStart:
          state.point() = DAfterBegin;
-         if (!arguments.setToNextToken(result)) return result;
          hasHit = true;
       }
       else
@@ -367,6 +366,7 @@ LNewName:
          if (!arguments.setToNextToken(result)) return result;
    }
    state.point() = DEnd;
+   if (!arguments.setToNextToken(result)) return result;
 LEnd:
    arguments.reduceState(state);
    return RRHasToken;
@@ -434,6 +434,7 @@ MemoryZoneMerge::readJSon(STG::JSon::CommonParser::State& state,
       STG::JSon::CommonParser::Arguments& arguments) {
    typedef STG::JSon::CommonParser Parser;
    ReadResult result = RRContinue;
+   bool hasHit = false;
 
    enum Delimiters { DBegin, DAfterBegin, DFirstName, DSecondName, DEnd };
 
@@ -462,6 +463,7 @@ LAfterBegin:
          if (!arguments.setToNextToken(result)) return result;
       };
       AssumeCondition(!arguments.isCloseArray())
+      hasHit = false;
       if (arguments.isAddKey()
             && ((result = arguments.setArgumentKey()), arguments.key() == "old_name")) {
          if (result == RRNeedChars) return result;
@@ -472,7 +474,13 @@ LFirstName:
             if (arguments.setArgumentTextValue() == RRNeedChars) return RRNeedChars;
             ssFirstName = arguments.valueAsText();
          }
+         else {
+            state.point() = DAfterBegin;
+            continue;
+         }
          state.point() = DAfterBegin;
+         if (!arguments.setToNextToken(result)) return result;
+         hasHit = true;
       }
       else
          if (result == RRNeedChars) return result;
@@ -487,14 +495,22 @@ LSecondName:
             if (arguments.setArgumentTextValue() == RRNeedChars) return RRNeedChars;
             ssSecondName = arguments.valueAsText();
          }
+         else {
+            state.point() = DAfterBegin;
+            continue;
+         }
          state.point() = DAfterBegin;
+         if (!arguments.setToNextToken(result)) return result;
+         hasHit = true;
       }
       else
          if (result == RRNeedChars) return result;
 
-      if (!arguments.setToNextToken(result)) return result;
+      if (!hasHit)
+         if (!arguments.setToNextToken(result)) return result;
    }
    state.point() = DEnd;
+   if (!arguments.setToNextToken(result)) return result;
 LEnd:
    arguments.reduceState(state);
    return RRHasToken;
@@ -582,8 +598,9 @@ MemoryZoneModifier::readJSon(STG::JSon::CommonParser::State& state,
       STG::JSon::CommonParser::Arguments& arguments) {
    typedef STG::JSon::CommonParser Parser;
    ReadResult result = RRContinue;
+   bool hasHit = false;
 
-   enum Delimiters { DBegin, DAfterBegin, DMemoryZone, DIdentifyContent, DEnd };
+   enum Delimiters { DBegin, DAfterBegin, DMemoryZone, DIdentifyContent, DMemoryZoneContent, DEnd };
 
    #define DefineGoto(Target) case D##Target: goto L##Target;
    switch (state.point()) {
@@ -591,6 +608,7 @@ MemoryZoneModifier::readJSon(STG::JSon::CommonParser::State& state,
       DefineGoto(AfterBegin)
       DefineGoto(MemoryZone)
       DefineGoto(IdentifyContent)
+      DefineGoto(MemoryZoneContent)
       DefineGoto(End)
    };
    #undef DefineGoto
@@ -622,6 +640,7 @@ LMemoryZone:
                if (!Parser::skipNodeInLoop(state, arguments, result) || result == RRNeedChars) return result;
                if (!arguments.setToNextToken(result)) return result;
             };
+            hasHit = false;
             if (arguments.isCloseArray())
                {  AssumeUncalled }
             else if (arguments.isAddKey()
@@ -637,32 +656,39 @@ LIdentifyContent:
                }
                state.point() = DMemoryZone;
                if (!arguments.setToNextToken(result)) return result;
+               hasHit = true;
             }
             else
                if (result == RRNeedChars) return result;
             if (arguments.isAddKey()
                   && ((result = arguments.setArgumentKey()), arguments.key() == "content")) {
                if (result == RRNeedChars) return result;
-               state.point() = DMemoryZone;
-               const auto& ruleResult = state.getResult((ReadRuleResult*) nullptr);
-               azaActions.insertNewAtEnd(newZoneAction(ruleResult.type).extractElement());
-               MemoryZoneAction::RuleResult subruleResult(ruleResult.functions);
-               arguments.shiftState(state, azaActions.getSLast(), &MemoryZoneAction::readJSon,
-                     (MemoryZoneAction::RuleResult*) nullptr);
-               state.setResult(std::move(subruleResult));
+               state.point() = DMemoryZoneContent;
+               {  const auto& ruleResult = state.getResult((ReadRuleResult*) nullptr);
+                  azaActions.insertNewAtEnd(newZoneAction(ruleResult.type).extractElement());
+                  MemoryZoneAction::RuleResult subruleResult(ruleResult.functions);
+                  arguments.shiftState(state, azaActions.getSLast(), &MemoryZoneAction::readJSon,
+                        (MemoryZoneAction::RuleResult*) nullptr);
+                  state.setResult(std::move(subruleResult));
+               }
                if (!arguments.setToNextToken(result)) return result;
                if (!arguments.parseTokens(state, result)) return result;
+LMemoryZoneContent:
+               state.point() = DMemoryZone;
+               hasHit = true;
             }
             else
                if (result == RRNeedChars) return result;
             state.point() = DMemoryZone;
-            if (!arguments.setToNextToken(result)) return result;
+            if (!hasHit)
+               if (!arguments.setToNextToken(result)) return result;
          }
       }
       state.point() = DAfterBegin;
       if (!arguments.setToNextToken(result)) return result;
    }
    state.point() = DEnd;
+   if (!arguments.setToNextToken(result)) return result;
 LEnd:
    arguments.reduceState(state);
    return RRHasToken;

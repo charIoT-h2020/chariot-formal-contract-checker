@@ -227,7 +227,6 @@ LLocalization:
          if (!arguments.parseTokens(state, result)) return result;
 LZones:
          state.point() = DAfterBegin;
-         if (!arguments.setToNextToken(result)) return result;
          hasHit = true;
       }
       else
@@ -247,7 +246,6 @@ LZones:
          if (!arguments.parseTokens(state, result)) return result;
 LConstraints:
          state.point() = DAfterBegin;
-         if (!arguments.setToNextToken(result)) return result;
          hasHit = true;
       }
       else
@@ -257,6 +255,7 @@ LConstraints:
          if (!arguments.setToNextToken(result)) return result;
    }
    state.point() = DEnd;
+   if (!arguments.setToNextToken(result)) return result;
 LEnd:
    if (!isValid()) {
       if (!arguments.addErrorMessage(STG::SString("contract is not complete")))
@@ -527,6 +526,7 @@ LContract:
                            PNT::Pointer::Init()));
                }
                state.point() = DContractsContent;
+               continue;
             };
             if (!arguments.setToNextToken(result)) return result;
          }

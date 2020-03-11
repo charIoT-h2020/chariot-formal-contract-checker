@@ -25,6 +25,7 @@ VirtualAddressConstraint::readJSon(STG::JSon::CommonParser::State& state,
       STG::JSon::CommonParser::Arguments& arguments) {
    typedef STG::JSon::CommonParser Parser;
    ReadResult result = RRContinue;
+   bool hasHit = false;
 
    enum Delimiters { DBegin, DAfterBegin, DConstraint, DZoneName, DEnd, DInherited };
 
@@ -46,6 +47,8 @@ LBegin:
    if (!arguments.isOpenObject()) {
       if (!arguments.addErrorMessage(STG::SString("expected '{'")))
          return result;
+      arguments.reduceState(state);
+      return RRHasToken;
    }
    ++state.point();
    if (!arguments.setToNextToken(result)) return result;
@@ -57,6 +60,7 @@ LAfterBegin:
          if (!arguments.setToNextToken(result)) return result;
       };
       AssumeCondition(!arguments.isCloseArray())
+      hasHit = false;
       if (arguments.isAddKey()
             && ((result = arguments.setArgumentKey()), arguments.key() == "constraint")) {
          if (result == RRNeedChars) return result;
@@ -70,8 +74,7 @@ LAfterBegin:
          if (!arguments.parseTokens(state, result)) return result;
 LConstraint:
          state.point() = DAfterBegin;
-         if (!arguments.setToNextToken(result)) return result;
-         continue;
+         hasHit = true;
       }
       else
          if (result == RRNeedChars) return result;
@@ -86,7 +89,7 @@ LInherited:
             if (result == RRNeedChars) return result;
             state.point() = DAfterBegin;
             if (!arguments.setToNextToken(result)) return result;
-            continue;
+            hasHit = true;
          }
          else
             state.point() += DInherited;
@@ -102,13 +105,22 @@ LZoneName:
             if (arguments.setArgumentTextValue() == RRNeedChars) return RRNeedChars;
             ssZoneName = arguments.valueAsText();
          }
+         else {
+            state.point() = DAfterBegin;
+            continue;
+         }
+         state.point() = DAfterBegin;
+         if (!arguments.setToNextToken(result)) return result;
+         hasHit = true;
       }
       else
          if (result == RRNeedChars) return result;
       state.point() = DAfterBegin;
-      if (!arguments.setToNextToken(result)) return result;
+      if (!hasHit)
+         if (!arguments.setToNextToken(result)) return result;
    }
    state.point() = DEnd;
+   if (!arguments.setToNextToken(result)) return result;
 LEnd:
    arguments.reduceState(state);
    return RRHasToken;
@@ -263,8 +275,9 @@ MemoryStateConstraint::readJSon(STG::JSon::CommonParser::State& state,
       STG::JSon::CommonParser::Arguments& arguments) {
    typedef STG::JSon::CommonParser Parser;
    ReadResult result = RRContinue;
+   bool hasHit = false;
 
-   enum Delimiters { DBegin, DAfterBegin, DMemoryConstraint, DIdentifyContent, DEnd };
+   enum Delimiters { DBegin, DAfterBegin, DMemoryConstraint, DIdentifyContent, DMemoryConstraintContent, DEnd };
 
    #define DefineGoto(Target) case D##Target: goto L##Target;
    switch (state.point()) {
@@ -272,6 +285,7 @@ MemoryStateConstraint::readJSon(STG::JSon::CommonParser::State& state,
       DefineGoto(AfterBegin)
       DefineGoto(MemoryConstraint)
       DefineGoto(IdentifyContent)
+      DefineGoto(MemoryConstraintContent)
       DefineGoto(End)
    };
    #undef DefineGoto
@@ -303,6 +317,7 @@ LMemoryConstraint:
                if (!Parser::skipNodeInLoop(state, arguments, result) || result == RRNeedChars) return result;
                if (!arguments.setToNextToken(result)) return result;
             };
+            hasHit = false;
             if (arguments.isCloseArray())
                {  AssumeUncalled }
             else if (arguments.isAddKey()
@@ -318,32 +333,39 @@ LIdentifyContent:
                }
                state.point() = DMemoryConstraint;
                if (!arguments.setToNextToken(result)) return result;
+               hasHit = true;
             }
             else
                if (result == RRNeedChars) return result;
             if (arguments.isAddKey()
                   && ((result = arguments.setArgumentKey()), arguments.key() == "content")) {
                if (result == RRNeedChars) return result;
-               state.point() = DMemoryConstraint;
-               const auto& ruleResult = state.getResult((ReadRuleResult*) nullptr);
-               insertNewAtEnd(newAddressConstraint(ruleResult.type).extractElement());
-               VirtualAddressConstraint::ReadRuleResult subruleResult(ruleResult);
-               arguments.shiftState(state, getSLast(), &VirtualAddressConstraint::readJSon,
-                     (VirtualAddressConstraint::ReadRuleResult*) nullptr);
-               state.setResult(std::move(subruleResult));
+               state.point() = DMemoryConstraintContent;
+               {  const auto& ruleResult = state.getResult((ReadRuleResult*) nullptr);
+                  insertNewAtEnd(newAddressConstraint(ruleResult.type).extractElement());
+                  VirtualAddressConstraint::ReadRuleResult subruleResult(ruleResult);
+                  arguments.shiftState(state, getSLast(), &VirtualAddressConstraint::readJSon,
+                        (VirtualAddressConstraint::ReadRuleResult*) nullptr);
+                  state.setResult(std::move(subruleResult));
+               }
                if (!arguments.setToNextToken(result)) return result;
                if (!arguments.parseTokens(state, result)) return result;
+LMemoryConstraintContent:
+               state.point() = DMemoryConstraint;
+               hasHit = true;
             }
             else
                if (result == RRNeedChars) return result;
             state.point() = DMemoryConstraint;
-            if (!arguments.setToNextToken(result)) return result;
+            if (!hasHit)
+               if (!arguments.setToNextToken(result)) return result;
          }
       }
       state.point() = DAfterBegin;
       if (!arguments.setToNextToken(result)) return result;
    }
    state.point() = DEnd;
+   if (!arguments.setToNextToken(result)) return result;
 LEnd:
    arguments.reduceState(state);
    return RRHasToken;
