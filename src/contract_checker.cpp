@@ -20,10 +20,22 @@ extern "C" {
 
 struct _PProcessor*
 create_processor(const char* architectureLibrary, const char* domainLibrary)
-{  std::unique_ptr<Processor> result(new Processor());
+{  try {
+   std::unique_ptr<Processor> result(new Processor());
    result->setFromFile(architectureLibrary);
    result->setDomainFunctionsFromFile(domainLibrary);
    return reinterpret_cast<struct _PProcessor*>(result.release());
+   }
+   catch (ESPreconditionError& error) {
+     std::cerr << "unable to initialize the processor!\n";
+     error.print(std::cerr);
+     std::cerr.flush();
+     return nullptr;
+   }
+   catch (...) {
+     std::cerr << "unable to initialize the processor" << std::endl;
+     return nullptr;
+   }
 }
 
 void

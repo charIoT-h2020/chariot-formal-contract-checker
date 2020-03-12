@@ -1,9 +1,18 @@
 #include "Processor.h"
+#include <unistd.h>
+#include <iostream>
 
 void
 Processor::setFromFile(const char* filename) {
    AssumeCondition(!pvContent)
    dlProcessorLibrary.setFromFile(filename);
+   if (!(bool) dlProcessorLibrary) {
+      char cwd[1024];
+      char* szcwd = getcwd(cwd, sizeof(cwd));
+      std::cerr << "unable to find dynamic processor library " << filename
+         << " in working directory " << (szcwd ? szcwd : "") << std::endl; 
+      AssumeUncalled
+   }
    dlProcessorLibrary.loadSymbol("create_processor", &architectureFunctions.create_processor);
    dlProcessorLibrary.loadSymbol("set_domain_functions", &architectureFunctions.set_domain_functions);
    dlProcessorLibrary.loadSymbol("get_domain_functions", &architectureFunctions.get_domain_functions);
@@ -27,6 +36,13 @@ Processor::setDomainFunctionsFromFile(const char* domainFilename) {
    AssumeCondition(pvContent)
    struct _DomainElementFunctions domainFunctions;
    dlDomainLibrary.setFromFile(domainFilename);
+   if (!(bool) dlDomainLibrary) {
+      char cwd[1024];
+      char* szcwd = getcwd(cwd, sizeof(cwd));
+      std::cerr << "unable to find dynamic domain library " << domainFilename
+         << " in working directory " << (szcwd ? szcwd : "") << std::endl; 
+      AssumeUncalled
+   }
    dlDomainLibrary.loadSymbol("domain_get_type", &domainFunctions.get_type);
    dlDomainLibrary.loadSymbol("domain_query_zero_result", &domainFunctions.query_zero_result);
    dlDomainLibrary.loadSymbol("domain_get_size_in_bits", &domainFunctions.get_size_in_bits);
