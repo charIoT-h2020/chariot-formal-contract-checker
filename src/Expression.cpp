@@ -3517,11 +3517,11 @@ OperationNode::isValid() const {
             break;
          case TECastFloating:
             if ((dtType == DTBit) || (fSigned && dtType != DTInteger) || uStart
-                  || uSizeInBits != 32 || uSizeInBits != 64 || mpSecond.isValid())
+                  || (uSizeInBits != 32 && uSizeInBits != 64) || mpSecond.isValid())
                return false;
             break;
          case TECastFloatingPtr:
-            if ((dtType != DTInteger) || uStart || uSizeInBits != 32 || uSizeInBits != 64
+            if ((dtType != DTInteger) || uStart || (uSizeInBits != 32 && uSizeInBits != 64)
                   || mpSecond.isValid())
                return false;
             break;

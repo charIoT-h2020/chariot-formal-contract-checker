@@ -4,14 +4,14 @@
 cd ../chariot-semantic-domains
 mkdir -p build
 cd build
-cmake ..
+cmake -DCMAKE_BUILD_TYPE=Release ..
 make -j 4
 
 # build armsec
 cd ../../chariot-formal-decoder-armv7
 cd armsec
-touch ./genisslib/configure ./armsec/configure ./configure
-# autoreconf
+# touch ./genisslib/configure ./armsec/configure ./configure
+autoreconf
 
 mkdir -p build
 cd build
@@ -35,7 +35,7 @@ make -j 4
 cd ../../chariot-formal-contract-checker
 mkdir -p build
 cd build
-cmake ..
+cmake -DCMAKE_BUILD_TYPE=Release ..
 make -j 4
 cd ..
 
