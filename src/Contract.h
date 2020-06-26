@@ -5,6 +5,7 @@
 #include "dll.h"
 #include "MemoryZone.h"
 #include "MemoryState.h"
+#include "target_address_decoder.h"
 #include <vector>
 #include <map>
 

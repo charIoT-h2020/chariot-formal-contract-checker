@@ -34,7 +34,7 @@
 #pragma pack(push,4)
 #endif
 
-#include "target_address_decoder.h"
+//#include "target_address_decoder.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -71,7 +71,7 @@ typedef struct _ProcessorFunctions {
          MemoryModelFunctions* memory_functions, InterpretParameters* parameters);
    void (*set_verbose)(struct _Processor* processor);
    void (*free_processor)(struct _Processor* processor);
-   bool (*get_registers_number)(struct _Processor* processor);
+   int (*get_registers_number)(struct _Processor* processor);
    int (*get_register_index)(struct _Processor* processor, const char* name);
    const char* (*get_register_name)(struct _Processor* processor, int register_index);
    struct _DecisionVector* (*create_decision_vector)(struct _Processor* processor);
@@ -80,7 +80,7 @@ typedef struct _ProcessorFunctions {
    void (*filter_decision_vector)(struct _DecisionVector* decision_vector, uint64_t address);
 
    bool (*processor_next_targets)(struct _Processor* processor, char* instruction_buffer,
-         size_t buffer_size, uint64_t address, TargetAddresses* target_addresses,
+         size_t buffer_size, uint64_t address, struct _TargetAddresses* target_addresses,
          MemoryModel* memory, MemoryModelFunctions* memory_functions,
          struct _DecisionVector* decision_vector, InterpretParameters* parameters);
    bool (*processor_interpret)(struct _Processor* processor, char* instruction_buffer,

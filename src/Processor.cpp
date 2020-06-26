@@ -13,21 +13,11 @@ Processor::setFromFile(const char* filename) {
          << " in working directory " << (szcwd ? szcwd : "") << std::endl; 
       AssumeUncalled
    }
-   dlProcessorLibrary.loadSymbol("create_processor", &architectureFunctions.create_processor);
-   dlProcessorLibrary.loadSymbol("set_domain_functions", &architectureFunctions.set_domain_functions);
-   dlProcessorLibrary.loadSymbol("get_domain_functions", &architectureFunctions.get_domain_functions);
-   dlProcessorLibrary.loadSymbol("initialize_memory", &architectureFunctions.initialize_memory);
-   dlProcessorLibrary.loadSymbol("processor_set_verbose", &architectureFunctions.set_verbose);
-   dlProcessorLibrary.loadSymbol("free_processor", &architectureFunctions.free_processor);
-   dlProcessorLibrary.loadSymbol("processor_get_registers_number", &architectureFunctions.get_registers_number);
-   dlProcessorLibrary.loadSymbol("processor_get_register_index", &architectureFunctions.get_register_index);
-   dlProcessorLibrary.loadSymbol("processor_get_register_name", &architectureFunctions.get_register_name);
-   dlProcessorLibrary.loadSymbol("processor_create_decision_vector", &architectureFunctions.create_decision_vector);
-   dlProcessorLibrary.loadSymbol("processor_clone_decision_vector", &architectureFunctions.clone_decision_vector);
-   dlProcessorLibrary.loadSymbol("processor_free_decision_vector", &architectureFunctions.free_decision_vector);
-   dlProcessorLibrary.loadSymbol("processor_filter_decision_vector", &architectureFunctions.filter_decision_vector);
-   dlProcessorLibrary.loadSymbol("processor_next_targets", &architectureFunctions.processor_next_targets);
-   dlProcessorLibrary.loadSymbol("processor_interpret", &architectureFunctions.processor_interpret);
+   uint64_t (*init_processor_functions)( struct _ProcessorFunctions* );
+   dlProcessorLibrary.loadSymbol("init_processor_functions", &init_processor_functions );
+   uint64_t chk = (*init_processor_functions)( &architectureFunctions );
+   
+   if (chk != 1) { struct Incompatible{}; throw Incompatible(); }
    pvContent = (*architectureFunctions.create_processor)();
 }
 
