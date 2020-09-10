@@ -17,7 +17,7 @@ set(SOURCES
    src/Contract.cpp
    src/MemoryState.cpp
    src/Processor.cpp
-   src/dll.cpp
+   src/Dll/dll.cpp
    src/contract_checker.cpp
    )
     
@@ -32,7 +32,7 @@ set(HEADERS
    src/MemoryZone.h
    src/MemoryState.h
    src/Processor.h
-   src/dll.h
+   src/Dll/dll.h
    src/contract_checker.h
    )
 

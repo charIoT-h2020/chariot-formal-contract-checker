@@ -133,6 +133,8 @@ class CPassPointer : public Pointer {
 
 template<class Element, class PassDerived>
 class TPassPointer : public PassDerived {
+  private:
+   typedef TPassPointer<Element, PassDerived> thisType;
   public:
    typedef Element* PElement;
 
@@ -143,8 +145,10 @@ class TPassPointer : public PassDerived {
    TPassPointer(const PassDerived& source) : PassDerived(source) {}
    TPassPointer(const PassDerived& source, typename PassDerived::Duplicate duplicate)
       : PassDerived(source, duplicate) {}
+   TPassPointer& operator=(const thisType& source) = default;
 
    Template2DefineCopy(TPassPointer, Element, PassDerived)
+   DDefineAssign(thisType)
    void assign(const PassDerived& source) { PassDerived::assign(source); }
    void assign(Element* newElement, Pointer::Init) { PassDerived::assign(newElement, Pointer::Init()); }
    void setElement(const Element& element) { PassDerived::setElement(element); }

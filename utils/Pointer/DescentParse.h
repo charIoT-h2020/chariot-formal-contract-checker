@@ -81,6 +81,7 @@ class TStateStack : public EnhancedObject, public Lexer::Base {
          {  return nullptr; }
       virtual void* getSUnionResult() { return nullptr; }
       virtual void* getFreeUnionResult() { return nullptr; }
+      virtual void* getResultPlace() { return nullptr; }
 
      public:
       VirtualParseState() : uPoint(0), uPreviousSize(0) {}
@@ -157,6 +158,7 @@ class TStateStack : public EnhancedObject, public Lexer::Base {
       TemplateDefineCopy(TVirtualParseState, TypeResult)
       DTemplateDefineAssign(TVirtualParseState, TypeResult)
 
+      virtual void* getResultPlace() override { return &rResult; }
       bool hasResult() const { return rResult.isValid(); }
       TypeResult& getSResult() { return rResult; }
       const TypeResult& getResult() const { return rResult; }
@@ -206,6 +208,7 @@ class TStateStack : public EnhancedObject, public Lexer::Base {
       DefineCopy(thisType)
       DDefineAssign(thisType)
 
+      virtual void* getResultPlace() override { return &rResult; }
       UnionResult<Ts...>& getSResult() { return rResult; }
       const UnionResult<Ts...>& getResult() const { return rResult; }
    };
@@ -462,7 +465,7 @@ class TStateStack : public EnhancedObject, public Lexer::Base {
       :  pvContent(source.pvContent), uAllocatedSize(source.uAllocatedSize), pvCurrentPointer(source.pvCurrentPointer)
       {  source.pvContent = nullptr; source.uAllocatedSize = 0; source.pvCurrentPointer = nullptr; }
    TStateStack(const thisType& source)
-      :  pvContent(nullptr), uAllocatedSize(0), pvCurrentPointer(nullptr)
+      :  EnhancedObject(source), pvContent(nullptr), uAllocatedSize(0), pvCurrentPointer(nullptr)
       {  if (source.pvContent && source.pvCurrentPointer) {
             AssumeCondition(dynamic_cast<const VirtualParseState*>(reinterpret_cast<EnhancedObject*>(source.pvCurrentPointer)))
             uAllocatedSize = (source.pvCurrentPointer - source.pvContent)
@@ -584,6 +587,23 @@ class TStateStack : public EnhancedObject, public Lexer::Base {
          res.setResult(std::move(result));
          return res;
       }
+   void* allocateResult(size_t sizeResult, int& previousSize)
+      {  previousSize = pvCurrentPointer ? reinterpret_cast<VirtualParseState*>
+               (pvCurrentPointer)->getSize() : 0;
+         if ((pvCurrentPointer ? (pvCurrentPointer - pvContent) : 0) + previousSize
+                  + sizeResult + (uint64_t) pvCurrentPointer % alignof(VirtualParseState)
+               >= uAllocatedSize)
+            realloc(uAllocatedSize + sizeResult + (uint64_t) pvCurrentPointer % alignof(VirtualParseState));
+         pvCurrentPointer = pvCurrentPointer ? pvCurrentPointer+previousSize : pvContent;
+         if ((uint64_t) pvCurrentPointer % alignof(VirtualParseState) != 0) {
+            int shift = ((uint64_t) pvCurrentPointer % alignof(VirtualParseState));
+            pvCurrentPointer += + shift;
+            previousSize += shift;
+         }
+         return pvCurrentPointer;
+      }
+   void setResultPreviousSize(int previousSize)
+      {  reinterpret_cast<VirtualParseState*>(pvCurrentPointer)->uPreviousSize = previousSize; }
    template <class TypeObject, typename ReadPointerMethod, class TypeResult>
    thisType& change(TypeObject& object, ReadPointerMethod parseMethod, int newPoint, TypeResult*)
       {  typedef TParseState<TypeObject, ReadPointerMethod, TypeResult> ParseState;
@@ -813,6 +833,10 @@ class TStateStack : public EnhancedObject, public Lexer::Base {
    TypeResult& getSResult(TypeResult*)
       {  AssumeCondition(pvCurrentPointer)
          return reinterpret_cast<TVirtualParseState<TypeResult>*>(pvCurrentPointer)->getSResult();
+      }
+   void* getResultPlace()
+      {  AssumeCondition(pvCurrentPointer)
+         return reinterpret_cast<VirtualParseState*>(pvCurrentPointer)->getResultPlace();
       }
    template <class TypeResult>
    const TypeResult& getParentResult(TypeResult*)

@@ -211,6 +211,8 @@ class AProcessor {
          result.resize(argument.addresses_length);
          return result;
       }
+   void setLoaderAllocShift(uint64_t shift)
+      {  processor_set_loader_alloc_shift(pvContent, shift); }
 
    bool checkBlock(uint64_t address, uint64_t target, struct _ContractContent* firstContract,
          struct _ContractContent* lastContract, ADecisionVector& decisions,
@@ -260,6 +262,14 @@ class AContracts {
       {  assert(!pvContent);
          pvContent = load_contracts(filename, processor.getContent(), errors.getContent());
          return pvContent;
+      }
+   bool hasAllocShift() const
+      {  assert(pvContent);
+         return contracts_has_alloc_shift(pvContent);
+      }
+   uint64_t getAllocShift() const
+      {  assert(pvContent);
+         return contracts_get_alloc_shift(pvContent);
       }
    struct _ContractGraphContent* getContent() const { return pvContent; }
 
@@ -366,6 +376,8 @@ int main(int argc, char** argv) {
    AContractReference firstContract, lastContract;
    if (processArgument.isVerbose())
       processor.setVerbose();
+   if (contracts.hasAllocShift())
+      processor.setLoaderAllocShift(contracts.getAllocShift());
 
    while (cursor.setToNext()) {
       auto address = cursor.getAddress();

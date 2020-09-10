@@ -80,7 +80,8 @@ class GenericTreeCursor : public TGenericTreeCursor<GenericTreeElement, GenericI
 
   public:
    GenericTreeCursor(const GenericTree& support) : inherited(support) {}
-   GenericTreeCursor(const GenericTreeCursor& source) : inherited(source) {}
+   GenericTreeCursor(const GenericTreeCursor& source) = default;
+   GenericTreeCursor& operator=(const GenericTreeCursor& source) = default;
    DefineCopy(GenericTreeCursor)
    DefineCursorForAbstractCollect(GenericTree, GenericTreeCursor)
    const VirtualCollection::Cursor& flatPart() const { return lastCursor(*this); }
@@ -238,7 +239,8 @@ template<class TypeElement, class Cast>
 class TreeCursor : public GenericTreeCursor {
   public:
    TreeCursor(const COL::Tree<TypeElement, Cast>& support) : GenericTreeCursor(support) {}
-   TreeCursor(const TreeCursor<TypeElement, Cast>& source) : GenericTreeCursor(source) {}
+   TreeCursor(const TreeCursor<TypeElement, Cast>& source) = default;
+   TreeCursor& operator=(const TreeCursor<TypeElement, Cast>& source) = default;
    Template2DefineCopy(TreeCursor, TypeElement, Cast)
    Template2DefineCursorForAbstractCollect(COL::Tree, TreeCursor, TypeElement, Cast)
 

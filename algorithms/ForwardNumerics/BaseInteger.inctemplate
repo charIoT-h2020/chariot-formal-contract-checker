@@ -1120,14 +1120,11 @@ DefineBigCellInt DefineBigCellTemplateParameters(BaseIntegerTraits)::writeFullHe
 #endif
       while (--hexaIndex >= 0) {
 #ifndef DefineGeneric
-         unsigned show = (unsigned) ((value >> (sizeof(unsigned int)*8-4)) & 15U);
+         unsigned show = (unsigned) ((value >> (4*hexaIndex)) & 15U);
 #else
          unsigned show = (unsigned) BaseStoreTraits::getMiddlePart(value, hexaIndex*4, 4);
 #endif
          out.put((show < 0xa) ? (char) (show + '0') : (char) (show-0xa + 'a'));
-#ifndef DefineGeneric
-         value <<= 4;
-#endif
       };
       hexaIndex = DefineSizeofBaseTypeInBits/4;
    };
@@ -1150,7 +1147,7 @@ DefineBigCellInt DefineBigCellTemplateParameters(BaseIntegerTraits)::writeHexaDe
 #endif
       while (--hexaIndex >= 0) {
 #ifndef DefineGeneric
-         unsigned show = (unsigned) ((value >> (sizeof(unsigned int)*8-4)) & 15U);
+         unsigned show = (unsigned) ((value >> (4*hexaIndex)) & 15U);
 #else
          unsigned show = (unsigned) BaseStoreTraits::getMiddlePart(value, hexaIndex*4, 4);
 #endif
@@ -1158,9 +1155,6 @@ DefineBigCellInt DefineBigCellTemplateParameters(BaseIntegerTraits)::writeHexaDe
             out.put((show < 0xa) ? (char) (show + '0') : (char) (show-0xa + 'a'));
             isFirst = false;
          };
-#ifndef DefineGeneric
-         value <<= 4;
-#endif
       };
       hexaIndex = DefineSizeofBaseTypeInBits/4;
    };

@@ -90,6 +90,8 @@ Processor::setDomainFunctionsFromFile(const char* domainFilename) {
    dlDomainLibrary.loadSymbol("domain_multibit_binary_constraint", &domainFunctions.multibit_binary_constraint);
    dlDomainLibrary.loadSymbol("domain_multibit_compare_constraint", &domainFunctions.multibit_compare_constraint);
    dlDomainLibrary.loadSymbol("domain_multibit_is_constant_value", &domainFunctions.multibit_is_constant_value);
+   dlDomainLibrary.loadSymbol("domain_multibit_is_constant_disjunction", &domainFunctions.multibit_is_constant_disjunction);
+   dlDomainLibrary.loadSymbol("domain_multibit_retrieve_constant_values", &domainFunctions.multibit_retrieve_constant_values);
 
    dlDomainLibrary.loadSymbol("domain_multifloat_create_constant", &domainFunctions.multifloat_create_constant);
    dlDomainLibrary.loadSymbol("domain_multifloat_create_top", &domainFunctions.multifloat_create_top);
@@ -133,13 +135,14 @@ bool
 Processor::retrieveNextTargets(uint64_t address, MemoryState& memoryState,
       TargetAddresses& targetAddresses, DecisionVector& decisionVector,
       MemoryInterpretParameters& parameters) {
-   if ((uint64_t) fBinaryFile.tellg() != address) {
-      fBinaryFile.seekg(address);
+   if ((uint64_t) fBinaryFile.tellg() != address-uLoaderAllocShift) {
+      fBinaryFile.seekg(address-uLoaderAllocShift);
       if (!fBinaryFile.good())
          return false;
    }
-   char instructionBuffer[1000];
-   int length = fBinaryFile.readsome(instructionBuffer, 1000);
+   static const int BufferSize = 1000;
+   char instructionBuffer[BufferSize];
+   int length = fBinaryFile.readsome(instructionBuffer, BufferSize);
    if (length <= 0)
       return false;
 
@@ -173,7 +176,19 @@ Processor::retrieveNextTargets(uint64_t address, MemoryState& memoryState,
             }
          length -= (nextInstruction-instruction);
          address += (nextInstruction-instruction);
-         instruction = nextInstruction;
+         if (length < 0 || length >= BufferSize) {
+            if ((uint64_t) fBinaryFile.tellg() != address-uLoaderAllocShift) {
+               fBinaryFile.seekg(address-uLoaderAllocShift);
+               if (!fBinaryFile.good())
+                  return false;
+            }
+            int length = fBinaryFile.readsome(instructionBuffer, BufferSize);
+            if (length <= 0)
+               return false;
+            instruction = nextInstruction = instructionBuffer;
+         }
+         else
+            instruction = nextInstruction;
          targetAddresses.addresses_length = 0;
          targetAddresses.addresses[0] = 0;
       }
@@ -188,8 +203,8 @@ void
 Processor::interpret(uint64_t address, MemoryState& memoryState,
       uint64_t targetAddress, DecisionVector& decisionVector, Warnings& warnings,
       MemoryInterpretParameters& parameters) {
-   if ((uint64_t) fBinaryFile.tellg() != address) {
-      fBinaryFile.seekg(address);
+   if ((uint64_t) fBinaryFile.tellg() != address-uLoaderAllocShift) {
+      fBinaryFile.seekg(address-uLoaderAllocShift);
       if (!fBinaryFile.good())
          return;
    }

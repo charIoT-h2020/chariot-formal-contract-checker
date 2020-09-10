@@ -60,6 +60,7 @@ struct _PProcessor* create_processor(const char* architectureLibrary, const char
 void free_processor(struct _PProcessor*);
 void processor_set_verbose(struct _PProcessor*);
 bool processor_load_code(struct _PProcessor* processor, const char* filename);
+void processor_set_loader_alloc_shift(struct _PProcessor* processor, uint64_t shift);
 struct _PDecisionVector* processor_create_decision_vector(struct _PProcessor* processor);
 struct _PDecisionVector* processor_clone_decision_vector(struct _PDecisionVector* decision_vector);
 void processor_free_decision_vector(struct _PDecisionVector* decision_vector);
@@ -81,6 +82,8 @@ struct _ContractGraphContent;
 struct _ContractGraphContent* load_contracts(const char* inputFilename,
       struct _PProcessor* processor, struct _WarningsContent* awarnings);
 enum ContractConditionLocalization { CCLPreCondition, CCLPostCondition };
+bool contracts_has_alloc_shift(struct _ContractGraphContent* contracts);
+uint64_t contracts_get_alloc_shift(struct _ContractGraphContent* contracts);
 void free_contracts(struct _ContractGraphContent* contracts);
 void contract_fill_stop_addresses(struct _ContractContent*, TargetAddresses* stop_addresses);
 

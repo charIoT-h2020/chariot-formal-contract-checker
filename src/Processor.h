@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Contract.h"
-#include "dll.h"
+#include "Dll/dll.h"
 #include <vector>
 #include "decsec_callback.h"
 
@@ -40,6 +40,7 @@ class Processor {
    struct _ProcessorFunctions architectureFunctions;
    // struct _DomainElementFunctions domainFunctions;
    std::ifstream fBinaryFile;
+   uint64_t uLoaderAllocShift = 0;
 
    static uint64_t* reallocAddresses(uint64_t* old_addresses, int old_size,
          int* new_size, void* address_container)
@@ -74,6 +75,7 @@ class Processor {
    void setFromFile(const char* filename);
    void setDomainFunctionsFromFile(const char* domainFilename);
    std::ifstream& binaryFile() { return fBinaryFile; }
+   void setLoaderAllocShift(uint64_t shift) { uLoaderAllocShift = shift; }
    void setVerbose() { (*architectureFunctions.set_verbose)(pvContent); }
    int getRegistersNumber() const
       {  AssumeCondition(pvContent)

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "dll.h"
+#include "Dll/dll.h"
 #include "decsec_callback.h"
 #include "DomainValue.h"
 #include "MemoryZone.h"
@@ -347,7 +347,7 @@ class MemoryState : public STG::IOObject {
    static DomainElement get_register_value(MemoryModel* amemory,
          int registerIndex, InterpretParameters* parameters,
          unsigned* error /* set of MemoryEvaluationErrorFlags */,
-         DomainElementFunctions** elementFunctions)
+         struct _DomainElementFunctions** elementFunctions)
       {  MemoryState* memory = reinterpret_cast<MemoryState*>(amemory);
          RegisterContent::Cursor cursor(memory->rcRegisters);
          DomainValue result(memory->domainFunctions);
@@ -362,7 +362,7 @@ class MemoryState : public STG::IOObject {
 
    static DomainElement load_multibit_value(MemoryModel* amemory,
          DomainElement indirect_address, size_t size, InterpretParameters* parameters,
-         unsigned* error, DomainElementFunctions** elementFunctions)
+         unsigned* error, struct _DomainElementFunctions** elementFunctions)
       {  MemoryState* memory = reinterpret_cast<MemoryState*>(amemory);
          DomainValue address((*memory->domainFunctions->clone)(indirect_address), memory->domainFunctions);
          MemoryContent::Cursor cursor(memory->mcMemory);
@@ -377,7 +377,7 @@ class MemoryState : public STG::IOObject {
       }
    static DomainElement load_multibit_disjunctive_value(MemoryModel* amemory,
          DomainElement indirect_address, size_t size, InterpretParameters* parameters,
-         unsigned* error, DomainElementFunctions** elementFunctions)
+         unsigned* error, struct _DomainElementFunctions** elementFunctions)
       {  MemoryState* memory = reinterpret_cast<MemoryState*>(amemory);
          DomainValue address((*memory->domainFunctions->clone)(indirect_address), memory->domainFunctions);
          MemoryContent::Cursor cursor(memory->mcMemory);
@@ -392,7 +392,7 @@ class MemoryState : public STG::IOObject {
       }
    static DomainElement load_multifloat_value(MemoryModel* amemory,
          DomainElement indirect_address, size_t size, InterpretParameters* parameters,
-         unsigned* error, DomainElementFunctions** elementFunctions)
+         unsigned* error, struct _DomainElementFunctions** elementFunctions)
       {  MemoryState* memory = reinterpret_cast<MemoryState*>(amemory);
          DomainValue address((*memory->domainFunctions->clone)(indirect_address), memory->domainFunctions);
          DomainValue result((*memory->domainFunctions->multifloat_create_top)(size, true /* isSymbolic */), memory->domainFunctions);

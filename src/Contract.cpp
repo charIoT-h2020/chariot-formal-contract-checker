@@ -258,8 +258,10 @@ LConstraints:
    if (!arguments.setToNextToken(result)) return result;
 LEnd:
    if (!isValid()) {
-      if (!arguments.addErrorMessage(STG::SString("contract is not complete")))
+      if (!arguments.addErrorMessage(STG::SString("contract is not complete"))) {
+         arguments.reduceState(state);
          return result;
+      }
    };
    arguments.reduceState(state);
    return RRHasToken;
@@ -467,13 +469,15 @@ STG::Lexer::Base::ReadResult
 ContractGraph::readJSon(STG::JSon::CommonParser::State& state, STG::JSon::CommonParser::Arguments& arguments) {
    typedef STG::JSon::CommonParser Parser;
    ReadResult result = RRContinue;
+   bool isEqual;
 
-   enum Delimiters { DBegin, DContracts, DContractsContent, DContract, DEnd };
+   enum Delimiters { DBegin, DContracts, DAllocShift, DContractsContent, DContract, DEnd };
 
    #define DefineGoto(Target) case D##Target: goto L##Target;
    switch (state.point()) {
       DefineGoto(Begin)
       DefineGoto(Contracts)
+      DefineGoto(AllocShift)
       DefineGoto(ContractsContent)
       DefineGoto(Contract)
       DefineGoto(End)
@@ -496,8 +500,29 @@ LContracts:
       };
       if (arguments.isCloseArray())
          {  AssumeUncalled }
-      if (arguments.isOpenArray()) {
-         ++state.point();
+
+      if (arguments.isAddKey()) {
+         isEqual = true;
+         static STG::SubString allocShiftString = STG::SString("alloc-shift");
+         result = arguments.isEqualKeyValue(isEqual, allocShiftString);
+         if (result == RRNeedChars) return result;
+         if (isEqual) {
+            if (result == RRNeedChars) return result;
+            state.point() = DAllocShift;
+            if (!arguments.setToNextToken(result)) return result;
+LAllocShift:
+            if (arguments.isSetValue()
+                  && arguments.setArgumentToLUInt() == RRNeedChars) return RRNeedChars;
+            if (arguments.isSetLUInt())
+               uAllocShift = arguments.valueAsLUInt();
+            else {
+               state.point() = DContracts;
+               continue;
+            }
+         };
+      }
+      else if (arguments.isOpenArray()) {
+         state.point() = DContractsContent;
          if (!arguments.setToNextToken(result)) return result;
 
 LContractsContent:
@@ -530,8 +555,8 @@ LContract:
             };
             if (!arguments.setToNextToken(result)) return result;
          }
-         state.point() = DContracts;
       }
+      state.point() = DContracts;
       if (!arguments.setToNextToken(result)) return result;
    }
    state.point() = DEnd;

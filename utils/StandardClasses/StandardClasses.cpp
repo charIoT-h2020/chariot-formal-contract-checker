@@ -28,18 +28,17 @@
 //   derivations are open.
 //
 
+#include <iostream>
 #include "StandardClasses/StandardClasses.hpp"
 
 namespace {}
 
-#include <iostream>
-
-std::ostream&
-EUserError::print(std::ostream& out) const
+auto
+EUserError::print(std::ostream& out) const -> std::ostream&
    {  return out << DefineSTD_UserError << std::endl; }
 
-std::ostream&
-ESPreconditionError::print(std::ostream& out) const
+auto
+ESPreconditionError::print(std::ostream& out) const -> std::ostream&
    {  return out << DefineSTD_PreconditionError << ' ' << szText << '\n' << DefineSTD_File << ' '
          << szFile << ", " << DefineSTD_Line << " " << uLine << std::endl;
    }
@@ -49,8 +48,8 @@ ESPreconditionError::ESPreconditionError(const char *textSource, int lineSource,
    :  uLine(lineSource), szFile(fileSource), szText(textSource) {}
 #endif
 
-std::ostream&
-ENotImplemented::print(std::ostream& out) const
+auto
+ENotImplemented::print(std::ostream& out) const -> std::ostream&
    {  return out << DefineSTD_NotImplemented << ' ' << std::endl; }
 
 

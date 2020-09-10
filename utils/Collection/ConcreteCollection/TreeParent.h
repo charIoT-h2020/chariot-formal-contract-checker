@@ -129,7 +129,7 @@ class TreeParentCursor : public TGenericTreeCursor<typename Cast::Base,
   protected:
    virtual void _gotoReference(const EnhancedObject& element) override
       {  inherited::getImplementation().gotoReference(
-            (typename Cast::Base&) Cast::Base::castFromCopyHandler(element));
+            (const typename Cast::Base&) Cast::Base::castFromCopyHandler(element));
       }
    virtual EnhancedObject* _getSElement() const override { return inherited::_getSElement(); }
    virtual ComparisonResult _compare(const EnhancedObject& source) const override { return inherited::_compare(source); }

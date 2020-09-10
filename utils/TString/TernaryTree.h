@@ -125,6 +125,7 @@ class TImplTernaryTree : public DTernaryTree::BaseTernaryTree {
         public:
          DescentTrace(FollowingCell* node=nullptr, int defaultHeight=5) : inherited(node, defaultHeight) {}
          DescentTrace(const DescentTrace& source) = default;
+         DescentTrace& operator=(const DescentTrace& source) = default;
          DefineCopy(DescentTrace)
          typedef typename TImplTernaryTree<TypeSubString>::ExtendedComparisonResult ExtendedComparisonResult;
          ExtendedComparisonResult comparePlus(const DescentTrace& source) const;

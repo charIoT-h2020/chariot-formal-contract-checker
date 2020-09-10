@@ -396,7 +396,7 @@ class VirtualCollection
          else
             result = TypeQueryParameters::getInheritedElement(
                (const TypeInheritedCollection&) *this, parameters,
-               (typename TypeCollection::Cursor*) cursor);
+               const_cast<typename TypeCollection::Cursor*>((const typename TypeCollection::Cursor*) cursor));
          return result;
       }
 
@@ -486,7 +486,8 @@ class VirtualCollectionCursor : public AbstractCursor {
      public:
       Position() {}
       Position(Direction dir) { mergeOwnField(dir); }
-      Position(const Position& source) : ExtendedParameters(source) {}
+      Position(const Position& source) = default;
+      Position& operator=(const Position& source) = default;
       DefineCopy(Position)
       DDefineAssign(Position)
 
@@ -534,7 +535,8 @@ class VirtualCollectionCursor : public AbstractCursor {
    typedef VirtualCollection::ExtendedInsertionParameters ExtendedInsertionParameters;
    typedef VirtualCollection::ExtendedReplaceParameters ExtendedReplaceParameters;
    VirtualCollectionCursor(const VirtualCollection& support) : AbstractCursor(support) {}
-   VirtualCollectionCursor(const VirtualCollectionCursor& source) : AbstractCursor(source) {}
+   VirtualCollectionCursor(const VirtualCollectionCursor& source) = default;
+   VirtualCollectionCursor& operator=(const VirtualCollectionCursor& source) = default;
 
    friend class CursorAccess;
    virtual bool _isPositionned(const ExtendedLocateParameters& pos,
@@ -548,6 +550,7 @@ class VirtualCollectionCursor : public AbstractCursor {
 
   public:
    DefineCopy(VirtualCollectionCursor)
+   DDefineAssign(VirtualCollectionCursor)
    DefineCursorForAbstractCollect(VirtualCollection, VirtualCollectionCursor)
 
 #define DefCursor
@@ -853,9 +856,10 @@ class TVirtualCollectionCursor : public VirtualCollectionCursor {
    typedef TVirtualCollectionCursor<TypeElement, Cast> thisType;
 
   protected:
-   TVirtualCollectionCursor(const thisType& source) : inherited(source) {}
    TVirtualCollectionCursor(const TVirtualCollection<TypeElement, Cast>& support)
       : inherited(support) {}
+   TVirtualCollectionCursor(const thisType& source) = default;
+   TVirtualCollectionCursor& operator=(const thisType& source) = default;
 
   public:
    Template2DefineCopy(TVirtualCollectionCursor, TypeElement, Cast)
@@ -1392,7 +1396,8 @@ class TInterfaceCollection : public TVirtualCollection<TypeElement, Cast> {
   public:
    TInterfaceCollection(const thisType& source, AddMode mode=VirtualCollection::AMDuplicate,
          const VirtualCast* retrieveRegistrationFromCopy=nullptr)
-      : tcImplementation(source.tcImplementation, mode, retrieveRegistrationFromCopy
+      :  inherited(),
+         tcImplementation(source.tcImplementation, mode, retrieveRegistrationFromCopy
             ? &const_cast<const ImplementationRegistrationCast&>(
                (const ImplementationRegistrationCast&) ImplementationRegistrationCast(*retrieveRegistrationFromCopy))
             : &const_cast<const ImplementationRegistrationCast&>(
@@ -1477,7 +1482,7 @@ class TInterfaceCollectionCursor : public TVirtualCollectionCursor<TypeElement, 
       {  return tccImplementation.isEqual(((const thisType&) cursor).tccImplementation); }
    virtual void _gotoReference(const EnhancedObject& element) override
       {  return ((VirtualCollectionCursor&) tccImplementation).gotoReference(
-            CastToImplementation::castTo(Cast::castFrom((typename Cast::Base&) element)));
+            CastToImplementation::castTo(Cast::castFrom((const typename Cast::Base&) element)));
       }
 
    virtual ComparisonResult _compare(const EnhancedObject& asource) const override

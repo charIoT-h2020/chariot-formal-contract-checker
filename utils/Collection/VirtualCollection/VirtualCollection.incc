@@ -56,13 +56,13 @@ TVirtualMapCollection<TypeKeyTraits>::paddAll(const thisType& source, const Exte
    bool isForward = !parameters.isRemote() ? !parameters.isBefore() : !parameters.isAfter();
    if (isForward) {
       if (startSource)
-         *sourceCursor = *startSource;
+         sourceCursor->assign(*startSource);
       else
          sourceCursor->setToFirst();
    }
    else {
       if (endSource)
-         *sourceCursor = *endSource;
+         sourceCursor->assign(*endSource);
       else
          sourceCursor->setToLast();
    };

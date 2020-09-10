@@ -642,7 +642,7 @@ class TSubString : public TypePolicy<TypeChar>::Repository::BaseSubString {
          if (search != nullptr) {
             TChunk<TypeChar> pattern;
             pattern.string = const_cast<TypeChar*>(search);
-            pattern.length = SubStringTraits::strlen((TypeChar*) search);
+            pattern.length = SubStringTraits::strlen((const TypeChar*) search);
             result = scanPos(pattern, params);
          }
          return result;

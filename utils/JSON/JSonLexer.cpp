@@ -382,7 +382,7 @@ GenericLexer::readAlphaToken(SubString& in, unsigned& line, unsigned& column, bo
       tToken = Token(AbstractToken::TTrue);
    else if (pos == 5 && (compare = in.compareI("false", pos)) == CREqual)
       tToken = Token(AbstractToken::TFalse);
-   else if (pos == 4 && (compare = in.compareI("null")) == CREqual)
+   else if (pos == 4 && (compare = in.compareI("null", pos)) == CREqual)
       tToken = Token(AbstractToken::TNull);
    else
       throw EReadError();

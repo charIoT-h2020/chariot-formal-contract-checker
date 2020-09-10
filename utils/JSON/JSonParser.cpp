@@ -244,7 +244,7 @@ BasicWriter::State::writeEndObject(SubString& out, bool isPretty) {
       if (!isPretty)
          setPointField(2);
       else {
-         if (hasFollowField() || hasEnderField()) {
+         if (hasCommaField() || hasFollowField() || hasEnderField()) {
             if (out.getPlace() < 1)
                return WRNeedPlace;
             clearFollowField();
@@ -290,6 +290,7 @@ BasicWriter::State::writeKey(SubString& out, bool isPretty) {
    if (queryPointField() == 0) {
       bool hasComma = hasCommaField();
       if (isPretty) {
+         bool hasNewLine = true;
          if (hasFollowField()) {
             if (out.getPlace() < (hasComma ? 2 : 1))
                return WRNeedPlace;
@@ -305,12 +306,18 @@ BasicWriter::State::writeKey(SubString& out, bool isPretty) {
                return WRNeedPlace;
             if (hasComma)
                out.cat(',');
-            if (hasEnder)
+            if (hasEnder || hasComma)
                out.cat('\n');
+            else
+               hasNewLine = false;
             clearEnderField();
          }
-         uWriteSpaces = uDocumentLevel;
-         setPointField(1);
+         if (hasNewLine) {
+            uWriteSpaces = uDocumentLevel;
+            setPointField(1);
+         }
+         else
+            setPointField(2);
       }
       else {
          if (hasComma) {
@@ -389,9 +396,57 @@ BasicWriter::State::writeString(SubString& out, bool isPretty) {
 
 BasicWriter::WriteResult
 BasicWriter::State::writeContent(SubString& out, bool isPretty) {
-   AssumeCondition((queryPointField() == 0))
+   AssumeCondition((queryPointField() <= 2))
+   if (queryPointField() == 0) {
+      bool hasComma = hasCommaField();
+      if (isPretty) {
+         bool hasNewLine = true;
+         if (hasFollowField()) {
+            if (hasComma && out.getPlace() < 1)
+               return WRNeedPlace;
+            if (hasComma)
+               out.cat(',');
+            clearFollowField();
+            hasNewLine = false;
+         }
+         else if (hasComma || hasEnderField()) {
+            bool hasEnder = hasEnderField();
+            if (out.getPlace() < (hasComma && hasEnder ? 1 : 2))
+               return WRNeedPlace;
+            if (hasComma)
+               out.cat(',');
+            if (hasEnder)
+               out.cat('\n');
+            else
+               hasNewLine = false;
+            clearEnderField();
+         }
+         if (hasNewLine) {
+            uWriteSpaces = uDocumentLevel;
+            setPointField(1);
+         }
+         else
+            setPointField(2);
+      }
+      else {
+         if (hasComma) {
+            if (out.getPlace() < 1)
+               return WRNeedPlace;
+            out.cat(',');
+         }
+         setPointField(2);
+      }
+      clearCommaField();
+   }
+   if (queryPointField() == 1) {
+      if (writeTextSpaces(out) == WRNeedPlace)
+         return WRNeedPlace;
+      setPointField(2);
+   };
+
    if (writeText(ssValue, out) == WRNeedPlace)
       return WRNeedPlace;
+
    clearFollowField();
    clearPointField();
    mergeCommaField(1);
@@ -467,7 +522,7 @@ BasicWriter::State::writeEndArray(SubString& out, bool isPretty) {
       if (!isPretty)
          setPointField(2);
       else {
-         if (hasFollowField() || hasEnderField()) {
+         if (hasCommaField() || hasFollowField() || hasEnderField()) {
             if (out.getPlace() < 1)
                return WRNeedPlace;
             clearFollowField();
@@ -524,8 +579,12 @@ BasicWriter::write(OSBase& out) {
 BasicWriter::WriteResult
 BasicWriter::writeEvent(SubString& out, bool isReentry) {
    WriteResult result = WRNeedWrite;
-   if (!isReentry && !sState.isValid())
-      while ((result = getEvent()) == WRNeedEvent);
+   if (!sState.isValid()) {
+      if (!isReentry)
+         while ((result = getEvent()) == WRNeedEvent);
+      else
+         result = translateEvent();
+   }
    if (result == WRNeedWrite)
       result = sState.write(out, isPretty());
    else if (result == WRFinished)
@@ -959,10 +1018,80 @@ CommonParser::Arguments::convertReaderToInt(Event newEvent) {
       return RRContinue;
    }
    if (eEvent != ESetNumeric) {
-      addErrorMessage(STG::SString("int value expected"));
-      setIntValue(0);
+      bool isError = true;
+      ReadResult result = RRContinue;
+      if (eEvent == ESetString) {
+         if (!fContinuedToken)
+            ssTextValue.clear();
+         result = lcrReader.readContentToken(*pssAdditionalContent, ssTextValue, *puLine, *puColumn, fDoesForce, true);
+         if (result == RRNeedChars)
+            return result;
+         fContinuedToken = false;
+         STG::SubString hexaNumber(ssTextValue);
+         bool isHexaCoding = false;
+         isError = false;
+         bool isNegative = false;
+         char firstChar = hexaNumber[0];
+         if (firstChar == '-' || firstChar == '+') {
+            isNegative = (firstChar == '-');
+            hexaNumber.advance();
+         }
+         if (hexaNumber[0] == '0') {
+            firstChar = hexaNumber[1];
+            if (firstChar == 'x' || firstChar == 'X') {
+               isHexaCoding = true;
+               hexaNumber.advance(2);
+               for (int index = 0; !isError && index < hexaNumber.length(); ++index) {
+                  firstChar = hexaNumber[index];
+                  isError = !(firstChar >= '0' && firstChar <= '9')
+                        && !(firstChar >= 'a' && firstChar <= 'f')
+                        && !(firstChar >= 'A' && firstChar <= 'F');
+               }
+            }
+         }
+         if (!isHexaCoding) {
+            for (int index = 0; !isError && index < hexaNumber.length(); ++index) {
+               firstChar = hexaNumber[index];
+               isError = !(firstChar >= '0' && firstChar <= '9');
+            }
+         }
+         if (!isError) {
+            if (isNegative && (newEvent == ESetLUInt || newEvent == ESetUInt))
+               isError = true;
+         }
+         if (!isError) {
+            if (isHexaCoding) {
+               if (newEvent == ESetLUInt)
+                  setLUIntValue(hexaNumber.queryHexaULInteger());
+               else if (newEvent == ESetLInt)
+                  setLIntValue(hexaNumber.queryHexaLInteger());
+               else if (newEvent == ESetUInt)
+                  setUIntValue(hexaNumber.queryHexaUInteger());
+               else
+                  setIntValue(hexaNumber.queryHexaInteger());
+            }
+            else {
+               if (newEvent == ESetLUInt)
+                  setLUIntValue(hexaNumber.queryULInteger());
+               else if (newEvent == ESetLInt)
+                  setLIntValue(hexaNumber.queryLInteger());
+               else if (newEvent == ESetUInt)
+                  setUIntValue(hexaNumber.queryUInteger());
+               else
+                  setIntValue(hexaNumber.queryInteger());
+            };
+         }
+         ssTextValue.clear();
+      };
+
+      if (isError) {
+         addErrorMessage(STG::SString("int value expected"));
+         setIntValue(0);
+         convertIntValue(newEvent);
+         return RRContinue;
+      }
       convertIntValue(newEvent);
-      return RRContinue;
+      return result;
    }
    GenericLexer::NumberToken res;
    auto result = lcrReader.readNumericContentToken(*pssAdditionalContent, res, *puLine, *puColumn, fDoesForce);
@@ -985,8 +1114,8 @@ CommonParser::Arguments::convertReaderToInt(Event newEvent) {
                setLUIntValue(res.getContent().queryHexaULInteger());
             else if (newEvent == ESetLInt)
                setLIntValue(res.getContent().queryHexaLInteger());
-            else if (newEvent == ESetLInt)
-               setUIntValue(res.getContent().queryHexaLInteger());
+            else if (newEvent == ESetUInt)
+               setUIntValue(res.getContent().queryHexaUInteger());
             else
                setIntValue(res.getContent().queryHexaInteger());
          }
@@ -995,8 +1124,8 @@ CommonParser::Arguments::convertReaderToInt(Event newEvent) {
                setLUIntValue(res.getContent().queryULInteger());
             else if (newEvent == ESetLInt)
                setLIntValue(res.getContent().queryLInteger());
-            else if (newEvent == ESetLInt)
-               setUIntValue(res.getContent().queryLInteger());
+            else if (newEvent == ESetUInt)
+               setUIntValue(res.getContent().queryUInteger());
             else
                setIntValue(res.getContent().queryInteger());
          };
@@ -1067,8 +1196,11 @@ CommonParser::ReadResult
 CommonParser::SkipNode::skipInLoop(State& state, Arguments& argument) {
    CommonParser::ReadResult result;
    while (true) {
-      if ((argument.isOpenObject() || argument.isOpenArray()) && !argument.isContinuedToken())
+      if ((argument.isOpenObject() || argument.isOpenArray()) && !argument.isContinuedToken()) {
+         if (state.point() == 0)
+            argument.shift();
          ++state.point();
+      }
       else if (argument.isCloseObject() || argument.isCloseArray()) {
          --state.point();
          if (state.point() == 0) {
@@ -1083,43 +1215,53 @@ CommonParser::SkipNode::skipInLoop(State& state, Arguments& argument) {
 
 template <class TypeBase>
 BasicWriter::WriteResult
+TCommonWriter<TypeBase>::translateEvent() {
+   WriteResult result = WRNeedEvent;
+   if (aArguments.isOpenObject())
+      result = inherited::openObject();
+   else if (aArguments.isAddKey())
+      result = inherited::addKey(aArguments.key());
+   else if (aArguments.isSetString())
+      result = inherited::addString(aArguments.valueAsText());
+   else if (aArguments.isSetBool())
+      result = inherited::addBool(aArguments.valueAsBool());
+   else if (aArguments.isSetInt())
+      result = inherited::addInt(aArguments.valueAsInt());
+   else if (aArguments.isSetUInt())
+      result = inherited::addUInt(aArguments.valueAsUInt());
+   else if (aArguments.isSetLInt())
+      result = inherited::addLInt(aArguments.valueAsLInt());
+   else if (aArguments.isSetLUInt())
+      result = inherited::addLUInt(aArguments.valueAsLUInt());
+   else if (aArguments.isSetNull())
+      result = inherited::addNull();
+   else if (aArguments.isOpenArray())
+      result = inherited::openArray();
+   else if (aArguments.isCloseArray())
+      result = inherited::closeArray();
+   else if (aArguments.isCloseObject())
+      result = inherited::closeObject();
+   // else
+   //   throw EWriteError();
+   aArguments.clearExceptAdditional();
+   return result;
+}
+
+template <class TypeBase>
+BasicWriter::WriteResult
 TCommonWriter<TypeBase>::getEvent() {
    WriteResult result = WRNeedEvent;
    if (sState.isEmpty())
       result = WRFinished;
-   else if (sState.parse(aArguments)) {
-      if (aArguments.isOpenObject())
-         result = inherited::openObject();
-      else if (aArguments.isAddKey())
-         result = inherited::addKey(aArguments.key());
-      else if (aArguments.isSetString())
-         result = inherited::addString(aArguments.valueAsText());
-      else if (aArguments.isSetBool())
-         result = inherited::addBool(aArguments.valueAsBool());
-      else if (aArguments.isSetInt())
-         result = inherited::addInt(aArguments.valueAsInt());
-      else if (aArguments.isSetUInt())
-         result = inherited::addUInt(aArguments.valueAsUInt());
-      else if (aArguments.isSetLInt())
-         result = inherited::addLInt(aArguments.valueAsLInt());
-      else if (aArguments.isSetLUInt())
-         result = inherited::addLUInt(aArguments.valueAsLUInt());
-      else if (aArguments.isSetNull())
-         result = inherited::addNull();
-      else if (aArguments.isOpenArray())
-         result = inherited::openArray();
-      else if (aArguments.isCloseArray())
-         result = inherited::closeArray();
-      else if (aArguments.isCloseObject())
-         result = inherited::closeObject();
-      // else
-      //   throw EWriteError();
-      aArguments.clear();
+   else {
+      while ((result = sState.parse(aArguments)) == WRNeedEvent) {}
+      if (result != WRNeedPlace) {
+         if (result == WRNeedWrite)
+            result = thisType::translateEvent();
+         else
+            result = WRFinished;
+      }
    }
-   else if (!hasVerificationDisabled())
-      throw STG::EWriteError();
-   else
-      result = WRFinished;
    return result;
 }
 

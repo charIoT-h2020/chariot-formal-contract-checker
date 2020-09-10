@@ -126,7 +126,8 @@ class TMngPointer : public MngPointer {
       :  MngPointer((MngElement*) Cast::castTo(element), Init()) {}
    TMngPointer(const TMngPointer<Element, Cast>& source, Duplicate)
       :  MngPointer(source, Duplicate()) {}
-   TMngPointer(const TMngPointer<Element, Cast>& source) : MngPointer(source) {}
+   TMngPointer(const TMngPointer<Element, Cast>& source) = default;
+   TMngPointer& operator=(const TMngPointer<Element, Cast>& source) = default;
 
    Template2DefineCopy(TMngPointer, Element, Cast)
    DTemplate2Assign(TMngPointer, Element, Cast)

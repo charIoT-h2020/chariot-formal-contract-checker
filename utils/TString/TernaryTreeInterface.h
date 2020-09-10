@@ -113,14 +113,14 @@ class TernaryTree : public DTernaryTree::TTernaryTree<TypeSubString,
       {  return inherited::_locateKey(key, parameters, cursor, start, end); }
    LocationResult _locateKey(const TypeSubString& key, const ExtendedLocateParameters& parameters,
          Cursor* cursor=nullptr, const Cursor* start=nullptr, const Cursor* end=nullptr) const
-      {  return inherited::_locateKey(key, parameters, (thisCursorType*) cursor, (thisCursorType*) start, (thisCursorType*) end); }
+      {  return inherited::_locateKey(key, parameters, (thisCursorType*) cursor, const_cast<thisCursorType*>((const thisCursorType*) start), const_cast<thisCursorType*>((const thisCursorType*) end)); }
 
    virtual TypeSubString _queryKey(const COL::VirtualCollection::ExtendedLocateParameters& parameters,
          const VirtualCollectionCursor* cursor) const override
       {  return inherited::_queryKey(parameters, cursor); }
    TypeSubString _queryKey(const ExtendedLocateParameters& parameters,
          const Cursor* cursor=nullptr) const
-      {  return inherited::_queryKey(parameters, (thisCursorType*) cursor); }
+      {  return inherited::_queryKey(parameters, const_cast<thisCursorType*>((const thisCursorType*) cursor)); }
 
       // insertion methods
    virtual void _add(EnhancedObject* anObject,

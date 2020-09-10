@@ -145,7 +145,8 @@ class IOObject : public EnhancedObject {
 
      public:
       FormatParameters() {}
-      FormatParameters(const FormatParameters& source) : ExtendedParameters(source) {}
+      FormatParameters(const FormatParameters& source) = default;
+      FormatParameters& operator=(const FormatParameters& source) = default;
 
       FormatParameters& assignPart(const FormatParameters& source)
          {  setOwnField(source.queryOwnField()); return *this; }
@@ -339,7 +340,8 @@ class IOObject : public EnhancedObject {
 
   public:
    IOObject() {}
-   IOObject(const IOObject& source) : EnhancedObject(source) {}
+   IOObject(const IOObject& source) = default;
+   IOObject& operator=(const IOObject& source) = default;
    DefineCopy(IOObject)
 
    void read(ISBase& in, const FormatParameters& params) { _read(in, params); }

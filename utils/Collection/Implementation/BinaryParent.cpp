@@ -29,7 +29,7 @@
 
 #include "Collection/Implementation/BinaryParent.h"
 
-namespace COL {};
+namespace COL {}
 
 #include "Pointer/Binary.template"
 

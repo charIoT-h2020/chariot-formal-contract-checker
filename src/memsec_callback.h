@@ -45,17 +45,17 @@ typedef struct _MemoryModelFunctions {
   DomainElement (*get_register_value)(MemoryModel* memory,
       int registerIndex, InterpretParameters* parameters,
       unsigned* error /* set of MemoryEvaluationErrorFlags */,
-      DomainElementFunctions** elementFunctions);
+      struct _DomainElementFunctions** elementFunctions);
 
   DomainElement (*load_multibit_value)(MemoryModel* memory,
       DomainElement indirect_address, size_t size, InterpretParameters* parameters,
-      unsigned* error, DomainElementFunctions** elementFunctions);
+      unsigned* error, struct _DomainElementFunctions** elementFunctions);
   DomainElement (*load_multibit_disjunctive_value)(MemoryModel* memory,
       DomainElement indirect_address, size_t size, InterpretParameters* parameters,
-      unsigned* error, DomainElementFunctions** elementFunctions);
+      unsigned* error, struct _DomainElementFunctions** elementFunctions);
   DomainElement (*load_multifloat_value)(MemoryModel* memory,
       DomainElement indirect_address, size_t size, InterpretParameters* parameters,
-      unsigned* error, DomainElementFunctions** elementFunctions);
+      unsigned* error, struct _DomainElementFunctions** elementFunctions);
 
   void (*store_value)(MemoryModel* memory, DomainElement indirect_address,
       DomainElement value, InterpretParameters* parameters, unsigned* error);

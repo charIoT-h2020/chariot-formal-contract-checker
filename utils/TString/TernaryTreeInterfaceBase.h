@@ -110,6 +110,12 @@ class BaseTernaryTree : public COL::TVirtualMapCollection<COL::LightCopyKeyTrait
    BaseTernaryTree(const thisType& source,
          COL::VirtualCollection::AddMode duplicateMode=COL::VirtualCollection::AMNoDuplicate)
       :  inherited(source, duplicateMode), uNodeCursors(0) {}
+   BaseTernaryTree& operator=(const thisType& source)
+      {  inherited::operator=(source);
+         if (this != &source)
+            uNodeCursors = 0;
+         return *this;
+      }
 
    class Cursor : public COL::TVirtualMapCollectionCursor<SubStringKeyTraits>, public ExtendedParameters {
      protected:
@@ -151,23 +157,23 @@ class BaseTernaryTree : public COL::TVirtualMapCollection<COL::LightCopyKeyTrait
 
      public:
       Cursor(const BaseTernaryTree<TypeSubString>& support) : inherited(support) {}
-      Cursor(const Cursor& source) : inherited(source)
+      Cursor(const Cursor& source) : inherited(source), ExtendedParameters()
          {  mergeOwnField(source.queryOwnField());
             if (inherited::hasSupport() && hasOwnField())
-               ((BaseTernaryTree<TypeSubString>&) inherited::getSupport()).uNodeCursors++;
+               (const_cast<BaseTernaryTree<TypeSubString>&>((const BaseTernaryTree<TypeSubString>&) inherited::getSupport())).uNodeCursors++;
          }
       Cursor& operator=(const Cursor& source)
          {  inherited::operator=(source);
             if (inherited::hasSupport() && hasOwnField())
-               ((BaseTernaryTree<TypeSubString>&) inherited::getSupport()).uNodeCursors--;
+               (const_cast<BaseTernaryTree<TypeSubString>&>((const BaseTernaryTree<TypeSubString>&) inherited::getSupport())).uNodeCursors--;
             setOwnField(source.queryOwnField());
             if (inherited::hasSupport() && hasOwnField())
-               ((BaseTernaryTree<TypeSubString>&) inherited::getSupport()).uNodeCursors++;
+               (const_cast<BaseTernaryTree<TypeSubString>&>((const BaseTernaryTree<TypeSubString>&) inherited::getSupport())).uNodeCursors++;
             return *this;
          }
       virtual ~Cursor()
          {  if (inherited::hasSupport() && hasOwnField())
-               ((BaseTernaryTree<TypeSubString>&) inherited::getSupport()).uNodeCursors--;
+               (const_cast<BaseTernaryTree<TypeSubString>&>((const BaseTernaryTree<TypeSubString>&) inherited::getSupport())).uNodeCursors--;
          }
       DefineCopy(Cursor)
       DDefineAssign(Cursor)
@@ -538,7 +544,8 @@ class TTernaryTreeCursor : public BaseTernaryTree<TypeSubString>::Cursor {
 
      public:
       CursorImplementation(const TypeImplTree& tree) : inherited(tree) {}
-      CursorImplementation(const CursorImplementation& source) : inherited(source) {}
+      CursorImplementation(const CursorImplementation& source) = default;
+      CursorImplementation& operator=(const CursorImplementation& source) = default;
       DefineCopy(CursorImplementation)
       typedef TypeFollowingCell Node;
 
@@ -669,7 +676,7 @@ inline TypeSubString
 TTernaryTree<TypeSubString, TypeImplTree, TypeFollowingCell>::_queryKey(
       const COL::VirtualCollection::ExtendedLocateParameters& parameters,
       const COL::VirtualCollectionCursor* cursor) const
-   {  return _queryKey(parameters, (thisCursorType*) cursor); }
+   {  return _queryKey(parameters, const_cast<thisCursorType*>((const thisCursorType*) cursor)); }
 
 template <class TypeSubString, class TypeImplTree, class TypeFollowingCell>
 inline void
@@ -694,7 +701,9 @@ inline void
 TTernaryTree<TypeSubString, TypeImplTree, TypeFollowingCell>::_removeAll(
       const COL::VirtualCollection::ExtendedSuppressParameters& parameters,
       const VirtualCollectionCursor* start, const VirtualCollectionCursor* end)
-   { _removeAll(parameters, (thisCursorType*) start, (thisCursorType*) end); }
+   { _removeAll(parameters, const_cast<thisCursorType*>((const thisCursorType*) start),
+         const_cast<thisCursorType*>((const thisCursorType*) end));
+   }
 
 template <class TypeSubString, class TypeImplTree, class TypeFollowingCell>
 inline int
@@ -717,7 +726,7 @@ inline EnhancedObject*
 TTernaryTree<TypeSubString, TypeImplTree, TypeFollowingCell>::_getElement(
       const COL::VirtualCollection::ExtendedLocateParameters& parameters,
       const VirtualCollectionCursor* cursor) const
-   { return _getElement(parameters, (thisCursorType*) cursor); }
+   { return _getElement(parameters, const_cast<thisCursorType*>((const thisCursorType*) cursor)); }
 
 /**************************************************************/   
 /* Definition of the template class TDescentTernaryTreeCursor */

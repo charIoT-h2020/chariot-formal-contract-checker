@@ -263,6 +263,7 @@ class BasicWriter : public IOObject, protected ExtendedParameters, public Lexer:
    DefineCopy(BasicWriter)
    DDefineAssign(BasicWriter)
 
+   virtual WriteResult translateEvent() { AssumeUncalled return WRFinished; }
    virtual WriteResult getEvent() { AssumeUncalled return WRFinished; }
    virtual void setWriteBuffer(SubString& out) {}
    void write(OSBase& out);
@@ -804,6 +805,10 @@ class CommonParser : public BasicParser {
             uValue.valAsUnsignedLong = 0UL;
             pssAdditionalContent = nullptr; fContinuedToken = false;
          }
+      void clearExceptAdditional()
+         {  eEvent = EUndefined; clearValue(); clearKey(); lcrReader.clear();
+            uValue.valAsUnsignedLong = 0UL;
+         }
       void clearExceptKey()
          {  eEvent = EUndefined; clearValue(); lcrReader.clear();
             uValue.valAsUnsignedLong = 0UL;
@@ -822,6 +827,14 @@ class CommonParser : public BasicParser {
          {  state.shift(object, parseMethod, resTemplate);
             shift();
          }
+      template <class TypeObject, typename ReadPointerMethod, class TypeResult>
+      Parser::TStateStack<Arguments>::TParseState<TypeObject, ReadPointerMethod, TypeResult>&
+         shiftResultState(Parser::TStateStack<Arguments>& state, TypeObject* nullObject,
+               ReadPointerMethod parseMethod, TypeResult&& result)
+         {  shift();
+            return state.shiftResult(nullObject, parseMethod, std::move(result));
+         }
+
       bool doesStopAfterTooManyErrors() const
          {  return (fDoesStopOnError || !plemErrorMessages || uCountErrors >= 20); }
       bool addErrorMessage(const STG::SubString& message)
@@ -1216,8 +1229,8 @@ class TCommonWriter : public TypeBase, public DJSon::Base {
                if (isValidRange()) {
                   bool reentryField = pcwWriter->hasReentryField();
                   pcwWriter->mergeReentryField(1);
-                  while ((result = pcwWriter->writeEvent(getAdditionalContent(), true)) == WRNeedEvent) {}
-                  booleanResult = (result == WRNeedWrite);
+                  while ((result = pcwWriter->writeEvent(getAdditionalContent(), true)) == WRNeedWrite) {}
+                  booleanResult = (result == WRNeedEvent);
                   if (!reentryField)
                      pcwWriter->clearReentryField();
                }
@@ -1237,7 +1250,7 @@ class TCommonWriter : public TypeBase, public DJSon::Base {
             if (hasAdditionalContent()) {
                if (isValidRange()) {
                   result = state.parse(*this);
-                  booleanResult = (result == WRNeedWrite)
+                  booleanResult = (result == WRNeedEvent)
                      && state.getTotalSize() < originalSize
                      && !state.isEmpty() && state.point() == originalPoint;
                }
@@ -1255,6 +1268,13 @@ class TCommonWriter : public TypeBase, public DJSon::Base {
             TypeObject& object, WritePointerMethod writeMethod, TypeResult* resTemplate)
          {  shift();
             state.shift(object, writeMethod, resTemplate);
+         }
+      template <class TypeObject, typename WritePointerMethod, class TypeResult>
+      typename Parser::TStateStack<Arguments>::template TParseState<TypeObject, WritePointerMethod, TypeResult>&
+         shiftResultState(Parser::TStateStack<Arguments>& state, TypeObject* nullObject,
+               WritePointerMethod writeMethod, TypeResult&& resTemplate)
+         {  shift();
+            return state.shiftResult(nullObject, writeMethod, std::move(resTemplate));
          }
       void reduceState(Parser::TStateStack<Arguments>& state)
          {  state.reduce();
@@ -1298,6 +1318,7 @@ class TCommonWriter : public TypeBase, public DJSon::Base {
    bool hasVerificationDisabled() const { return hasVerificationDisabledField(); }
    void setPartialWrite() { mergePartialWriteField(1); }
 
+   virtual BasicWriter::WriteResult translateEvent() override;
    virtual BasicWriter::WriteResult getEvent() override;
 
    virtual void setWriteBuffer(SubString& out) override

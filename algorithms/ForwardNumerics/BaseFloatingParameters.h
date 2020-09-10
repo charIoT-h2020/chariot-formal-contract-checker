@@ -311,8 +311,6 @@ class Access : public DInteger::Access {
       ReadParameters& operator=(const ReadParameters& source)
          { setDynamicWrite(source.getDynamicWrite()); return *this; }
 
-      ReadParameters& setNative() { return (ReadParameters&) inherited::setNative(); }
-
       // Static parameters
       ReadParameters& setRoundToEven()
          {  rmRoundMode = RMNearest; fRoundToEven = true; return *this; }

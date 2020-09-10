@@ -255,7 +255,8 @@ class TSharedPointer : public SharedPointer {
    TSharedPointer() {}
    TSharedPointer(TypeElement* element, Init)
       :  SharedPointer((SharedElement*) Cast::castTo(element), Pointer::Init()) {}
-   TSharedPointer(const thisType& source) : inherited(source) {}
+   TSharedPointer(const thisType& source) = default;
+   TSharedPointer& operator=(const thisType& source) = default;
    Template2DefineCopy(TSharedPointer, TypeElement, Cast)
 
    void setElement(TypeElement& element)

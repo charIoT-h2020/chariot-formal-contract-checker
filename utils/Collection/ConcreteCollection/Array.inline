@@ -94,7 +94,8 @@ inline int
 DefTypeCollection::_queryCount(const ExtendedLocateParameters& parameters,
       const VirtualCollectionCursor* start, const VirtualCollectionCursor* end) const
 {  return ((start == nullptr) && (end == nullptr)) ? ImplArray::count()
-      : queryInternCount(parameters, (DefTypeCursor*) start, (DefTypeCursor*) end);
+      : queryInternCount(parameters, const_cast<DefTypeCursor*>((const DefTypeCursor*) start),
+            const_cast<DefTypeCursor*>((const DefTypeCursor*) end));
 }
 
 inline bool
@@ -177,7 +178,9 @@ DefTypeCollection::_locateKey(const EnhancedObject& source, const ExtendedLocate
 #endif
 {  DefTypeVirtualInheritedCollection::_locateKey(source, parameters, cursor, start, end);
    return tlocate<DefTypeCollection, EnhancedObject, EnhancedKey, SimpleCast>
-      (*this, source, parameters, (DefTypeCursor*) cursor, (DefTypeCursor*) start, (DefTypeCursor*) end);
+      (*this, source, parameters, (DefTypeCursor*) cursor,
+         const_cast<DefTypeCursor*>((const DefTypeCursor*) start),
+         const_cast<DefTypeCursor*>((const DefTypeCursor*) end));
 }
 
 inline int
@@ -202,6 +205,7 @@ class DefTypeCollection::IndexNotification : public CursorNotification, protecte
   public:
    IndexNotification(int index) : uIndex(index) {}
    IndexNotification(const IndexNotification& source) = default;
+   IndexNotification& operator=(const IndexNotification& source) = default;
    DDefineAssign(IndexNotification)
    DefineCursorNotificationMethods(IndexNotification, DefTypeCursor)
 };
@@ -249,6 +253,7 @@ class DefTypeCollection::BoundNotification : public CursorNotification, protecte
   public:
    BoundNotification(int start, int end) : uStart(start), uEnd(end) {}
    BoundNotification(const BoundNotification& source) = default;
+   BoundNotification& operator=(const BoundNotification& source) = default;
    DDefineAssign(BoundNotification)
    DefineCursorNotificationMethods(BoundNotification, DefTypeCursor)
 };

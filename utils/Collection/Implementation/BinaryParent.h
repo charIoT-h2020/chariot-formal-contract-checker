@@ -275,6 +275,7 @@ class ImplParentBinaryTreeCursor : public EnhancedObject {
    ImplParentBinaryTreeCursor(ImplParentBinaryNode* element=nullptr)
       :  pipbnElement(element) {}
    ImplParentBinaryTreeCursor(const ImplParentBinaryTreeCursor& source) = default;
+   ImplParentBinaryTreeCursor& operator=(const ImplParentBinaryTreeCursor& source) = default;
    DefineCopy(ImplParentBinaryTreeCursor)
    DDefineAssign(ImplParentBinaryTreeCursor)
 
@@ -309,6 +310,7 @@ class TImplParentBinaryTreeCursor : public ImplParentBinaryTreeCursor {
    TImplParentBinaryTreeCursor(TypeNode* node=nullptr)
       : ImplParentBinaryTreeCursor(node) {}
    TImplParentBinaryTreeCursor(const TImplParentBinaryTreeCursor<TypeNode>& source) = default;
+   TImplParentBinaryTreeCursor& operator=(const TImplParentBinaryTreeCursor<TypeNode>& source) = default;
    TemplateDefineCopy(TImplParentBinaryTreeCursor, TypeNode)
 };
 
@@ -357,7 +359,7 @@ class ImplParentExtendedBinaryNode : public ImplParentBinaryNode, protected Exte
   public:
    ImplParentExtendedBinaryNode() {}
    ImplParentExtendedBinaryNode(const ImplParentExtendedBinaryNode& source)
-      :  ImplParentBinaryNode(source) {}
+      :  ImplParentBinaryNode(source), ExtendedParameters() {}
    ImplParentExtendedBinaryNode& operator=(const ImplParentExtendedBinaryNode& source)
       {  return (ImplParentExtendedBinaryNode&) ImplParentBinaryNode::operator=(source); }
 };

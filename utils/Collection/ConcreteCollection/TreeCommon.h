@@ -304,6 +304,7 @@ class TGenericTreeCursor : public VirtualTreeCursor, private TypeImplCursor {
          :  icpImplementation(getImplementation(tree), (const TypeImplCursor*) fstCursor,
                (const TypeImplCursor*) sndCursor) {}
       CursorPath(const CursorPath& source) = default;
+      CursorPath& operator=(const CursorPath& source) = default;
       DefineCopy(CursorPath)
       DDefineAssign(CursorPath)
 
@@ -390,7 +391,7 @@ TGenericTree<TypeNode, TypeImplCursor, TypeImplTree>::_addAll(const VirtualColle
       const VirtualCollectionCursor* startSource, const VirtualCollectionCursor* endSource) {
    AssumeCondition(dynamic_cast<const thisType*>(&source))
    _addAll((const thisType&) source, (const ExtendedTreeInsertionParameters&) parameters,
-      (Cursor*) cursor, (Cursor*) startSource, (Cursor*) endSource);
+      (Cursor*) cursor, const_cast<Cursor*>((const Cursor*) startSource), const_cast<Cursor*>((const Cursor*) endSource));
 }
 
 template<class TypeNode, class TypeImplCursor, class TypeImplTree>
@@ -457,6 +458,7 @@ class TGenericTree<TypeNode, TypeImplCursor, TypeImplTree>::TreeMoveNotification
      public:
       TreeCursorPrefixRegistration(const StackPrefix& prefix) : StackPrefix(prefix) {}
       TreeCursorPrefixRegistration(const TreeCursorPrefixRegistration& source) = default;
+      TreeCursorPrefixRegistration& operator=(const TreeCursorPrefixRegistration& source) = default;
       DefineCopy(TreeCursorPrefixRegistration)
       DDefineAssign(TreeCursorPrefixRegistration)
    };
@@ -529,6 +531,13 @@ class TGenericTree<TypeNode, TypeImplCursor, TypeImplTree>::TreeBoundInvalidateN
       :  CursorNotification(source), ticParent(source.ticParent),
          ppfcStart(source.ppfcStart, PNT::Pointer::Duplicate()),
          ppfcEnd(source.ppfcEnd, PNT::Pointer::Duplicate()) {}
+   TreeBoundInvalidateNotification& operator=(const TreeBoundInvalidateNotification& source)
+      {  CursorNotification::operator=(source);
+         ticParent = source.ticParent;
+         ppfcStart = PPFlatCursor(source.ppfcStart, PNT::Pointer::Duplicate());
+         ppfcEnd = PPFlatCursor(source.ppfcEnd, PNT::Pointer::Duplicate());
+         return *this;
+      }
    DefineCursorNotificationMethods(TreeBoundInvalidateNotification, Cursor)
    DDefineAssign(TreeBoundInvalidateNotification)
 
@@ -541,7 +550,7 @@ class TGenericTree<TypeNode, TypeImplCursor, TypeImplTree>::TreeBoundInvalidateN
       {  int result = 0;
          PPFlatCursor cursor = tree.getSElement(&ticParent).getSons().newCursor();
          if (ppfcStart.isValid())
-            *cursor = *ppfcStart;
+            cursor->assign(*ppfcStart);
          while (cursor->isValid() && (!ppfcEnd.isValid() || !cursor->isEqual(*ppfcEnd)))
             result += TGenericTree<TypeNode, TypeImplCursor, TypeImplTree>::queryNumberOfElements(
                HandlerSonsAndSubTreeCast::castFrom(&cursor->elementAt()));

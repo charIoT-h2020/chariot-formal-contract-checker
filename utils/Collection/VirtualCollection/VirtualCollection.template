@@ -43,7 +43,7 @@ VirtualCollection::foreachDo(TemplateParameters, Execute& fun,
       return true;
    PPCursor cursor = newCursor();
    if (start) {
-      *cursor = *start;
+      cursor->assign(*start);
       if (parameters.isFirstExcluded()) {
          if (end && cursor->isEqual(*end))
             return true;
@@ -108,7 +108,7 @@ VirtualCollection::foreachReverseDo(TemplateParameters, Execute& fun,
       return true;
    PPCursor cursor = newCursor();
    if (start) {
-      *cursor = *start;
+      cursor->assign(*start);
       if (parameters.isFirstExcluded()) {
          if (end && cursor->isEqual(*end))
             return true;

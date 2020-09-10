@@ -465,7 +465,7 @@ LMaxFind:
 
 void
 SetOfChars::write(std::ostream& out) const
-   { out.write((char*) acTable, sizeof(acTable)); }
+   { out.write((const char*) acTable, sizeof(acTable)); }
 
 void
 SetOfChars::read(std::istream& in)

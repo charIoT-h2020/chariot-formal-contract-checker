@@ -74,6 +74,7 @@ Access::TParser<TypeSet, TypeChar, TypeSubString, TypeCharParser>::addSimp(
             if (result < RRHasToken)
                return result;
             setSimpleStateField(SSAfterInitial);
+            [[fallthrough]];
          };
       case SSAfterInitial:
          {  bool isSpecial = tcpCharParser.isSpecial();
@@ -127,6 +128,7 @@ LOpenBracket:
                throw EReadError();
             tcMin = tcpCharParser.getReadChar();
             setSimpleStateField(SSInterval);
+            [[fallthrough]];
          };
       case SSInterval:
          {  ReadResult result = tcpCharParser.readChar(source);
@@ -135,6 +137,7 @@ LOpenBracket:
             if (!tcpCharParser.isSpecial() || !tcpCharParser.isIntervalDelimiter())
                throw EReadError();
             setSimpleStateField(SSMaxInterval);
+            [[fallthrough]];
          };
       case SSMaxInterval:
          {  ReadResult result = tcpCharParser.readChar(source);
@@ -144,6 +147,7 @@ LOpenBracket:
                throw EReadError();
             tcMax = tcpCharParser.getReadChar();
             setSimpleStateField(SSCloseBracket);
+            [[fallthrough]];
          };
       case SSCloseBracket:
          {  ReadResult result = tcpCharParser.readChar(source);
@@ -177,9 +181,10 @@ Access::TParser<TypeSet, TypeChar, TypeSubString, TypeCharParser>::parse(
             if (tcpCharParser.isSpecial() && tcpCharParser.isOpenBracket()) {
                setStateField(SOpenBracket);
                goto LOpenBracket;
-            };
+            }
             setStateField(SSimple);
             setSimpleStateField(SSAfterInitial);
+            [[fallthrough]];
          };
       case SSimple:
 LSimple:
@@ -203,6 +208,7 @@ LOpenBracket:
                throw EReadError();
             tcMin = tcpCharParser.getReadChar();
             setStateField(SAfterOpenBracketAtom);
+            [[fallthrough]];
          };
       case SAfterOpenBracketAtom:
          {  ReadResult result = tcpCharParser.readChar(source);
@@ -223,6 +229,7 @@ LAtomDisjunction:
             if (result < RRHasToken)
                return result;
             setStateField(SDisjunction);
+            [[fallthrough]];
          };
       case SDisjunction:
          {  ReadResult result = tcpCharParser.readChar(source);

@@ -84,6 +84,7 @@ class BaseTernaryTree : public EnhancedObject, public Constants {
      public:
       ExtendedComparisonResult() {}
       ExtendedComparisonResult(const ExtendedComparisonResult& source)
+         :  ExtendedParameters()
          {  mergeOwnField(source.queryOwnField()); }
       ExtendedComparisonResult& operator=(const ExtendedComparisonResult& source)
          {  setOwnField(source.queryOwnField()); return *this; }
@@ -798,7 +799,8 @@ class TFollowingCell
       typedef InheritedDescentTrace inherited;
      public:
       DescentTrace(TFollowingCell<TypeSubString>* node=nullptr, int defaultHeight=5) : inherited(node, defaultHeight) {}
-      DescentTrace(const DescentTrace& source) : inherited(source) {}
+      DescentTrace(const DescentTrace& source) = default;
+      DescentTrace& operator=(const DescentTrace& source) = default;
    };
 #endif
 };

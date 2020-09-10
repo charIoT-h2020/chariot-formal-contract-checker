@@ -68,6 +68,7 @@ class BasicList : public GenericList {
          {  if (doesDuplicate && peoElement)
                peoElement = peoElement->createCopy();
          }
+      BasicListElement& operator=(const BasicListElement& source) = default;
       DefineCopy(BasicListElement)
       DDefineAssign(BasicListElement)
       const PEnhancedObject& element() const { return peoElement; }
@@ -135,7 +136,9 @@ class BasicList : public GenericList {
       {  return castToElement(*GenericList::_getElement(parameters, cursor)); }
    EnhancedObject* _getElement(const ExtendedLocateParameters& parameters,
          const BasicListCursor* cursor=nullptr) const
-      {  return castToElement(*GenericList::_getElement(parameters, (GenericListCursor*) cursor)); }
+      {  return castToElement(*GenericList::_getElement(parameters,
+               const_cast<GenericListCursor*>((const GenericListCursor*) cursor)));
+      }
    virtual void _gotoReference(const EnhancedObject& element) { AssumeUncalled }
 
   public:

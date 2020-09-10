@@ -52,7 +52,7 @@ class DecisionNode : protected ExtendedParameters {
 
    DecisionNode() : ptmMethod(nullptr) {}
    DecisionNode(PointerTypeMethod method) : ptmMethod(method) {}
-   DecisionNode(const DecisionNode<PointerTypeMethod>& source) : ptmMethod(nullptr)
+   DecisionNode(const DecisionNode<PointerTypeMethod>& source) : ExtendedParameters(), ptmMethod(nullptr)
       {  mergeOwnField(source.queryOwnField());
          if (queryOwnField() == NTMethodPointer)
             ptmMethod = source.ptmMethod;
@@ -164,7 +164,8 @@ class TBaseStaticMethodTable : public EnhancedObject {
       }
    TBaseStaticMethodTable() : atdnArray(nullptr), uCount(0), uAllocated(0) {}
    TBaseStaticMethodTable(const TBaseStaticMethodTable<TypeDecisionNode>& source)
-      :  atdnArray((source.uCount > 0) ? new TypeDecisionNode[source.uCount] : nullptr),
+      :  EnhancedObject(source),
+         atdnArray((source.uCount > 0) ? new TypeDecisionNode[source.uCount] : nullptr),
          uCount(source.uCount), uAllocated(source.uCount)
       {  for (int index = 0; index < uCount; index++)
             atdnArray[index] = source.atdnArray[index];

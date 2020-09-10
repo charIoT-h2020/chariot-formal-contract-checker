@@ -2,7 +2,7 @@
 
 #include "Pointer/ExtPointer.hpp"
 #include "TString/String.hpp"
-#include "dll.h"
+#include "Dll/dll.h"
 #include "MemoryZone.h"
 #include "MemoryState.h"
 #include "target_address_decoder.h"
@@ -183,6 +183,7 @@ class ContractGraph : public COL::TCopyCollection<COL::TSortedArray<Contract::Co
 
   private:
    ContractPointer cpInitial, cpFinal;
+   uint64_t uAllocShift = 0;
    
    struct ReadRuleResult : public MemoryStateConstraint::ReadRuleResult {
       PNT::PassPointer<Contract> currentContract;
@@ -243,6 +244,9 @@ class ContractGraph : public COL::TCopyCollection<COL::TSortedArray<Contract::Co
       }
    const ContractPointer& getInitial() const { return cpInitial; }
    const ContractPointer& getFinal() const { return cpFinal; }
+
+   bool hasAllocShift() const { return uAllocShift > 0; }
+   const uint64_t& getAllocShift() const { return uAllocShift; }
 
    ReadResult readJSon(STG::JSon::CommonParser::State& state, STG::JSon::CommonParser::Arguments& arguments);
    WriteResult writeJSon(STG::JSon::CommonWriter::State& state, STG::JSon::CommonWriter::Arguments& arguments) const;

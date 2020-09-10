@@ -137,7 +137,7 @@ VirtualTree::pqueryCount(const ExtendedTreeLocateParameters& parameters,
             return isEmpty() ? 0 : 1;
          if ((start && !end->isValid()) || (end && !start->isValid())) {
             PPCursor cursor = newCursor();
-            *cursor = (start) ? *start : *end;
+            cursor->assign((start) ? *start : *end);
             return cursor->setToFather() ? _querySonsCount(*cursor) : (isEmpty() ? 0 : 1);
          };
       }

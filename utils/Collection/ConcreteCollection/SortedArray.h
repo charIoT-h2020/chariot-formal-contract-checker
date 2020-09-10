@@ -72,7 +72,7 @@ class SortedArray : public GenericSortedArray {
    virtual bool acceptElement(const EnhancedObject& source) const override { return true; }
    virtual EnhancedObject* _getElement(const ExtendedLocateParameters& parameters,
          const VirtualCollectionCursor* cursor) const override
-      {  return Cast::castTo(_getElement(parameters, (thisCursorType*) cursor)); }
+      {  return Cast::castTo(_getElement(parameters, const_cast<thisCursorType*>((const thisCursorType*) cursor))); }
 
    virtual LocationResult _locateKey(const EnhancedObject& source, const ExtendedLocateParameters& parameters,
          VirtualSortedCollectionCursor* cursor, const VirtualSortedCollectionCursor* start,
@@ -175,7 +175,8 @@ template<class TypeElement, class Key=VirtualSortedCollection::SimpleKey, class 
 class SortedArrayCursor : public GenericSortedArrayCursor {
   public:
    SortedArrayCursor(const SortedArray<TypeElement, Key, Cast>& support) : GenericSortedArrayCursor(support) {}
-   SortedArrayCursor(const SortedArrayCursor<TypeElement, Key, Cast>& source) : GenericSortedArrayCursor(source) {}
+   SortedArrayCursor(const SortedArrayCursor<TypeElement, Key, Cast>& source) = default;
+   SortedArrayCursor& operator=(const SortedArrayCursor<TypeElement, Key, Cast>& source) = default;
    Template3DefineCopy(SortedArrayCursor, TypeElement, Key, Cast)
    Template3DefineCursorForAbstractCollect(SortedArray, SortedArrayCursor, TypeElement, Key, Cast)
 
@@ -414,7 +415,7 @@ class TSortedArray : public GenericSortedArray {
          VirtualSortedCollectionCursor* cursor=nullptr, const VirtualSortedCollectionCursor* start=nullptr,
          const VirtualSortedCollectionCursor* end=nullptr) const override
       {  return _locateKey(key((const TypeElement&) TypeCast::castFrom(source)), parameters,
-            (Cursor*) cursor, (Cursor*) start, (Cursor*) end);
+            (Cursor*) cursor, const_cast<Cursor*>((const Cursor*) start), const_cast<Cursor*>((const Cursor*) end));
       }
 
    class GenericLocateParameters {
@@ -439,7 +440,7 @@ class TSortedArray : public GenericSortedArray {
       {  return TypeKey(*this).key(getElement(parameters, cursor)); }
    virtual EnhancedObject* _getElement(const ExtendedLocateParameters& parameters,
          const VirtualCollectionCursor* cursor) const override
-      {  return TypeCast::castTo(_getElement(parameters, (thisCursorType*) cursor)); }
+      {  return TypeCast::castTo(_getElement(parameters, const_cast<thisCursorType*>((const thisCursorType*) cursor))); }
    TypeElement* _getElement(const ExtendedLocateParameters& parameters,
          const thisCursorType* cursor=nullptr) const
       {  return tgetElement(TemplateQueryParameters<thisType, inherited, TypeElement, KeyTraits, TypeCast>(),
@@ -527,7 +528,8 @@ template<class TypeElement, class Key=VirtualSortedCollection::SimpleKey, class 
 class TSortedArrayCursor : public GenericSortedArrayCursor {
   public:
    TSortedArrayCursor(const TSortedArray<TypeElement, Key, Cast>& support) : GenericSortedArrayCursor(support) {}
-   TSortedArrayCursor(const TSortedArrayCursor<TypeElement, Key, Cast>& source) : GenericSortedArrayCursor(source) {}
+   TSortedArrayCursor(const TSortedArrayCursor<TypeElement, Key, Cast>& source) = default;
+   TSortedArrayCursor& operator=(const TSortedArrayCursor<TypeElement, Key, Cast>& source) = default;
    Template3DefineCopy(TSortedArrayCursor, TypeElement, Key, Cast)
    Template3DefineCursorForAbstractCollect(TSortedArray, TSortedArrayCursor, TypeElement, Key, Cast)
 

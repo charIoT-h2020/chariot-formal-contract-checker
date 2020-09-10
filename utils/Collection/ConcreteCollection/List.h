@@ -116,7 +116,9 @@ class GenericList : public VirtualCollection, private ImplList {
    void _remove(const ExtendedSuppressParameters& parameters, GenericListCursor* cursor=nullptr);
    virtual void _removeAll(const ExtendedSuppressParameters& parameters,
          const VirtualCollectionCursor* start, const VirtualCollectionCursor* end=nullptr) override
-      {  _removeAll(parameters, (GenericListCursor*) start, (GenericListCursor*) end); }
+      {  _removeAll(parameters, const_cast<GenericListCursor*>((const GenericListCursor*) start),
+               const_cast<GenericListCursor*>((const GenericListCursor*) end));
+      }
    void _removeAll(const ExtendedSuppressParameters& parameters)
       {  _removeAll(parameters, (const GenericListCursor*) nullptr); }
    void _removeAll(const ExtendedSuppressParameters& parameters,
@@ -147,7 +149,7 @@ class GenericList : public VirtualCollection, private ImplList {
    GenericList() : uCount(0) {}
    GenericList(const GenericList& source, AddMode dupMode=AMNoDuplicate,
          const VirtualCast* retrieveRegistrationFromCopy=nullptr)
-      :  VirtualCollection(source, dupMode), uCount(0)
+      :  VirtualCollection(source, dupMode), ImplList(), uCount(0)
       {  try {
             ImplList::assign((const ImplList&) source, true, retrieveRegistrationFromCopy);
             uCount = source.uCount;
@@ -208,7 +210,7 @@ class GenericListCursor : public VirtualCollectionCursor {
       {  AssumeCondition(pileElement) return pileElement; }
    virtual bool _isEqual(const AbstractCursor& cursor) const override;
    virtual void _gotoReference(const EnhancedObject& element) override
-      {  setElement((ImplListElement*) &element); }
+      {  setElement(const_cast<ImplListElement*>((const ImplListElement*) &element)); }
 
   public:
    GenericListCursor(const GenericList& support)
@@ -351,6 +353,7 @@ class ListCursor : public GenericListCursor {
   public:
    ListCursor(const List& support) : GenericListCursor(support) {}
    ListCursor(const ListCursor& source) : GenericListCursor(source) {}
+   ListCursor& operator=(const ListCursor& source) = default;
    DefineCopy(ListCursor)
    DefineCursorForAbstractCollect(List, ListCursor)
 
@@ -506,6 +509,7 @@ class TListCursor : public ListCursor {
   public:
    TListCursor(const TList<TypeElement, Cast>& support) : ListCursor(support) {}
    TListCursor(const TListCursor<TypeElement, Cast>& source) : ListCursor(source) {}
+   TListCursor& operator=(const TListCursor<TypeElement, Cast>& source) = default;
    Template2DefineCopy(TListCursor, TypeElement, Cast)
    Template2DefineCursorForAbstractCollect(TList, TListCursor, TypeElement, Cast)
 

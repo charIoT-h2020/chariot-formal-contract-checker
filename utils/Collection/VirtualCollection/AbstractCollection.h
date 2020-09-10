@@ -43,7 +43,8 @@ class PPAbstractCursor;
 class PureAbstractCollection : public EnhancedObject {
   public:
    PureAbstractCollection() {}
-   PureAbstractCollection(const PureAbstractCollection& source) : EnhancedObject(source) {}
+   PureAbstractCollection(const PureAbstractCollection& source) = default;
+   PureAbstractCollection& operator=(const PureAbstractCollection& source) = default;
    DefineCopy(PureAbstractCollection)
 };
 
@@ -55,8 +56,8 @@ class AbstractCollection : public PureAbstractCollection, private PNT::SharedEle
       {  return PureAbstractCollection::_compare(asource); }
 
    AbstractCollection() {}
-   AbstractCollection(const AbstractCollection& source)
-      :  PureAbstractCollection(source), PNT::SharedElement(source) {}
+   AbstractCollection(const AbstractCollection& source) = default;
+   AbstractCollection& operator=(const AbstractCollection& source) = default;
 
    virtual AbstractCursor* createNewCursor() const;
    virtual void assumeCompatibility(AbstractCursor& cursor) const;
@@ -220,7 +221,8 @@ class AbstractCollection::CursorNotification
 
   public:
    CursorNotification() {}
-   CursorNotification(const CursorNotification& source) : inherited(source) {}
+   CursorNotification(const CursorNotification& source) = default;
+   CursorNotification& operator=(const CursorNotification& source) = default;
    DefineCursorNotificationMethods(CursorNotification, AbstractCursor)
 
    void setOrigin(const AbstractCursor& originCursor)

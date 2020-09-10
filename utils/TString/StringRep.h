@@ -612,8 +612,8 @@ class GlobalRepositoryPolicy {
       BaseSubString() : uStartPosition(0), parStart(nullptr) {}
       BaseSubString(SharedRegistration* element, PNT::Pointer::Init init)
          : inherited(element, init), uStartPosition(0), parStart(nullptr) {}
-      BaseSubString(const BaseSubString& source)
-         : inherited(source), uStartPosition(source.uStartPosition), parStart(source.parStart) {}
+      BaseSubString(const BaseSubString& source) = default;
+      BaseSubString& operator=(const BaseSubString& source) = default;
       virtual ~BaseSubString() { inherited::release(); }
       typedef PNT::SharedPointer BaseNotification;
       typedef HandlerCast<BaseSubString, PNT::SharedPointer> BaseNotificationCast;
@@ -651,6 +651,7 @@ class LocalRepositoryPolicy {
      public:
       AtomicRepository(int places) : inherited(places) {}
       AtomicRepository(const AtomicRepository& source) = default;
+      AtomicRepository& operator=(const AtomicRepository& source) = default;
       DefineCopy(AtomicRepository)
       DDefineAssign(AtomicRepository)
       StaticInheritConversions(AtomicRepository, inherited)
@@ -1133,7 +1134,7 @@ class TMoveNotification : public RepositoryPolicy::MoveNotification {
    int getNewChars() const { return uShift; }
    void update(Position& position, int* length=nullptr, bool doesInclude=false);
    void update(const SharedRegistration& repository, const TPosition<TypeChar, RepositoryPolicy>* first = nullptr)
-      {  inherited::update(repository, (void*) first); }
+      {  inherited::update(repository, (void*) const_cast<TPosition<TypeChar, RepositoryPolicy>*>(first)); }
    void update(typename RepositoryPolicy::BaseSubString& subString, int& length, bool doesInclude=false);
    Position& source() { return pSource; }
    const Position& source() const { return pSource; }
@@ -1199,7 +1200,7 @@ TBasicRepository<TypeChar, RepositoryPolicy>::move(MoveNotification& notificatio
       notification.pNewPosition = notification.pSource;
       
    return true;
-};
+}
 
 template <typename TypeChar, class RepositoryPolicy>
 inline void
@@ -1215,7 +1216,7 @@ TBasicRepository<TypeChar, RepositoryPolicy>::setMove(MoveNotification& notifica
          notification.rmRightMove.parSupport = notification.pNewPosition.parSupport;
       };
    };
-};
+}
 
 } // end of namespace DListRepository
 
@@ -1244,7 +1245,8 @@ class TListRepository :
          {  if (!element->strings().isEmpty())
                inherited::setStartPosition(&element->strings().getSFirst(), 0); 
          }
-      BaseSubString(const BaseSubString& source) : inherited(source) {}
+      BaseSubString(const BaseSubString& source) = default;
+      BaseSubString& operator=(const BaseSubString& source) = default;
 
       void setElement(Shared& element) { inherited::setElement(element); }
       BaseSubString& assign(Shared* element, PNT::Pointer::Init init)
@@ -1382,7 +1384,8 @@ class TListRepository :
 
      public:
       Position() {}
-      Position(const Position& source) : inherited(source) {}
+      Position(const Position& source) = default;
+      Position& operator=(const Position& source) = default;
       friend class BaseSubString;
       friend class BaseSubString::WriteStartPosition;
       friend class BaseSubString::WriteEndPosition;
@@ -1408,7 +1411,7 @@ class TListRepository :
    };
    void realloc(int newAllocated) {}
    bool move(MoveNotification& notification)
-      {  BaseSubString* subString = (BaseSubString*) notification.getOrigin();
+      {  BaseSubString* subString = const_cast<BaseSubString*>((const BaseSubString*) notification.getOrigin());
          Position start;
          if (subString)
             subString->start().retrievePosition(start);

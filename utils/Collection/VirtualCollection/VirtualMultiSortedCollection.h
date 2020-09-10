@@ -60,8 +60,8 @@ class VirtualMultiSortedCollection : public VirtualCollection {
       KeyLocationResult(int count, int cursorPosition)
          :  inherited(RPExact), uCount(count), uCursorPosition(cursorPosition)
          {  AssumeCondition((uCount > 0) && (uCursorPosition < uCount) && (uCursorPosition >= 0)) }
-      KeyLocationResult(const KeyLocationResult& source)
-         :  inherited(source), uCount(source.uCount), uCursorPosition(source.uCursorPosition) {}
+      KeyLocationResult(const KeyLocationResult& source) = default;
+      KeyLocationResult& operator=(const KeyLocationResult& source) = default;
 
       void setCount(int count)
          {  int oldCount = uCount;
@@ -164,8 +164,8 @@ class VirtualMultiSortedCollectionCursor : public VirtualCollectionCursor {
 
    VirtualMultiSortedCollectionCursor(const VirtualMultiSortedCollection& support)
       :  VirtualCollectionCursor(support) {}
-   VirtualMultiSortedCollectionCursor(const VirtualMultiSortedCollectionCursor& source)
-      :  VirtualCollectionCursor(source) {}
+   VirtualMultiSortedCollectionCursor(const VirtualMultiSortedCollectionCursor& source) = default;
+   VirtualMultiSortedCollectionCursor& operator=(const VirtualMultiSortedCollectionCursor& source) = default;
 
   public:
    DefineCopy(VirtualMultiSortedCollectionCursor)

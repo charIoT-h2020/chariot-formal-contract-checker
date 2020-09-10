@@ -3133,7 +3133,6 @@ OperationNode::getTextOperationFromCode(unsigned code, bool isSymbolic) const {
                case DMFUOFloor:           return STG::SString("floor");
                case DMFUOLog:             return STG::SString("log");
                case DMFUOLog10:           return STG::SString("log10");
-               case DMFUOPow:             return STG::SString("pow");
                case DMFUOSin:             return STG::SString("sin");
                case DMFUOSinh:            return STG::SString("sinh");
                case DMFUOSqrt:            return STG::SString("sqrt");
@@ -3155,6 +3154,7 @@ OperationNode::getTextOperationFromCode(unsigned code, bool isSymbolic) const {
                   case DMFBOMax:    return STG::SString("max");
                   case DMFBOTimes:  return STG::SString("*");
                   case DMFBODivide: return STG::SString("/");
+                  case DMFBOPow:    return STG::SString("pow");
                   case DMFBOAtan2:  return STG::SString("atan2");
                   case DMFBOFmod:   return STG::SString("fmod");
                   case DMFBOFrexp:  return STG::SString("frexp");

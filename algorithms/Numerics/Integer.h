@@ -197,6 +197,10 @@ class BigInteger : public STG::IOObject, public DInteger::BigIntegerImplementati
       FormatParameters& setIntegerCell() { setText(); setOwnField(TIntegerCell); return *this; }
       FormatParameters& setDecimal() { setText(); setOwnField(TDecimal); return *this; }
       FormatParameters& setHexaDecimal() { setText(); setOwnField(THexaDecimal); return *this; }
+      FormatParameters& setFullHexaDecimal(int length)
+         {  setText(); setOwnField(TFullHexaDecimal); uLength = length; return *this; }
+      FormatParameters& setFullBinary(int length)
+         {  setText(); setOwnField(TFullBinary); uLength = length; return *this; }
    };
 
   protected:

@@ -154,8 +154,8 @@ class VirtualSortedCollectionCursor : public VirtualCollectionCursor {
 
    VirtualSortedCollectionCursor(const VirtualSortedCollection& support)
       :  VirtualCollectionCursor(support) {}
-   VirtualSortedCollectionCursor(const VirtualSortedCollectionCursor& source)
-      :  VirtualCollectionCursor(source) {}
+   VirtualSortedCollectionCursor(const VirtualSortedCollectionCursor& source) = default;
+   VirtualSortedCollectionCursor& operator=(const VirtualSortedCollectionCursor& source) = default;
 
   public:
    DefineCopy(VirtualSortedCollectionCursor)

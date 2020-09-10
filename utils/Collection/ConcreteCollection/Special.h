@@ -484,7 +484,7 @@ UniqueCollection::_queryCount(const ExtendedLocateParameters& parameters,
       const VirtualCollectionCursor* startCursor, const VirtualCollectionCursor* endCursor) const {
    inherited::_queryCount(parameters, startCursor, endCursor);
    return (!startCursor && !endCursor) ? ((peoElement != nullptr) ? 1 : 0)
-      :  queryInternCount(parameters, (Cursor*) startCursor, (Cursor*) endCursor);
+      :  queryInternCount(parameters, const_cast<Cursor*>((const Cursor*) startCursor), const_cast<Cursor*>((const Cursor*) endCursor));
 }
 
 inline EnhancedObject*
@@ -732,7 +732,8 @@ class DoubleCollectionCursor : public VirtualCollectionCursor {
 
   public:
    DoubleCollectionCursor(const DoubleCollection& support) : inherited(support), mMode(MInvalid) {}
-   DoubleCollectionCursor(const thisType& source) : inherited(source), mMode(source.mMode) {}
+   DoubleCollectionCursor(const thisType& source) = default;
+   DoubleCollectionCursor& operator=(const thisType& source) = default;
    DefineCopy(DoubleCollectionCursor)
    DDefineAssign(DoubleCollectionCursor)
    DefineCursorForAbstractCollect(DoubleCollection, DoubleCollectionCursor)
@@ -794,10 +795,12 @@ DoubleCollection::_addAll(const VirtualCollection& vcSource, const ExtendedInser
       const auto& source = (const SpecialCollection&) vcSource;
       if (source.isUniqueType())
          _addAll((const UniqueCollection&) source, parameters, (Cursor*) cursor,
-               (UniqueCollectionCursor*) startSource, (UniqueCollectionCursor*) endSource);
+               const_cast<UniqueCollectionCursor*>((const UniqueCollectionCursor*) startSource),
+               const_cast<UniqueCollectionCursor*>((const UniqueCollectionCursor*) endSource));
       else if (source.isDoubleType())
          _addAll((const DoubleCollection&) source, parameters, (Cursor*) cursor,
-               (Cursor*) startSource, (Cursor*) endSource);
+               const_cast<Cursor*>((const Cursor*) startSource),
+               const_cast<Cursor*>((const Cursor*) endSource));
       else {
          AssumeCondition(source.isEmptyType())
       }
@@ -810,7 +813,7 @@ inline void
 DoubleCollection::_moveTo(VirtualCollection& vcDestination, const ExtendedReplaceParameters& parameters,
       VirtualCollectionCursor* cursor, VirtualCollectionCursor* destinationCursor) {
    if (vcDestination.isSpecial()) {
-      const auto& destination = (const SpecialCollection&) vcDestination;
+      auto& destination = (SpecialCollection&) vcDestination;
       if (destination.isDoubleType())
          _moveTo((DoubleCollection&) destination, parameters, (Cursor*) cursor,
                (Cursor*) destinationCursor);
@@ -830,13 +833,13 @@ DoubleCollection::_moveAllTo(VirtualCollection& vcDestination, const ExtendedRep
       const VirtualCollectionCursor* startCursor, const VirtualCollectionCursor* endCursor,
       VirtualCollectionCursor* destinationCursor) {
    if (vcDestination.isSpecial()) {
-      const auto& destination = (const SpecialCollection&) vcDestination;
+      auto& destination = (SpecialCollection&) vcDestination;
       if (destination.isUniqueType())
-         _moveAllTo((UniqueCollection&) destination, parameters, (Cursor*) startCursor,
-               (Cursor*) endCursor, (UniqueCollectionCursor*) destinationCursor);
+         _moveAllTo((UniqueCollection&) destination, parameters, const_cast<Cursor*>((const Cursor*) startCursor),
+               const_cast<Cursor*>((const Cursor*) endCursor), (UniqueCollectionCursor*) destinationCursor);
       else if (destination.isDoubleType())
-         _moveAllTo((DoubleCollection&) destination, parameters, (Cursor*) startCursor,
-               (Cursor*) endCursor, (Cursor*) destinationCursor);
+         _moveAllTo((DoubleCollection&) destination, parameters, const_cast<Cursor*>((const Cursor*) startCursor),
+               const_cast<Cursor*>((const Cursor*) endCursor), (Cursor*) destinationCursor);
       else {
          AssumeCondition(destination.isEmptyType())
       }
@@ -873,7 +876,8 @@ DoubleCollection::_queryCount(const ExtendedLocateParameters& parameters,
       if (peoSecond) ++result;
    }
    else
-      result = queryInternCount(parameters, (Cursor*) startCursor, (Cursor*) endCursor);
+      result = queryInternCount(parameters, const_cast<Cursor*>((const Cursor*) startCursor),
+            const_cast<Cursor*>((const Cursor*) endCursor));
    return result;
 }
 

@@ -30,6 +30,8 @@
 #ifndef Numerics_BaseIntegerTemplate
 #define Numerics_BaseIntegerTemplate
 #include "ForwardNumerics/BaseInteger.h"
+#include <cctype>
+#include <cstdio>
 
 namespace Numerics {
 

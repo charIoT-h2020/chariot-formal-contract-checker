@@ -97,14 +97,14 @@ class ImplBinaryNode {
    class NodeToObjectCast {
      public:
       static EnhancedObject* castTo(ImplBinaryNode* source) { return (EnhancedObject*) (void*) source; }
-      static const EnhancedObject* castTo(const ImplBinaryNode* source) { return (const EnhancedObject*) (void*) source; }
+      static const EnhancedObject* castTo(const ImplBinaryNode* source) { return (const EnhancedObject*) (const void*) source; }
       static EnhancedObject& castTo(ImplBinaryNode& source) { return *((EnhancedObject*) (void*) &source); }
-      static const EnhancedObject& castTo(const ImplBinaryNode& source) { return *((const EnhancedObject*) (void*) &source); }
+      static const EnhancedObject& castTo(const ImplBinaryNode& source) { return *((const EnhancedObject*) (const void*) &source); }
 
       static ImplBinaryNode* castFrom(EnhancedObject* source) { return (ImplBinaryNode*) (void*) source; }
-      static const ImplBinaryNode* castFrom(const EnhancedObject* source) { return (const ImplBinaryNode*) (void*) source; }
+      static const ImplBinaryNode* castFrom(const EnhancedObject* source) { return (const ImplBinaryNode*) (const void*) source; }
       static ImplBinaryNode& castFrom(EnhancedObject& source) { return *((ImplBinaryNode*) (void*) &source); }
-      static const ImplBinaryNode& castFrom(const EnhancedObject& source) { return *((const ImplBinaryNode*) (void*) &source); }
+      static const ImplBinaryNode& castFrom(const EnhancedObject& source) { return *((const ImplBinaryNode*) (const void*) &source); }
    };
 
    class DescentTrace : public TImplArray<ImplBinaryNode, NodeToObjectCast> {
@@ -114,7 +114,8 @@ class ImplBinaryNode {
      public:
       DescentTrace(ImplBinaryNode* node=nullptr, int defaultHeight=5)
          {  realloc(defaultHeight); if (node) insertAtEnd(node); }
-      DescentTrace(const DescentTrace& source) : inherited(source) {}
+      DescentTrace(const DescentTrace& source) = default;
+      DescentTrace& operator=(const DescentTrace& source) = default;
       DefineCopy(DescentTrace)
 
       void setAllocationHeight(int defaultHeight) { realloc(defaultHeight); }
@@ -516,7 +517,8 @@ class ImplBinaryTreeCursor : public EnhancedObject {
 
      public:
       DescentTrace(ImplBinaryNode* node=nullptr, int defaultHeight=5) : inherited(node, defaultHeight) {}
-      DescentTrace(const DescentTrace& source) : inherited(source) {}
+      DescentTrace(const DescentTrace& source) = default;
+      DescentTrace& operator=(const DescentTrace& source) = default;
       DefineCopy(DescentTrace)
 
       virtual bool isValid() const override;
@@ -612,8 +614,8 @@ class TImplBinaryTreeCursor : public ImplBinaryTreeCursor {
   public:
    TImplBinaryTreeCursor(TypeNode* node, int defaultHeight)
       : ImplBinaryTreeCursor(node, defaultHeight) {}
-   TImplBinaryTreeCursor(const TImplBinaryTreeCursor<TypeNode>& source)
-      : ImplBinaryTreeCursor(source) {}
+   TImplBinaryTreeCursor(const TImplBinaryTreeCursor<TypeNode>& source) = default;
+   TImplBinaryTreeCursor& operator=(const TImplBinaryTreeCursor<TypeNode>& source) = default;
    TemplateDefineCopy(TImplBinaryTreeCursor, TypeNode)
 };
 
@@ -879,7 +881,8 @@ class ImplBalancedNode : public TBalancedNode<ImplExtendedBinaryNode> {
 
   public:
    ImplBalancedNode() {}
-   ImplBalancedNode(const ImplBalancedNode& source) : inherited(source) {}
+   ImplBalancedNode(const ImplBalancedNode& source) = default;
+   ImplBalancedNode& operator=(const ImplBalancedNode& source) = default;
 };
 
 /********************************************/
@@ -996,6 +999,7 @@ class CustomImplBinaryNode : public EnhancedObject, public ImplBalancedNode {
   public:
    CustomImplBinaryNode() {}
    CustomImplBinaryNode(const CustomImplBinaryNode& source) = default;
+   CustomImplBinaryNode& operator=(const CustomImplBinaryNode& source) = default;
    DefineCopy(CustomImplBinaryNode)
    DDefineAssign(CustomImplBinaryNode)
 

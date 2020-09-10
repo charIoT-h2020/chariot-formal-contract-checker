@@ -328,6 +328,7 @@ class TVirtualMapCollection : public VirtualCollection, protected DVirtualMapCol
    TVirtualMapCollection() {}
    TVirtualMapCollection(const TVirtualMapCollection<TypeKeyTraits>& source, AddMode dupMode=AMNoDuplicate)
       :  VirtualCollection(source, dupMode) {}
+   TVirtualMapCollection& operator=(const TVirtualMapCollection<TypeKeyTraits>& source) = default;
 
    void paddAll(const thisType& source, const ExtendedInsertionParameters& parameters,
          Cursor* cursor, const Cursor* startSource, const Cursor* endSource);
@@ -387,10 +388,10 @@ class TVirtualMapCollection : public VirtualCollection, protected DVirtualMapCol
 template <class TypeKeyTraits>
 class TVirtualMapCollectionCursor : public VirtualCollectionCursor {
   protected:
-   TVirtualMapCollectionCursor(const TVirtualMapCollectionCursor<TypeKeyTraits>& source)
-      :  VirtualCollectionCursor(source) {}
+   TVirtualMapCollectionCursor(const TVirtualMapCollectionCursor<TypeKeyTraits>& source) = default;
    TVirtualMapCollectionCursor(const TVirtualMapCollection<TypeKeyTraits>& support)
       :  VirtualCollectionCursor(support) {}
+   TVirtualMapCollectionCursor& operator=(const TVirtualMapCollectionCursor<TypeKeyTraits>& source) = default;
 
    virtual typename TypeKeyTraits::ControlKeyType _queryKey() const
       {  AssumeUncalled typename TypeKeyTraits::ControlKeyType* result = nullptr; return *result; }

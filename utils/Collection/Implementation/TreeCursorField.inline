@@ -102,7 +102,7 @@ class CollectionCursorsStack : public TList<CollectionCursorLevel> {
       }
    VirtualCollectionCursor& lastCursor() const { return getLast().cursor(); }
    GenericTreeElement& lastElement() const 
-      {  return (GenericTreeElement&) getLast().getCursor().elementAt(); }
+      {  return (GenericTreeElement&) getLast().getCursor().elementSAt(); }
    VirtualCollectionCursor& parentCursor() const
       {  Cursor cursor(*this);
          bool isValid = cursor.setToLast() && cursor.setToPrevious();

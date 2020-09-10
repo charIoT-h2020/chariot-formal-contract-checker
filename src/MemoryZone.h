@@ -269,10 +269,13 @@ class MemoryZoneModifier : public STG::IOObject, public STG::Lexer::Base {
          switch (type) {
             case MemoryZoneAction::TACreate:
                result.absorbElement(new MemoryZoneCreate());
+               break;
             case MemoryZoneAction::TARename:
                result.absorbElement(new MemoryZoneRename());
+               break;
             case MemoryZoneAction::TASplit:
                result.absorbElement(new MemoryZoneSplit());
+               break;
             case MemoryZoneAction::TAMerge:
                result.absorbElement(new MemoryZoneMerge());
                break;

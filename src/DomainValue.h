@@ -1,8 +1,9 @@
 #pragma once
 
-#include "dll.h"
+#include "Dll/dll.h"
 #include "domsec_callback.h"
 #include "StandardClasses/Persistence.h"
+#include "TString/String.hpp"
 
 class MemoryState;
 class DomainValue : public STG::IOObject {
@@ -61,7 +62,7 @@ class DomainValue : public STG::IOObject {
       :  deValue(source.deValue), pfFunctions(source.pfFunctions)
       {  source.deValue.content = nullptr; }
    DomainValue(const DomainValue& source)
-      :  deValue{ nullptr }, pfFunctions(source.pfFunctions)
+      :  STG::IOObject(source), deValue{ nullptr }, pfFunctions(source.pfFunctions)
       {  if (source.deValue.content) {
             AssumeCondition(pfFunctions)
             deValue = (*pfFunctions->clone)(source.deValue);

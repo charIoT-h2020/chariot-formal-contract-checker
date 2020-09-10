@@ -64,7 +64,7 @@ class ParentSuffixObject : public EnhancedObject, public BaseSuffixObject<TypeSu
 
   public:
    ParentSuffixObject() : pfcParent(nullptr) {}
-   ParentSuffixObject(const thisType& source, bool duplicateObject)
+   ParentSuffixObject(const thisType& source, bool duplicateObject = false)
       : inherited(source), BaseSuffixObject<TypeSubString>(source), pfcParent(nullptr) {}
    virtual ~ParentSuffixObject() {}
    ParentSuffixObject& operator=(const ParentSuffixObject& source)
@@ -215,7 +215,7 @@ class TParentFollowingCell : public TBaseFollowingCell<TypeSubString,
       : inherited(suffix, object) { inherited::suffix().parent() = this; }
    TParentFollowingCell(const thisType& source, bool duplicateObject,
          const VirtualCast* retrieveRegistrationFromCopy=nullptr)
-      : inherited(source, duplicateObject, retrieveRegistrationFromCopy)
+      :  inherited(source, duplicateObject, retrieveRegistrationFromCopy)
       {  if (inherited::hasSuffix())
             inherited::suffix().parent() = this;
       }

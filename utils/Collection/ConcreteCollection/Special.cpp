@@ -45,10 +45,10 @@ UniqueCollection::_addAll(const VirtualCollection& vcSource, const ExtendedInser
       const auto& source = (const SpecialCollection&) vcSource;
       if (source.isUniqueType())
          _addAll((const UniqueCollection&) source, parameters, (Cursor*) cursor,
-               (Cursor*) startSource, (Cursor*) endSource);
+               const_cast<Cursor*>((const Cursor*) startSource), const_cast<Cursor*>((const Cursor*) endSource));
       else if (source.isDoubleType())
          _addAll((const DoubleCollection&) source, parameters, (Cursor*) cursor,
-               (DoubleCollectionCursor*) startSource, (DoubleCollectionCursor*) endSource);
+               const_cast<DoubleCollectionCursor*>((const DoubleCollectionCursor*) startSource), const_cast<DoubleCollectionCursor*>((const DoubleCollectionCursor*) endSource));
       else {
          AssumeCondition(dynamic_cast<const EmptyCollection*>(&source))
       }
@@ -62,7 +62,7 @@ UniqueCollection::_moveTo(VirtualCollection& vcDestination, const ExtendedReplac
       VirtualCollectionCursor* cursor, VirtualCollectionCursor* destinationCursor) {
    if (vcDestination.isSpecial()) {
       AssumeCondition(dynamic_cast<const SpecialCollection*>(&vcDestination))
-      const auto& destination = (const SpecialCollection&) vcDestination;
+      auto& destination = (SpecialCollection&) vcDestination;
       if (destination.isUniqueType())
          _moveTo((UniqueCollection&) destination, parameters, (Cursor*) cursor,
                (Cursor*) destinationCursor);
@@ -83,13 +83,13 @@ UniqueCollection::_moveAllTo(VirtualCollection& vcDestination, const ExtendedRep
       VirtualCollectionCursor* destinationCursor) {
    if (vcDestination.isSpecial()) {
       AssumeCondition(dynamic_cast<const SpecialCollection*>(&vcDestination))
-      const auto& destination = (const SpecialCollection&) vcDestination;
+      auto& destination = (SpecialCollection&) vcDestination;
       if (destination.isUniqueType())
-         _moveAllTo((UniqueCollection&) destination, parameters, (Cursor*) startCursor,
-               (Cursor*) endCursor, (Cursor*) destinationCursor);
+         _moveAllTo((UniqueCollection&) destination, parameters, const_cast<Cursor*>((const Cursor*) startCursor),
+               const_cast<Cursor*>((const Cursor*) endCursor), (Cursor*) destinationCursor);
       else if (destination.isDoubleType())
-         _moveAllTo((DoubleCollection&) destination, parameters, (Cursor*) startCursor,
-               (Cursor*) endCursor, (DoubleCollectionCursor*) destinationCursor);
+         _moveAllTo((DoubleCollection&) destination, parameters, const_cast<Cursor*>((const Cursor*) startCursor),
+               const_cast<Cursor*>((const Cursor*) endCursor), (DoubleCollectionCursor*) destinationCursor);
       else {
          AssumeCondition(dynamic_cast<const EmptyCollection*>(&destination))
       }
@@ -560,8 +560,8 @@ class DoubleCollection::RemoveNotification : public CursorNotification, protecte
          if (support.hasSecond())
             mergeOriginSecondField(1);
       }
-   RemoveNotification(const RemoveNotification& source)
-      :  inherited(source), ExtendedParameters(source) {}
+   RemoveNotification(const RemoveNotification& source) = default;
+   RemoveNotification& operator=(const RemoveNotification& source) = default;
    DDefineAssign(RemoveNotification)
    DefineCursorNotificationMethods(RemoveNotification, Cursor)
 
@@ -867,7 +867,8 @@ DoubleCollection::_removeAll(const ExtendedSuppressParameters& parameters,
       const VirtualCollectionCursor* pvccStart, const VirtualCollectionCursor* pvccEnd) {
    inherited::_removeAll(parameters, pvccStart, pvccEnd);
    RemoveNotification remove(*this);
-   Cursor *start = (Cursor*) pvccStart, *end = (Cursor*) pvccEnd;
+   Cursor *start = const_cast<Cursor*>((const Cursor*) pvccStart),
+          *end = const_cast<Cursor*>((const Cursor*) pvccEnd);
    if (start && start->isValid()) {
       if (end && end->isValid()) {
          if (end->isFirstMode() && start->isSecondMode())
@@ -963,7 +964,7 @@ EnhancedObject*
 DoubleCollection::_getElement(const ExtendedLocateParameters& parameters,
       const VirtualCollectionCursor* cursor) const {
    inherited::_getElement(parameters, cursor);
-   Location location = getLocation(parameters.getRelativePosition(), (Cursor*) cursor);
+   Location location = getLocation(parameters.getRelativePosition(), const_cast<Cursor*>((const Cursor*) cursor));
    EnhancedObject* const & element = (location == LFirst) ? peoFirst : peoSecond;
    AssumeCondition(element != nullptr)
    return element;
