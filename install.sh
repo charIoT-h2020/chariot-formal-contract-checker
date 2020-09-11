@@ -31,6 +31,15 @@ fi
 cd ..
 make -j 4
 
+# build mipssec
+cd ../../chariot-formal-decoder-mips
+autoreconf
+mkdir -p build
+cd build
+../configure --prefix=$PWD
+make -j 4
+make install
+
 # build memsec, back to home
 cd ../../chariot-formal-contract-checker
 mkdir -p build
