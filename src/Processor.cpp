@@ -176,13 +176,13 @@ Processor::retrieveNextTargets(uint64_t address, MemoryState& memoryState,
             }
          length -= (nextInstruction-instruction);
          address += (nextInstruction-instruction);
-         if (length < 0 || length >= BufferSize) {
+         if (length <= 20 || length > BufferSize) {
             if ((uint64_t) fBinaryFile.tellg() != address-uLoaderAllocShift) {
                fBinaryFile.seekg(address-uLoaderAllocShift);
                if (!fBinaryFile.good())
                   return false;
             }
-            int length = fBinaryFile.readsome(instructionBuffer, BufferSize);
+            length = fBinaryFile.readsome(instructionBuffer, BufferSize);
             if (length <= 0)
                return false;
             instruction = nextInstruction = instructionBuffer;
@@ -208,8 +208,9 @@ Processor::interpret(uint64_t address, MemoryState& memoryState,
       if (!fBinaryFile.good())
          return;
    }
-   char instructionBuffer[1000];
-   int length = fBinaryFile.readsome(instructionBuffer, 1000);
+   static const int BufferSize = 1000;
+   char instructionBuffer[BufferSize];
+   int length = fBinaryFile.readsome(instructionBuffer, BufferSize);
    if (length <= 0)
       return;
 
@@ -226,6 +227,17 @@ Processor::interpret(uint64_t address, MemoryState& memoryState,
       instruction += (address-old_address);
       AssumeCondition(instruction >= instructionBuffer && instruction < instructionBuffer+1000)
       length -= (address-old_address);
+      if (length <= 20 || length > BufferSize) {
+         if ((uint64_t) fBinaryFile.tellg() != address-uLoaderAllocShift) {
+            fBinaryFile.seekg(address-uLoaderAllocShift);
+            if (!fBinaryFile.good())
+               return;
+         }
+         length = fBinaryFile.readsome(instructionBuffer, BufferSize);
+         if (length <= 0)
+            return;
+         instruction = instructionBuffer;
+      }
    }
 }
 

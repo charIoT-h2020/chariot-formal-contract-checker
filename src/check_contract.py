@@ -73,7 +73,7 @@ while contract_cursor.set_to_next():
     targets = contract_cursor.funs.create_address_vector()
     contract_cursor.fill_stop_addresses(ctypes.pointer(targets))
     if args.verbose:
-        print ("look for targets starting at 0x" + hex(address) + " by instruction interpretation", flush=True)
+        print ("look for targets starting at " + hex(address) + " by instruction interpretation", flush=True)
     decisions = DecisionVector()
     decisions.set_from(processor)
     processor.retrieve_targets(address, contract_cursor.get_contract(),
@@ -88,13 +88,13 @@ while contract_cursor.set_to_next():
         warnings = Warnings(processor)
 
         if args.verbose:
-            print ("check block starting at 0x" + hex(address) + " by instruction interpretation", flush=True)
+            print ("check block starting at " + hex(address) + " by instruction interpretation", flush=True)
         decisions_target = decisions.clone()
         if not processor.check_block(address, target, contract_cursor.get_contract().content,
                 post_contract_cursor.get_contract().content,
                 decisions_target.content, coverage.content, warnings.content):
             processor.flush_cpp_out()
-            print ("unable to check block starting at 0x" + hex(address))
+            print ("unable to check block starting at " + hex(address))
             warning_cursor = WarningCursor(warnings)
             while warning_cursor.set_to_next():
                 warning = warning_cursor.element_at()
