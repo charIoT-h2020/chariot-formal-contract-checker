@@ -82,6 +82,7 @@ class Processor(object):
             ctypes.c_uint64, ctypes.POINTER(_ContractContent),
             ctypes.POINTER(_DecisionVectorContent), ctypes.POINTER(_TargetAddresses) ]
         self.funs.processor_get_targets.restype = ctypes.c_bool
+        self.funs.processor_set_loader_alloc_shift.argtypes = [ ctypes.POINTER(_PProcessor), ctypes.c_uint64 ]
         self.funs.processor_check_block.argtypes = [ ctypes.POINTER(_PProcessor),
             ctypes.c_uint64, ctypes.c_uint64, ctypes.POINTER(_ContractContent),
             ctypes.POINTER(_ContractContent), ctypes.POINTER(_DecisionVectorContent),
@@ -90,6 +91,10 @@ class Processor(object):
         self.funs.load_contracts.argtypes = [ ctypes.c_char_p, ctypes.POINTER(_PProcessor),
                 ctypes.POINTER(_WarningsContent) ]
         self.funs.load_contracts.restype = ctypes.POINTER(_ContractGraphContent)
+        self.funs.contracts_has_alloc_shift.argtypes = [ ctypes.POINTER(_ContractGraphContent) ]
+        self.funs.contracts_has_alloc_shift.restype = ctypes.c_bool
+        self.funs.contracts_get_alloc_shift.argtypes = [ ctypes.POINTER(_ContractGraphContent) ]
+        self.funs.contracts_get_alloc_shift.restype = ctypes.c_uint64
         self.funs.free_contracts.argtypes = [ ctypes.POINTER(_ContractGraphContent) ]
         self.funs.contract_fill_stop_addresses.argtypes = [ ctypes.POINTER(_ContractContent),
                 ctypes.POINTER(_TargetAddresses) ]
@@ -164,6 +169,8 @@ class Processor(object):
             res.append(result.contents.addresses[index])
             index = index+1
         return res
+    def set_loader_alloc_shift(self, shift : ctypes.c_uint64):
+        self.funs.processor_set_loader_alloc_shift(self.content, shift)
 
     # the main function to check contracts
     # it will use memsec functions
@@ -228,6 +235,14 @@ class Contracts(object):
         if self.content:
             self.funs.free_contracts(self.content)
             self.content = None
+    def has_alloc_shift(self) -> bool:
+        if self.content:
+            return self.funs.contracts_has_alloc_shift(self.content)
+        return False
+    def get_alloc_shift(self) -> ctypes.c_uint64:
+        if self.content:
+            return self.funs.contracts_get_alloc_shift(self.content)
+        return ctypes.c_uint64(0)
     # parser of contracts
     # It build the graph of contracts (and so its coverage over the code)
     # post-condition: the graph is connex, has only a start contract and it has

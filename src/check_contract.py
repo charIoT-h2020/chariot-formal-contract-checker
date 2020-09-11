@@ -41,7 +41,8 @@ if not contracts.load_from_file(args.contracts, processor, warnings):
     sys.exit(0)
 if args.verbose:
     print ("contracts in " + args.contracts + " successfully loaded", flush=True)
-
+if contracts.has_alloc_shift():
+    processor.set_loader_alloc_shift(contracts.get_alloc_shift())
 contract_cursor = ContractCursor()
 contract_cursor.init(contracts)
 coverage = ContractCoverage(contracts) # Directed Acyclic Graph with domination & marked segments
